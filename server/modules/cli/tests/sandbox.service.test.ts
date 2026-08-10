@@ -29,7 +29,7 @@ test('creates a sandbox through injected filesystem, subprocess, and clock adapt
   assert.deepEqual(detachedCommands, [[
     'run',
     '--template',
-    'docker.io/cloudcliai/sandbox:claude-code',
+    'docker.io/rdcliai/sandbox:claude-code',
     '--name',
     'project',
     'claude',

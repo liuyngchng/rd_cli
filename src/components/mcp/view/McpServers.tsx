@@ -52,10 +52,10 @@ const getServerKey = (server: ProviderMcpServer): string => (
   `${server.provider}:${server.scope}:${server.workspacePath || 'global'}:${server.name}`
 );
 
-// Servers prefixed with `cloudcli-` are written and removed automatically by a
+// Servers prefixed with `rdcli-` are written and removed automatically by a
 // rdCLI feature toggle (e.g. the Browser tab), not added by the user. They are
 // shown read-only so users don't edit/delete them out of sync with the feature.
-const isManagedServer = (server: ProviderMcpServer): boolean => server.name.startsWith('cloudcli-');
+const isManagedServer = (server: ProviderMcpServer): boolean => server.name.startsWith('rdcli-');
 
 function ConfigLine({ label, children }: { label: string; children: string }) {
   if (!children) {

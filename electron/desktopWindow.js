@@ -14,7 +14,7 @@ function isAllowedPermissionOrigin(sourceUrl, controlPlaneUrl) {
       return false;
     }
     const controlPlane = new URL(controlPlaneUrl);
-    return source.origin === controlPlane.origin || source.hostname.endsWith('.cloudcli.ai');
+    return source.origin === controlPlane.origin || source.hostname.endsWith('.rdcli.ai');
   } catch {
     return false;
   }
@@ -115,21 +115,21 @@ export class DesktopWindowManager {
   emitDesktopState() {
     const state = this.getDesktopState();
     if (this.mainWindow && !this.mainWindow.webContents.isDestroyed()) {
-      this.mainWindow.webContents.send('cloudcli-desktop:state-updated', state);
+      this.mainWindow.webContents.send('rdcli-desktop:state-updated', state);
     }
     if (this.settingsWindow && !this.settingsWindow.webContents.isDestroyed()) {
-      this.settingsWindow.webContents.send('cloudcli-desktop:state-updated', state);
+      this.settingsWindow.webContents.send('rdcli-desktop:state-updated', state);
     }
   }
 
   emitLauncherCommand(command) {
     if (!this.mainWindow || this.mainWindow.webContents.isDestroyed()) return;
-    this.mainWindow.webContents.send('cloudcli-desktop:launcher-command', command);
+    this.mainWindow.webContents.send('rdcli-desktop:launcher-command', command);
   }
 
   emitSettingsCommand(command) {
     if (!this.settingsWindow || this.settingsWindow.webContents.isDestroyed()) return;
-    this.settingsWindow.webContents.send('cloudcli-desktop:launcher-command', command);
+    this.settingsWindow.webContents.send('rdcli-desktop:launcher-command', command);
   }
 
   syncSettingsWindowBounds() {
@@ -393,7 +393,7 @@ export class DesktopWindowManager {
         {
           label: cloudState.account?.email ? `Reconnect ${cloudState.account.email}` : 'Login',
           click: () => void this.actions.connectCloudAccount()
-            .catch((error) => this.actions.showError('Could not connect CloudCLI account', error)),
+            .catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
         },
       ];
     }
@@ -414,8 +414,8 @@ export class DesktopWindowManager {
     const localState = this.getLocalState();
     const remoteItems = this.getRemoteEnvironmentMenuItems();
     const cloudAccountLabel = cloudState.account?.apiKey
-      ? (cloudState.account?.email ? `Connected: ${cloudState.account.email}` : 'CloudCLI Connected')
-      : (cloudState.account?.email ? `Reconnect: ${cloudState.account.email}` : 'Connect CloudCLI Account...');
+      ? (cloudState.account?.email ? `Connected: ${cloudState.account.email}` : 'rdCLI Connected')
+      : (cloudState.account?.email ? `Reconnect: ${cloudState.account.email}` : 'Connect rdCLI Account...');
 
     const template = [
       {
@@ -469,9 +469,9 @@ export class DesktopWindowManager {
           },
           { type: 'separator' },
           {
-            label: 'Open Local CloudCLI',
+            label: 'Open Local rdCLI',
             accelerator: 'CmdOrCtrl+L',
-            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local CloudCLI', error)),
+            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local rdCLI', error)),
           },
           {
             label: 'Open Local Web UI in Browser',
@@ -506,15 +506,15 @@ export class DesktopWindowManager {
           {
             label: cloudAccountLabel,
             accelerator: 'CmdOrCtrl+Shift+C',
-            click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect CloudCLI account', error)),
+            click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
           },
           {
             label: 'Refresh Cloud Environments',
-            click: () => void this.actions.refreshCloudEnvironments().catch((error) => this.actions.showError('Could not load CloudCLI environments', error)),
+            click: () => void this.actions.refreshCloudEnvironments().catch((error) => this.actions.showError('Could not load rdCLI environments', error)),
             enabled: Boolean(cloudState.account?.apiKey),
           },
           {
-            label: 'Logout CloudCLI Account',
+            label: 'Logout rdCLI Account',
             click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('Could not logout', error)),
             enabled: Boolean(cloudState.account?.apiKey),
           },
@@ -579,7 +579,7 @@ export class DesktopWindowManager {
         label: 'Help',
         submenu: [
         {
-          label: 'Open cloudcli.ai',
+          label: 'Open rdcli.ai',
           click: () => void this.actions.openCloudDashboard(),
         },
           {
@@ -604,8 +604,8 @@ export class DesktopWindowManager {
         label: 'Local',
         submenu: [
           {
-            label: localState.localServerRunning ? 'Open Local in CloudCLI' : 'Start Local in CloudCLI',
-            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local CloudCLI', error)),
+            label: localState.localServerRunning ? 'Open Local in rdCLI' : 'Start Local in rdCLI',
+            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local rdCLI', error)),
           },
           {
             label: 'Open Local in Browser',
@@ -624,10 +624,10 @@ export class DesktopWindowManager {
       { type: 'separator' },
       {
         label: cloudState.account?.email ? `Connected: ${cloudState.account.email}` : 'Login',
-        click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect CloudCLI account', error)),
+        click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
       },
       {
-        label: 'Logout CloudCLI Account',
+        label: 'Logout rdCLI Account',
         click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('Could not logout', error)),
         enabled: Boolean(cloudState.account?.apiKey),
       },

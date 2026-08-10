@@ -1,7 +1,7 @@
 import { MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '../../../../../../constants/branding';
+import { RDCLI_WORDMARK_FONT_FAMILY } from '../../../../../../constants/branding';
 import type { ReleaseInfo } from '../../../../../../types/sharedTypes';
 
 type VersionInfoSectionProps = {
@@ -31,7 +31,7 @@ export default function VersionInfoSection({
             <div className="flex items-center gap-2">
               <span
                 className="text-sm font-semibold text-foreground"
-                style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
+                style={{ fontFamily: RDCLI_WORDMARK_FONT_FAMILY }}
               >
                 rdCLI
               </span>

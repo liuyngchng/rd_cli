@@ -27,8 +27,8 @@ type SandboxOptions = {
 };
 
 const SANDBOX_TEMPLATES: Record<string, string> = {
-  claude: 'docker.io/cloudcliai/sandbox:claude-code',
-  codex: 'docker.io/cloudcliai/sandbox:codex',
+  claude: 'docker.io/rdcliai/sandbox:claude-code',
+  codex: 'docker.io/rdcliai/sandbox:codex',
 };
 
 const SANDBOX_SECRETS: Record<string, string> = {
@@ -109,8 +109,8 @@ function showSandboxHelp(output: CliOutput): void {
 ${terminalTextStyles.bright('rdCLI Sandbox')} — Run rdCLI inside Docker Sandboxes
 
 Usage:
-  cloudcli sandbox <workspace>            Create and start a sandbox
-  cloudcli sandbox <subcommand> [name]    Manage sandboxes
+  rdcli sandbox <workspace>            Create and start a sandbox
+  rdcli sandbox <subcommand> [name]    Manage sandboxes
 
 Subcommands:
   ${terminalTextStyles.bright('(default)')}    Create a sandbox and start the web UI
@@ -129,13 +129,13 @@ Options:
       --port <port>         Host port for the web UI (default: 3001)
 
 Examples:
-  $ cloudcli sandbox ~/my-project
-  $ cloudcli sandbox ~/my-project --agent codex --port 8080
-  $ cloudcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
-  $ cloudcli sandbox ls
-  $ cloudcli sandbox stop my-project
-  $ cloudcli sandbox start my-project
-  $ cloudcli sandbox rm my-project
+  $ rdcli sandbox ~/my-project
+  $ rdcli sandbox ~/my-project --agent codex --port 8080
+  $ rdcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
+  $ rdcli sandbox ls
+  $ rdcli sandbox stop my-project
+  $ rdcli sandbox start my-project
+  $ rdcli sandbox rm my-project
 
 Prerequisites:
   1. Install sbx CLI: https://docs.docker.com/ai/sandboxes/get-started/
@@ -148,8 +148,8 @@ Advanced usage:
   For branch mode, multiple workspaces, memory limits, network policies,
   or passing prompts to the agent, use sbx directly with the template:
 
-    sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/my-project --branch my-feature
-    sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/project ~/libs:ro --memory 8g
+    sbx run --template docker.io/rdcliai/sandbox:claude-code claude ~/my-project --branch my-feature
+    sbx run --template docker.io/rdcliai/sandbox:claude-code claude ~/project ~/libs:ro --memory 8g
 
   Full Docker Sandboxes docs: https://docs.docker.com/ai/sandboxes/usage/
 `);
@@ -160,7 +160,7 @@ function requireSandboxName(options: SandboxOptions, output: CliOutput): string 
     return options.name;
   }
 
-  output.error(`\n${terminalTextStyles.error('❌')} Sandbox name required: cloudcli sandbox ${options.subcommand} <name>\n`);
+  output.error(`\n${terminalTextStyles.error('❌')} Sandbox name required: rdcli sandbox ${options.subcommand} <name>\n`);
   return null;
 }
 
@@ -258,7 +258,7 @@ export function createSandboxCommandService(
           }
           try {
             dependencies.runSandboxCommand(
-              ['exec', sandboxName, 'bash', '-c', 'cat /tmp/cloudcli-ui.log'],
+              ['exec', sandboxName, 'bash', '-c', 'cat /tmp/rdcli-ui.log'],
               true,
             );
           } catch (error) {
@@ -285,7 +285,7 @@ export function createSandboxCommandService(
             sandboxName,
             'bash',
             '-c',
-            'nohup cloudcli start --port 3001 > /tmp/cloudcli-ui.log 2>&1 & disown',
+            'nohup rdcli start --port 3001 > /tmp/rdcli-ui.log 2>&1 & disown',
           ]);
           if (!publishSandboxPort(options, dependencies)) {
             return 1;
@@ -298,9 +298,9 @@ export function createSandboxCommandService(
         case 'create': {
           if (!options.workspace) {
             dependencies.output.error(
-              `\n${terminalTextStyles.error('❌')} Workspace path required: cloudcli sandbox <path>\n`,
+              `\n${terminalTextStyles.error('❌')} Workspace path required: rdcli sandbox <path>\n`,
             );
-            dependencies.output.log(`   Example: ${terminalTextStyles.bright('cloudcli sandbox ~/my-project')}\n`);
+            dependencies.output.log(`   Example: ${terminalTextStyles.bright('rdcli sandbox ~/my-project')}\n`);
             return 1;
           }
 
@@ -387,7 +387,7 @@ export function createSandboxCommandService(
             sandboxName,
             'bash',
             '-c',
-            'nohup cloudcli start --port 3001 > /tmp/cloudcli-ui.log 2>&1 & disown',
+            'nohup rdcli start --port 3001 > /tmp/rdcli-ui.log 2>&1 & disown',
           ]);
           if (!publishSandboxPort(options, dependencies)) {
             return 1;
@@ -400,7 +400,7 @@ export function createSandboxCommandService(
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx stop ${sandboxName}`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx start ${sandboxName}`);
           dependencies.output.log(`  ${terminalTextStyles.dim('$')} sbx rm ${sandboxName}`);
-          dependencies.output.log(`\n${terminalTextStyles.dim('  Or install globally:')} npm install -g @cloudcli-ai/cloudcli\n`);
+          dependencies.output.log(`\n${terminalTextStyles.dim('  Or install globally:')} npm install -g @rdcli-ai/rdcli\n`);
           return 0;
         }
 

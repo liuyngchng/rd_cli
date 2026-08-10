@@ -13,15 +13,15 @@ const DISPLAY_HOST = 'localhost';
 const HEALTH_TIMEOUT_MS = 1000;
 const SERVER_START_TIMEOUT_MS = 30000;
 const MAX_STARTUP_LOG_LINES = 300;
-const SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
+const SERVER_MARKER_PATH = path.join(os.homedir(), '.rdcli', 'local-server.json');
 const LOCAL_SERVER_URL_ENV_KEYS = [
-  'CLOUDCLI_DESKTOP_LOCAL_SERVER_URL',
-  'CLOUDCLI_LOCAL_SERVER_URL',
+  'RDCLI_DESKTOP_LOCAL_SERVER_URL',
+  'RDCLI_LOCAL_SERVER_URL',
   'ELECTRON_LOCAL_SERVER_URL',
 ];
 const LOCAL_SERVER_PORT_ENV_KEYS = [
-  'CLOUDCLI_DESKTOP_LOCAL_SERVER_PORT',
-  'CLOUDCLI_SERVER_PORT',
+  'RDCLI_DESKTOP_LOCAL_SERVER_PORT',
+  'RDCLI_SERVER_PORT',
   'SERVER_PORT',
   'PORT',
 ];
@@ -55,7 +55,7 @@ function requestJson(url, timeoutMs = HEALTH_TIMEOUT_MS) {
   });
 }
 
-async function isCloudCliServer(baseUrl) {
+async function isrdCLIServer(baseUrl) {
   const response = await requestJson(`${baseUrl}/health`);
   return response.ok
     && response.json?.status === 'ok'
@@ -232,11 +232,11 @@ async function getExistingServerCandidateUrls(defaultUrl) {
   return urls;
 }
 
-async function waitForCloudCliServer(baseUrl, timeoutMs) {
+async function waitForrdCLIServer(baseUrl, timeoutMs) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (await isCloudCliServer(baseUrl)) {
+    if (await isrdCLIServer(baseUrl)) {
       return true;
     }
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -294,7 +294,7 @@ export class LocalServerController {
   getPendingTarget() {
     return {
       kind: 'local',
-      name: 'Local CloudCLI',
+      name: 'Local rdCLI',
       url: this.localServerUrl || `http://${DISPLAY_HOST}:${this.localServerPort || DEFAULT_PORT}`,
     };
   }
@@ -378,7 +378,7 @@ export class LocalServerController {
     }
 
     const bundledEntry = path.join(this.appRoot, 'dist-server', 'server', 'index.js');
-    if (process.env.CLOUDCLI_USE_INSTALLED_SERVER !== '1' && await pathExists(bundledEntry)) {
+    if (process.env.RDCLI_USE_INSTALLED_SERVER !== '1' && await pathExists(bundledEntry)) {
       return bundledEntry;
     }
 
@@ -439,7 +439,7 @@ export class LocalServerController {
     this.ownedServerProcess.once('exit', (code, signal) => {
       this.appendStartupLog(`process exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}`);
       if (this.ownedServerProcess) {
-        console.error(`CloudCLI desktop server exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}`);
+        console.error(`rdCLI desktop server exited with code ${code ?? 'null'} and signal ${signal ?? 'null'}`);
       }
       this.ownedServerProcess = null;
     });
@@ -452,7 +452,7 @@ export class LocalServerController {
     const forceOwnServer = process.env.ELECTRON_FORCE_OWN_SERVER === '1';
 
     if (devUrl) {
-      const ready = await waitForCloudCliServer(defaultUrl, SERVER_START_TIMEOUT_MS);
+      const ready = await waitForrdCLIServer(defaultUrl, SERVER_START_TIMEOUT_MS);
       if (!ready) {
         throw new Error(`Development backend did not become ready at ${defaultDisplayUrl}`);
       }
@@ -463,10 +463,10 @@ export class LocalServerController {
     if (!forceOwnServer) {
       const candidateUrls = await getExistingServerCandidateUrls(defaultUrl);
       for (const candidateUrl of candidateUrls) {
-        if (await isCloudCliServer(candidateUrl)) {
+        if (await isrdCLIServer(candidateUrl)) {
           const displayUrl = getDisplayUrl(candidateUrl);
           this.localServerPort = getPortFromUrl(candidateUrl);
-          this.appendStartupLog(`Using existing Local CloudCLI at ${displayUrl}`);
+          this.appendStartupLog(`Using existing Local rdCLI at ${displayUrl}`);
           return displayUrl;
         }
       }
@@ -480,7 +480,7 @@ export class LocalServerController {
     this.localServerPort = port;
     this.startBundledServer(port, serverEntry);
 
-    const ready = await waitForCloudCliServer(serverUrl, SERVER_START_TIMEOUT_MS);
+    const ready = await waitForrdCLIServer(serverUrl, SERVER_START_TIMEOUT_MS);
     if (!ready) {
       const recentLogs = this.getStartupLogs().slice(-20).join('\n');
       await this.shutdownOwnedServer();
@@ -491,7 +491,7 @@ export class LocalServerController {
       ].join('\n\n'));
     }
 
-    this.appendStartupLog(`Local CloudCLI ready at ${displayUrl}`);
+    this.appendStartupLog(`Local rdCLI ready at ${displayUrl}`);
     this.localServerUrl = displayUrl;
     return displayUrl;
   }
@@ -507,7 +507,7 @@ export class LocalServerController {
     await this.ensureLocalServer();
     return {
       kind: 'local',
-      name: 'Local CloudCLI',
+      name: 'Local rdCLI',
       url: this.localServerUrl,
     };
   }

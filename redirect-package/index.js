@@ -1,2 +1,2 @@
-export * from '@cloudcli-ai/cloudcli';
-export { default } from '@cloudcli-ai/cloudcli';
+export * from '@rdcli-ai/rdcli';
+export { default } from '@rdcli-ai/rdcli';

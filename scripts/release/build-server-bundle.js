@@ -106,10 +106,10 @@ function sha256(filePath) {
   });
 }
 
-const platform = mapPlatform(process.env.CLOUDCLI_BUNDLE_PLATFORM || process.platform);
-const arch = mapArch(process.env.CLOUDCLI_BUNDLE_ARCH || process.arch);
+const platform = mapPlatform(process.env.RDCLI_BUNDLE_PLATFORM || process.platform);
+const arch = mapArch(process.env.RDCLI_BUNDLE_ARCH || process.arch);
 const version = packageJson.version;
-const bundleName = `cloudcli-local-server-${version}-${platform}-${arch}.tar.gz`;
+const bundleName = `rdcli-local-server-${version}-${platform}-${arch}.tar.gz`;
 const bundleRoot = path.join(rootDir, 'release', 'local-server');
 const stageDir = path.join(bundleRoot, `.stage-${version}-${platform}-${arch}`);
 const archivePath = path.join(bundleRoot, bundleName);

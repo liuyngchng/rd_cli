@@ -1,12 +1,12 @@
 {
-  "name": "@cloudcli-ai/cloudcli",
+  "name": "@rdcli-ai/rdcli",
   "version": "1.37.0",
-  "productName": "CloudCLI",
+  "productName": "rdCLI",
   "description": "A web-based UI for Claude Code CLI",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
-    "cloudcli": "dist-server/server/modules/cli/cli.js"
+    "rdcli": "dist-server/server/modules/cli/cli.js"
   },
   "files": [
     "electron/",
@@ -18,7 +18,7 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://rdcli.ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/siteboon/claudecodeui.git"
@@ -53,14 +53,13 @@
     "release": "./release.sh",
     "prepublishOnly": "npm run build",
     "postinstall": "node scripts/fix-node-pty.js",
-    "prepare": "husky",
     "update:platform": "./update-platform.sh"
   },
   "build": {
-    "appId": "ai.cloudcli.desktop",
-    "productName": "CloudCLI",
+    "appId": "ai.rdcli.desktop",
+    "productName": "rdCLI",
     "asar": false,
-    "artifactName": "cloudcli-desktop-${version}-${os}-${arch}.${ext}",
+    "artifactName": "rdcli-desktop-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release/desktop"
     },
@@ -79,9 +78,9 @@
     ],
     "protocols": [
       {
-        "name": "CloudCLI",
+        "name": "rdCLI",
         "schemes": [
-          "cloudcli"
+          "rdcli"
         ]
       }
     ],
@@ -93,13 +92,13 @@
         "dmg"
       ],
       "extendInfo": {
-        "CFBundleName": "CloudCLI",
-        "CFBundleDisplayName": "CloudCLI",
+        "CFBundleName": "rdCLI",
+        "CFBundleDisplayName": "rdCLI",
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "CloudCLI",
+            "CFBundleURLName": "rdCLI",
             "CFBundleURLSchemes": [
-              "cloudcli"
+              "rdcli"
             ]
           }
         ]
@@ -120,7 +119,7 @@
     "claude code",
     "claude-code",
     "claude-code-ui",
-    "cloudcli",
+    "rdcli",
     "codex",
     "cursor",
     "cursor-cli",
@@ -132,7 +131,7 @@
     "ui",
     "mobile IDE"
   ],
-  "author": "CloudCLI UI Contributors",
+  "author": "rdCLI UI Contributors",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.165",
@@ -197,9 +196,7 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@commitlint/cli": "^20.5.0",
-    "@commitlint/config-conventional": "^20.5.0",
-    "@eslint/js": "^9.39.3",
+        "@eslint/js": "^9.39.3",
     "@release-it/conventional-changelog": "^10.0.5",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
@@ -228,9 +225,7 @@
     "eslint-plugin-tailwindcss": "^3.18.2",
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.4.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.3.2",
-    "node-gyp": "^10.0.0",
+        "node-gyp": "^10.0.0",
     "postcss": "^8.4.32",
     "release-it": "^19.0.5",
     "sharp": "^0.34.2",
@@ -241,11 +236,7 @@
     "typescript-eslint": "^8.56.1",
     "vite": "^7.0.4"
   },
-  "lint-staged": {
-    "src/**/*.{ts,tsx,js,jsx}": "eslint",
-    "server/**/*.{js,ts}": "eslint"
-  },
-  "optionalDependencies": {
+    "optionalDependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
     "screenshot-desktop": "^1.15.4"
   }

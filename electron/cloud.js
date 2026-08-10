@@ -50,7 +50,7 @@ export class CloudController {
   }
 
   getEnvironmentUrl(environment) {
-    return environment.access_url || `https://${environment.subdomain}.cloudcli.ai`;
+    return environment.access_url || `https://${environment.subdomain}.rdcli.ai`;
   }
 
   async getEnvironmentLaunchUrl(environment) {
@@ -150,7 +150,7 @@ export class CloudController {
 
   async cloudApi(pathname, options = {}) {
     if (!this.cloudAccount?.apiKey) {
-      throw new Error('Connect your CloudCLI account first.');
+      throw new Error('Connect your rdCLI account first.');
     }
 
     const controller = new AbortController();
@@ -169,7 +169,7 @@ export class CloudController {
       });
     } catch (error) {
       if (error?.name === 'AbortError') {
-        throw new Error(`CloudCLI API request timed out after ${Math.round(CLOUD_API_TIMEOUT_MS / 1000)} seconds.`);
+        throw new Error(`rdCLI API request timed out after ${Math.round(CLOUD_API_TIMEOUT_MS / 1000)} seconds.`);
       }
       throw error;
     } finally {
@@ -181,7 +181,7 @@ export class CloudController {
       if (response.status === 401 || response.status === 403) {
         await this.invalidateCloudAccount();
       }
-      throw new Error(body.error || `CloudCLI API request failed: ${response.status}`);
+      throw new Error(body.error || `rdCLI API request failed: ${response.status}`);
     }
 
     return body;
@@ -244,7 +244,7 @@ export class CloudController {
     const connectUrl = new URL('/auth/app-connect', this.controlPlaneUrl);
     connectUrl.searchParams.set('device_id', this.cloudAccount.deviceId);
     connectUrl.searchParams.set('callback_url', this.callbackUrl);
-    connectUrl.searchParams.set('app_surface', 'cloudcli_desktop');
+    connectUrl.searchParams.set('app_surface', 'rdcli_desktop');
     connectUrl.searchParams.set('client_platform', 'desktop');
     return connectUrl.toString();
   }

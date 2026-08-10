@@ -1,6 +1,6 @@
 window.__APP_VERSION__ = '1.34.0';
 window.__MOCK_STATE__ = {
-  account: { connected: true, email: 'you@cloudcli.ai' },
+  account: { connected: true, email: 'you@rdcli.ai' },
   activeTarget: { kind: 'launcher', name: 'Launcher', url: null },
   cloudLoading: false,
   desktopSettings: { keepLocalServerRunning: false, exposeLocalServerOnNetwork: false, themeMode: 'system' },
@@ -9,14 +9,14 @@ window.__MOCK_STATE__ = {
   localServerRunning: false,
   localStartupLogs: [],
   environments: [
-    { id: 'env-api', name: 'api-gateway', subdomain: 'api-gateway', access_url: 'https://api-gateway.cloudcli.ai', status: 'running', region: 'fra1', agent: 'Claude Code' },
-    { id: 'env-web', name: 'web-frontend', subdomain: 'web-frontend', access_url: 'https://web-frontend.cloudcli.ai', status: 'stopped', region: 'sfo1', agent: 'Codex' },
-    { id: 'env-data', name: 'data-pipeline', subdomain: 'data-pipeline', access_url: 'https://data-pipeline.cloudcli.ai', status: 'stopped', region: 'fra1', agent: 'Cursor' },
-    { id: 'env-ml', name: 'ml-trainer', subdomain: 'ml-trainer', access_url: 'https://ml-trainer.cloudcli.ai', status: 'paused', region: 'iad1', agent: 'OpenCode' },
+    { id: 'env-api', name: 'api-gateway', subdomain: 'api-gateway', access_url: 'https://api-gateway.rdcli.ai', status: 'running', region: 'fra1', agent: 'Claude Code' },
+    { id: 'env-web', name: 'web-frontend', subdomain: 'web-frontend', access_url: 'https://web-frontend.rdcli.ai', status: 'stopped', region: 'sfo1', agent: 'Codex' },
+    { id: 'env-data', name: 'data-pipeline', subdomain: 'data-pipeline', access_url: 'https://data-pipeline.rdcli.ai', status: 'stopped', region: 'fra1', agent: 'Cursor' },
+    { id: 'env-ml', name: 'ml-trainer', subdomain: 'ml-trainer', access_url: 'https://ml-trainer.rdcli.ai', status: 'paused', region: 'iad1', agent: 'OpenCode' },
   ],
 };
 
-(function cloudCliLauncher() {
+(function rdCLILauncher() {
   var MOCK = window.__MOCK_STATE__ || {};
   var VERSION = window.__APP_VERSION__ || '';
   var LOGO_URL = new URL('../../public/logo-32.png', window.location.href).toString();
@@ -31,7 +31,7 @@ window.__MOCK_STATE__ = {
     getState: function () { return Promise.resolve(clone(mockState)); },
     openLocal: function () {
       mockState.localServerRunning = true;
-      mockState.activeTarget = { kind: 'local', name: 'Local CloudCLI', url: mockState.localWebUrl };
+      mockState.activeTarget = { kind: 'local', name: 'Local rdCLI', url: mockState.localWebUrl };
       return Promise.resolve(clone(mockState));
     },
     openLocalWebUi: function () {
@@ -40,7 +40,7 @@ window.__MOCK_STATE__ = {
     },
     copyLocalWebUrl: function () { return Promise.resolve(clone(mockState)); },
     connectCloud: function () {
-      mockState.account = { connected: true, email: 'you@cloudcli.ai' };
+      mockState.account = { connected: true, email: 'you@rdcli.ai' };
       return Promise.resolve(clone(mockState));
     },
     disconnectCloud: function () {
@@ -86,7 +86,7 @@ window.__MOCK_STATE__ = {
     },
   };
 
-  var bridge = window.cloudcliDesktop || mockBridge;
+  var bridge = window.rdcliDesktop || mockBridge;
 
   var ICONS = {
     terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
@@ -294,9 +294,9 @@ window.__MOCK_STATE__ = {
   CC.act = function (name, node) {
     switch (name) {
       case 'local':
-        return CC.run('Starting Local CloudCLI...', function () { return bridge.openLocal(); });
+        return CC.run('Starting Local rdCLI...', function () { return bridge.openLocal(); });
       case 'connect':
-        return CC.run('Opening cloudcli.ai to connect your account...', function () { return bridge.connectCloud(); });
+        return CC.run('Opening rdcli.ai to connect your account...', function () { return bridge.connectCloud(); });
       case 'logout':
         return CC.run('Logging out...', function () { return bridge.disconnectCloud(); });
       case 'open-web':
@@ -318,7 +318,7 @@ window.__MOCK_STATE__ = {
       case 'settings-close':
         return CC.closeSheet();
       case 'dashboard':
-        return CC.run('Opening CloudCLI dashboard...', function () { return bridge.openCloudDashboard(); });
+        return CC.run('Opening rdCLI dashboard...', function () { return bridge.openCloudDashboard(); });
       case 'refresh-environments':
         return CC.run('Refreshing cloud environments...', function () { return bridge.refreshEnvironments(); });
       case 'refresh-tab':
@@ -360,12 +360,12 @@ window.__MOCK_STATE__ = {
     var refreshAction = activeRefreshable ? '<button class="icon-btn tb-action no-drag" data-cc-action="refresh-tab" title="Refresh tab">' + icon('refresh', 16) + '</button>' : '';
     var logoutAction = (conn || authState(state) === 'expired') ? '<button class="icon-btn tb-action no-drag" data-cc-action="logout" title="Logout">' + icon('logOut', 16) + '</button>' : '';
     return '<div class="titlebar">' +
-      '<div class="brand"><img class="mk" src="' + esc(LOGO_URL) + '" alt=""><span>CloudCLI</span></div>' +
+      '<div class="brand"><img class="mk" src="' + esc(LOGO_URL) + '" alt=""><span>rdCLI</span></div>' +
       '<div class="tb-tabs no-drag">' + renderTabs(state) + '</div>' +
       '<span style="flex:1"></span>' +
       refreshAction +
       envActions +
-      '<button class="btn sm tb-action no-drag" data-cc-action="connect" title="' + esc(authState(state) === 'expired' ? 'Reconnect your CloudCLI account' : accountLabel(state)) + '"><span class="dot" style="background:' + (conn ? 'var(--ok)' : (authState(state) === 'expired' ? 'var(--warn)' : 'var(--tx3)')) + '"></span>' + esc(accountLabel(state)) + '</button>' +
+      '<button class="btn sm tb-action no-drag" data-cc-action="connect" title="' + esc(authState(state) === 'expired' ? 'Reconnect your rdCLI account' : accountLabel(state)) + '"><span class="dot" style="background:' + (conn ? 'var(--ok)' : (authState(state) === 'expired' ? 'var(--warn)' : 'var(--tx3)')) + '"></span>' + esc(accountLabel(state)) + '</button>' +
       logoutAction +
       '<button class="icon-btn tb-action no-drag" data-cc-action="settings-toggle" title="Settings">' + icon('settings', 16) + '</button>' +
       '</div>';
@@ -446,13 +446,13 @@ window.__MOCK_STATE__ = {
       '<div class="cc-row2"><button class="btn sm" data-cc-action="open-web">' + icon('arrow', 14) + 'Open in browser</button><button class="btn sm" data-cc-action="copy-web">' + icon('copy', 14) + 'Copy URL</button></div>';
     if (options.includePreferences) {
       body +=
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + (settings.keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local CloudCLI available after you quit the app.</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + (settings.keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local rdCLI available after you quit the app.</span></label>' +
         '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + (settings.exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>Allow LAN access</b><br>Use the copied URL from another device on this network.</span></label>';
     }
     body += '</div>';
     return CC.renderSection(
       options.eyebrow || 'LOCAL SERVER',
-      options.title || 'Run Local CloudCLI on this machine',
+      options.title || 'Run Local rdCLI on this machine',
       body
     );
   };
@@ -474,12 +474,12 @@ window.__MOCK_STATE__ = {
       CC.buildLocalServerSection(state, { includePreferences: false }),
       CC.renderSection('PREFERENCES', 'How the local service behaves', '' +
         '<div class="cc-surface">' +
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + ((state.desktopSettings || {}).keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local CloudCLI available after you quit the app.</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + ((state.desktopSettings || {}).keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local rdCLI available after you quit the app.</span></label>' +
         '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + ((state.desktopSettings || {}).exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>Allow LAN access</b><br>Use the copied URL from another device on this network.</span></label>' +
         '</div>'
       ),
     ];
-    CC.renderSheet('Local Settings', 'Manage how Local CloudCLI runs on this computer.', sections);
+    CC.renderSheet('Local Settings', 'Manage how Local rdCLI runs on this computer.', sections);
   };
 
   CC.renderDesktopSettings = function () {
@@ -627,9 +627,9 @@ window.__MOCK_STATE__ = {
   }
 
   function localPane(state) {
-    return '<div class="pane-h"><div><h2 class="pane-title">Local servers</h2><p class="pane-sub">Manage Local CloudCLI on this machine. No account required.</p></div></div>' +
+    return '<div class="pane-h"><div><h2 class="pane-title">Local servers</h2><p class="pane-sub">Manage Local rdCLI on this machine. No account required.</p></div></div>' +
       '<div class="card"><div class="card-head"><div><div class="card-t">Local server</div><div class="card-sub mono">' + CC.esc(CC.localUrl(state) || 'Starts on demand') + '</div></div><div class="card-tools"><span class="dot" style="background:' + (state.localServerRunning ? 'var(--ok)' : 'var(--tx3)') + '"></span><button class="icon-btn" data-cc-action="local-settings-toggle" title="Local settings">' + CC.icon('gear', 16) + '</button></div></div>' +
-      '<div class="card-actions"><button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Open Local CloudCLI</button><button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button><button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button></div></div>';
+      '<div class="card-actions"><button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Open Local rdCLI</button><button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button><button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button></div></div>';
   }
 
   function envRow(environment) {
@@ -646,13 +646,13 @@ window.__MOCK_STATE__ = {
   function cloudPane(state) {
     var header = '<div class="pane-h"><div><h2 class="pane-title">Environments</h2><p class="pane-sub">' + CC.esc(CC.envCount(state)) + '</p></div><button class="btn sm" data-cc-action="dashboard">' + CC.icon('arrow', 14) + 'Dashboard</button></div>';
     if (CC.authState(state) === 'expired') {
-      return header + '<div class="empty">Your CloudCLI session expired.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Reconnect account</button></div></div>';
+      return header + '<div class="empty">Your rdCLI session expired.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Reconnect account</button></div></div>';
     }
     if (!CC.connected(state)) {
-      return header + '<div class="empty">Connect your CloudCLI account to list hosted environments.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Connect account</button></div></div>';
+      return header + '<div class="empty">Connect your rdCLI account to list hosted environments.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Connect account</button></div></div>';
     }
     if (state.cloudLoading && !(state.environments || []).length) {
-      return header + '<div class="empty">Loading your CloudCLI environments...</div>';
+      return header + '<div class="empty">Loading your rdCLI environments...</div>';
     }
 
     var list = (state.environments || []).map(envRow).join('');

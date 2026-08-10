@@ -1,12 +1,12 @@
 FROM docker/sandbox-templates:codex
 
 USER root
-COPY shared/install-cloudcli.sh /tmp/install-cloudcli.sh
-RUN chmod +x /tmp/install-cloudcli.sh && /tmp/install-cloudcli.sh
+COPY shared/install-rdcli.sh /tmp/install-rdcli.sh
+RUN chmod +x /tmp/install-rdcli.sh && /tmp/install-rdcli.sh
 
 USER agent
 RUN --mount=type=cache,target=/tmp/npm-cache,sharing=locked,mode=0777 \
-    npm install -g @cloudcli-ai/cloudcli \
+    npm install -g @rdcli-ai/rdcli \
       --cache=/tmp/npm-cache \
       --fetch-retries=5 \
       --fetch-retry-mintimeout=20000 \
@@ -16,5 +16,5 @@ RUN --mount=type=cache,target=/tmp/npm-cache,sharing=locked,mode=0777 \
       --no-fund && \
     cloudcli --version
 
-COPY --chown=agent:agent shared/start-cloudcli.sh /home/agent/.cloudcli-start.sh
-RUN echo '. ~/.cloudcli-start.sh' >> /home/agent/.bashrc
+COPY --chown=agent:agent shared/start-rdcli.sh /home/agent/.rdcli-start.sh
+RUN echo '. ~/.rdcli-start.sh' >> /home/agent/.bashrc

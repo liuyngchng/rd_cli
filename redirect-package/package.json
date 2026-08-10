@@ -1,14 +1,14 @@
 {
   "name": "@siteboon/claude-code-ui",
   "version": "2.0.0",
-  "description": "This package has moved to @cloudcli-ai/cloudcli",
+  "description": "This package has moved to @rdcli-ai/rdcli",
   "type": "module",
   "main": "index.js",
   "bin": {
     "claude-code-ui": "./bin.js",
-    "cloudcli": "./bin.js"
+    "rdcli": "./bin.js"
   },
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://rdcli.ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/siteboon/claudecodeui.git"
@@ -20,7 +20,7 @@
     "claude code",
     "claude-code",
     "claude-code-ui",
-    "cloudcli",
+    "rdcli",
     "codex",
     "cursor",
     "cursor-cli",
@@ -32,10 +32,10 @@
     "ui",
     "mobile IDE"
   ],
-  "author": "CloudCLI UI Contributors",
+  "author": "rdCLI UI Contributors",
   "dependencies": {
-    "@cloudcli-ai/cloudcli": "*"
+    "@rdcli-ai/rdcli": "*"
   },
-  "deprecated": "This package has been renamed to @cloudcli-ai/cloudcli. Please install @cloudcli-ai/cloudcli instead.",
+  "deprecated": "This package has been renamed to @rdcli-ai/rdcli. Please install @rdcli-ai/rdcli instead.",
   "license": "AGPL-3.0-or-later"
 }

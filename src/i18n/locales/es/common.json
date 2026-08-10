@@ -246,7 +246,7 @@
     "viewFullRelease": "Ver la publicación completa",
     "updateProgress": "Progreso de la actualización:",
     "manualUpgrade": "Actualización manual:",
-    "npmUpgradeCommand": "npm install -g @cloudcli-ai/cloudcli@latest",
+    "npmUpgradeCommand": "npm install -g @rdcli-ai/rdcli@latest",
     "manualUpgradeHint": "O haz clic en \"Actualizar ahora\" para ejecutar la actualización automáticamente.",
     "updateCompleted": "¡Actualización completada correctamente!",
     "restartServer": "Reinicia el servidor para aplicar los cambios.",

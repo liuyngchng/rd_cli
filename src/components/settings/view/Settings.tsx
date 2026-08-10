@@ -28,7 +28,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
   const desktopNotificationsBridge = useMemo(() => (
     typeof window === 'undefined'
       ? null
-      : ((window as any).cloudcliDesktopNotifications || null)
+      : ((window as any).rdcliDesktopNotifications || null)
   ), []);
   const [desktopNotificationsState, setDesktopNotificationsState] = useState<DesktopNotificationsState | null>(null);
   const {

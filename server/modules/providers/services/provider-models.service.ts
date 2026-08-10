@@ -48,7 +48,7 @@ type ProviderModelsCacheFile = {
 
 const getProviderModelsCachePath = (): string => path.join(
   os.homedir(),
-  '.cloudcli',
+  '.rdcli',
   'provider-models-cache.json',
 );
 

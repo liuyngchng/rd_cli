@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-import('@cloudcli-ai/cloudcli/dist-server/server/modules/cli/cli.js');
+import('@rdcli-ai/rdcli/dist-server/server/modules/cli/cli.js');

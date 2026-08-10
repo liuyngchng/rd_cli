@@ -243,19 +243,19 @@ export class ViewHost {
     this.attach(view);
     const html = buildPlaceholderHtml(target.name || this.appName, message);
     await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    view.__cloudcliStartupHtml = html;
-    view.__cloudcliLoadedUrl = null;
+    view.__rdcliStartupHtml = html;
+    view.__rdcliLoadedUrl = null;
   }
 
   async showLocalStartupTarget(tabId, target, logs) {
     const view = this.getOrCreateTabView(tabId);
-    if (view.__cloudcliLoadingUrl) return;
+    if (view.__rdcliLoadingUrl) return;
     this.attach(view);
-    const html = buildPlaceholderHtml(target.name || this.appName, 'Starting Local CloudCLI...', logs);
-    if (view.__cloudcliStartupHtml === html) return;
+    const html = buildPlaceholderHtml(target.name || this.appName, 'Starting Local rdCLI...', logs);
+    if (view.__rdcliStartupHtml === html) return;
     await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    view.__cloudcliStartupHtml = html;
-    view.__cloudcliLoadedUrl = null;
+    view.__rdcliStartupHtml = html;
+    view.__rdcliLoadedUrl = null;
   }
 
   async showContentTarget(tabId, target) {
@@ -265,17 +265,17 @@ export class ViewHost {
     }
     const view = this.getOrCreateTabView(tabId);
     this.attach(view);
-    if (target.forceLoad || view.__cloudcliLoadedUrl !== target.url) {
-      view.__cloudcliLoadingUrl = loadUrl;
+    if (target.forceLoad || view.__rdcliLoadedUrl !== target.url) {
+      view.__rdcliLoadingUrl = loadUrl;
       try {
         await loadUrlWithTimeout(view.webContents, loadUrl);
-        view.__cloudcliLoadedUrl = target.url;
-        view.__cloudcliStartupHtml = null;
+        view.__rdcliLoadedUrl = target.url;
+        view.__rdcliStartupHtml = null;
         delete target.loadUrl;
         delete target.forceLoad;
       } finally {
-        if (view.__cloudcliLoadingUrl === loadUrl) {
-          view.__cloudcliLoadingUrl = null;
+        if (view.__rdcliLoadingUrl === loadUrl) {
+          view.__rdcliLoadingUrl = null;
         }
       }
     }
@@ -293,8 +293,8 @@ export class ViewHost {
     const view = this.getActiveView();
     if (!view) return false;
     await loadUrlWithTimeout(view.webContents, url);
-    view.__cloudcliLoadedUrl = url;
-    view.__cloudcliStartupHtml = null;
+    view.__rdcliLoadedUrl = url;
+    view.__rdcliStartupHtml = null;
     return true;
   }
 

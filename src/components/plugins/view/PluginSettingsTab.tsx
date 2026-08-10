@@ -25,16 +25,16 @@ import type { Plugin } from '../../../contexts/PluginsContext';
 
 import PluginIcon from './PluginIcon';
 
-const STARTER_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-starter';
-const TERMINAL_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-terminal';
-const SCHEDULED_PROMPT_PLUGIN_URL = 'https://github.com/grostim/cloudcli-cron';
-const CLAUDE_WATCH_PLUGIN_URL = 'https://github.com/satsuki19980613/cloudcli-claude-watch';
-const PRISM_CLOUDCLI_PLUGIN_URL = 'https://github.com/jakeefr/cloudcli-plugin-prism';
-const SESSION_MANAGER_PLUGIN_URL = 'https://github.com/strykereye2/cloudcli-plugin-session-manager';
-const TOKEN_COST_CALCULATOR_PLUGIN_URL = 'https://github.com/NightmareAway/cloudcli-plugin-token-cost-calculator';
-const TASK_QUEUE_PLUGIN_URL = 'https://github.com/TadMSTR/cloudcli-plugin-task-queue';
+const STARTER_PLUGIN_URL = 'https://github.com/rdcli-ai/rdcli-plugin-starter';
+const TERMINAL_PLUGIN_URL = 'https://github.com/rdcli-ai/rdcli-plugin-terminal';
+const SCHEDULED_PROMPT_PLUGIN_URL = 'https://github.com/grostim/rdcli-cron';
+const CLAUDE_WATCH_PLUGIN_URL = 'https://github.com/satsuki19980613/rdcli-claude-watch';
+const PRISM_RDCLI_PLUGIN_URL = 'https://github.com/jakeefr/rdcli-plugin-prism';
+const SESSION_MANAGER_PLUGIN_URL = 'https://github.com/strykereye2/rdcli-plugin-session-manager';
+const TOKEN_COST_CALCULATOR_PLUGIN_URL = 'https://github.com/NightmareAway/rdcli-plugin-token-cost-calculator';
+const TASK_QUEUE_PLUGIN_URL = 'https://github.com/TadMSTR/rdcli-plugin-task-queue';
 const GITHUB_ISSUES_BOARD_PLUGIN_URL = 'https://github.com/szmidtpiotr/claude-github-issue';
-const CLAUDE_USAGE_PLUGIN_URL = 'https://github.com/HandyS11/cloudcli-plugin-claude-usage';
+const CLAUDE_USAGE_PLUGIN_URL = 'https://github.com/HandyS11/rdcli-plugin-claude-usage';
 
 type PluginRecommendation = {
   id: string;
@@ -66,10 +66,10 @@ const OFFICIAL_PLUGIN_RECOMMENDATIONS: PluginRecommendation[] = [
 
 const UNOFFICIAL_PLUGIN_RECOMMENDATIONS: PluginRecommendation[] = [
   {
-    id: 'cloudcli-claude-watch',
+    id: 'rdcli-claude-watch',
     translationKey: 'claudeWatchPlugin',
     repoUrl: CLAUDE_WATCH_PLUGIN_URL,
-    installedNames: ['cloudcli-claude-watch'],
+    installedNames: ['rdcli-claude-watch'],
     icon: Activity,
     source: 'unofficial',
   },
@@ -84,7 +84,7 @@ const UNOFFICIAL_PLUGIN_RECOMMENDATIONS: PluginRecommendation[] = [
   {
     id: 'prism',
     translationKey: 'prismrdCLI',
-    repoUrl: PRISM_CLOUDCLI_PLUGIN_URL,
+    repoUrl: PRISM_RDCLI_PLUGIN_URL,
     installedNames: ['prism'],
     icon: Activity,
     source: 'unofficial',

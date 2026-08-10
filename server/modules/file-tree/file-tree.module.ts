@@ -88,7 +88,7 @@ const fileUploadMiddleware = multer({
   storage: multer.diskStorage({
     destination: os.tmpdir(),
     filename: (_request, _file, callback) => {
-      callback(null, `cloudcli-file-upload-${randomUUID()}`);
+      callback(null, `rdcli-file-upload-${randomUUID()}`);
     },
   }),
   limits: {
