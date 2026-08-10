@@ -54,8 +54,8 @@ export function createAuthRouter(
     res.json(service.refreshSession((req as AuthenticatedRequest).user));
   });
 
-  router.post('/logout', authenticateToken, (_req, res) => {
-    res.json(service.logout());
+  router.post('/logout', authenticateToken, (req, res) => {
+    res.json(service.logout(req));
   });
 
   // ── Admin ──────────────────────────────────────────────────────────

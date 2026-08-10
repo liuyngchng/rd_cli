@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { authenticatedFetch } from '../utils/api';
+import { authenticatedFetch, getStoredAuthToken } from '../utils/api';
 
 export type Plugin = {
   name: string;
@@ -47,6 +47,10 @@ export function PluginsProvider({ children }: { children: ReactNode }) {
   const [pluginsError, setPluginsError] = useState<string | null>(null);
 
   const refreshPlugins = useCallback(async () => {
+    if (!getStoredAuthToken()) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await authenticatedFetch('/api/plugins');
       if (res.ok) {

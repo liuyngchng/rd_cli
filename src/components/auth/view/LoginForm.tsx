@@ -22,6 +22,17 @@ type LoginFormProps = {
 };
 
 /**
+ * Maps server error codes to i18n keys for login failures.
+ * Falls back to the server-provided message when no mapping exists.
+ */
+const LOGIN_ERROR_CODE_I18N_MAP: Record<string, string> = {
+  AUTH_INVALID_CREDENTIALS: 'login.errors.invalidCredentials',
+  AUTH_ACCOUNT_DISABLED: 'login.errors.accountDisabled',
+  AUTH_CREDENTIALS_REQUIRED: 'login.errors.requiredFields',
+  RATE_LIMIT_EXCEEDED: 'login.errors.rateLimited',
+};
+
+/**
  * Login form component.
  * Handles credential input with browser autofill support (`autocomplete`
  * attributes) so that password managers can offer to fill saved credentials.
@@ -52,7 +63,9 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       setIsSubmitting(true);
       const result = await login(formState.username.trim(), formState.password);
       if (!result.success) {
-        setErrorMessage(result.error);
+        // Prefer i18n-mapped message over raw server error
+        const i18nKey = result.errorCode ? LOGIN_ERROR_CODE_I18N_MAP[result.errorCode] : undefined;
+        setErrorMessage(i18nKey ? t(i18nKey) : result.error);
       }
       setIsSubmitting(false);
     },

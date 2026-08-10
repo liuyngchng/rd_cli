@@ -8,8 +8,10 @@ import http from 'http';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 
 import { AppError, findApplicationRoot, getModuleDirectory, terminalTextStyles } from '@/shared/utils.js';
+import { strictAuthLimiter, generalApiLimiter } from '@/modules/security/rate-limiter.js';
 import {
     closeSessionsWatcher,
     initializeSessionsWatcher,
@@ -119,7 +121,40 @@ const wss = createWebSocketServer(server, {
 // Make WebSocket server available to routes
 app.locals.wss = wss;
 
-app.use(cors({ exposedHeaders: ['X-Refreshed-Token', 'X-Auth-Error'] }));
+// ── Security Headers ─────────────────────────────────────────────────
+// Helmet sets Content-Security-Policy, X-Frame-Options, HSTS, X-Content-Type-Options,
+// Referrer-Policy, and other standard security headers.
+// CSP is relaxed enough to allow the app's inline styles/scripts for dev + production.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Allow loading external resources
+  })
+);
+
+// CORS: restrict origins when configured, otherwise allow local dev origins.
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3001', 'http://127.0.0.1:3001'];
+
+app.use(cors({
+  origin: corsOrigins,
+  exposedHeaders: ['X-Refreshed-Token', 'X-Auth-Error'],
+  credentials: true,
+}));
+
 app.use(express.json({
     limit: '50mb',
     type: (req) => {
@@ -132,6 +167,10 @@ app.use(express.json({
     }
 }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ── Rate Limiting ────────────────────────────────────────────────────
+// General API rate limiter protects all /api routes from DoS.
+app.use('/api', generalApiLimiter);
 
 // Public health check endpoint (no authentication required)
 app.get('/health', (req, res) => {
@@ -146,8 +185,8 @@ app.get('/health', (req, res) => {
 // Optional API key validation (if configured)
 app.use('/api', validateApiKey);
 
-// Authentication routes (public)
-app.use('/api/auth', authRoutes);
+// Authentication routes (public) with strict rate limiting for brute-force protection
+app.use('/api/auth', strictAuthLimiter, authRoutes);
 
 // File Tree API Routes (protected)
 app.use('/api/file-tree', authenticateToken, fileTreeRoutes);

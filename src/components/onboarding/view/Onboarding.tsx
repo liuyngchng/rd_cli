@@ -1,5 +1,6 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -17,6 +18,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeLoginProvider, setActiveLoginProvider] = useState<LLMProvider | null>(null);
+  const { t } = useTranslation('onboarding');
   const {
     providerAuthStatus,
     checkProviderAuthStatus,
@@ -60,13 +62,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     try {
       const response = await authenticatedFetch('/api/user/complete-onboarding', { method: 'POST' });
       if (!response.ok) {
-        const message = await readErrorMessageFromResponse(response, 'Failed to complete onboarding');
+        const message = await readErrorMessageFromResponse(response, t('failedToComplete'));
         throw new Error(message);
       }
 
       await onComplete?.();
     } catch (caughtError) {
-      setErrorMessage(caughtError instanceof Error ? caughtError.message : 'Failed to complete onboarding');
+      setErrorMessage(caughtError instanceof Error ? caughtError.message : t('failedToComplete'));
     } finally {
       setIsSubmitting(false);
     }
@@ -107,12 +109,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Completing...
+                      {t('completing')}
                     </>
                   ) : (
                     <>
                       <Check className="h-4 w-4" />
-                      Complete Setup
+                      {t('completeSetup')}
                     </>
                   )}
                 </button>

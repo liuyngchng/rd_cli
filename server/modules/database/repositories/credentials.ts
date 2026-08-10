@@ -4,13 +4,28 @@
  * Manages external service tokens (GitHub, GitLab, Bitbucket, etc.)
  * stored per-user. Each credential has a type discriminator so multiple
  * credential kinds can coexist in the same table.
+ *
+ * Credential values are encrypted at rest with AES-256-GCM using a key
+ * derived from the installation's JWT secret. A database file stolen
+ * without access to the app_config table or JWT_SECRET env var will
+ * contain only ciphertext for the credential_value column.
  */
 
 import { getConnection } from '@/modules/database/connection.js';
+import { appConfigDb } from '@/modules/database/repositories/app-config.js';
+import { decryptCredentialValue, encryptCredentialValue } from '@/modules/security/encryption.js';
 import type {
   CreateCredentialResult,
   CredentialPublicRow,
 } from '@/shared/types.js';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getEncryptionKey(): string {
+  return appConfigDb.getOrCreateJwtSecret();
+}
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -26,11 +41,12 @@ export const credentialsDb = {
     description: string | null = null
   ): CreateCredentialResult {
     const db = getConnection();
+    const encryptedValue = encryptCredentialValue(credentialValue, getEncryptionKey());
     const result = db
       .prepare(
-        'INSERT INTO user_credentials (user_id, credential_name, credential_type, credential_value, description) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO user_credentials (user_id, credential_name, credential_type, credential_value, description, is_encrypted) VALUES (?, ?, ?, ?, ?, 1)'
       )
-      .run(userId, credentialName, credentialType, credentialValue, description);
+      .run(userId, credentialName, credentialType, encryptedValue, description);
     return {
       id: result.lastInsertRowid,
       credentialName,
@@ -66,6 +82,9 @@ export const credentialsDb = {
   /**
    * Returns the raw credential value for the most recent active
    * credential of the given type, or null if none exists.
+   *
+   * Handles both encrypted (is_encrypted=1) and legacy plaintext
+   * (is_encrypted=0) rows so existing installs upgrade transparently.
    */
   getActiveCredential(
     userId: number,
@@ -74,10 +93,19 @@ export const credentialsDb = {
     const db = getConnection();
     const row = db
       .prepare(
-        'SELECT credential_value FROM user_credentials WHERE user_id = ? AND credential_type = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1'
+        'SELECT credential_value, is_encrypted FROM user_credentials WHERE user_id = ? AND credential_type = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1'
       )
-      .get(userId, credentialType) as { credential_value: string } | undefined;
-    return row?.credential_value ?? null;
+      .get(userId, credentialType) as { credential_value: string; is_encrypted: number } | undefined;
+    if (!row) {
+      return null;
+    }
+
+    if (row.is_encrypted) {
+      return decryptCredentialValue(row.credential_value, getEncryptionKey());
+    }
+
+    // Legacy plaintext credential — return as-is.
+    return row.credential_value;
   },
 
   /** Permanently removes a credential. Returns true if a row was deleted. */

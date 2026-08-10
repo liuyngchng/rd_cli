@@ -25,6 +25,7 @@ type AuthDependencies = {
   hashPassword(password: string): Promise<string>;
   comparePassword(password: string, passwordHash: string): Promise<boolean>;
   generateToken(user: AuthUser): string;
+  revokeToken(request: unknown): void;
 };
 
 function numericUserId(userId: number | bigint): number {
@@ -58,6 +59,42 @@ function validateAuthUser(user: unknown): AuthUser {
 }
 
 /**
+ * Validates password strength.
+ *
+ * Requirements:
+ * - Minimum 10 characters
+ * - At least one uppercase letter
+ * - At least one lowercase letter
+ * - At least one digit
+ */
+function validatePasswordStrength(password: string): void {
+  if (password.length < 10) {
+    throw new AppError(
+      'Password must be at least 10 characters',
+      { code: 'AUTH_PASSWORD_TOO_SHORT', statusCode: 400 },
+    );
+  }
+  if (!/[A-Z]/.test(password)) {
+    throw new AppError(
+      'Password must contain at least one uppercase letter',
+      { code: 'AUTH_PASSWORD_WEAK', statusCode: 400 },
+    );
+  }
+  if (!/[a-z]/.test(password)) {
+    throw new AppError(
+      'Password must contain at least one lowercase letter',
+      { code: 'AUTH_PASSWORD_WEAK', statusCode: 400 },
+    );
+  }
+  if (!/[0-9]/.test(password)) {
+    throw new AppError(
+      'Password must contain at least one digit',
+      { code: 'AUTH_PASSWORD_WEAK', statusCode: 400 },
+    );
+  }
+}
+
+/**
  * Creates the Auth application service around explicit persistence, crypto,
  * transaction, and token dependencies.
  */
@@ -80,12 +117,13 @@ export function createAuthService(dependencies: AuthDependencies) {
           statusCode: 400,
         });
       }
-      if (username.length < 3 || password.length < 6) {
+      if (username.length < 3) {
         throw new AppError(
-          'Username must be at least 3 characters, password at least 6 characters',
+          'Username must be at least 3 characters',
           { code: 'AUTH_CREDENTIALS_TOO_SHORT', statusCode: 400 },
         );
       }
+      validatePasswordStrength(password);
 
       dependencies.transaction.begin();
       try {
@@ -158,7 +196,13 @@ export function createAuthService(dependencies: AuthDependencies) {
       return { token: dependencies.generateToken(validated) };
     },
 
-    logout() {
+    /**
+     * Logs out the current user by revoking their JWT token.
+     * The request object is needed to extract the token from the
+     * Authorization header so it can be added to the blacklist.
+     */
+    logout(request: unknown) {
+      dependencies.revokeToken(request);
       return { success: true, message: 'Logged out successfully' };
     },
 
@@ -182,12 +226,13 @@ export function createAuthService(dependencies: AuthDependencies) {
           statusCode: 400,
         });
       }
-      if (username.length < 3 || password.length < 6) {
+      if (username.length < 3) {
         throw new AppError(
-          'Username must be at least 3 characters, password at least 6 characters',
+          'Username must be at least 3 characters',
           { code: 'AUTH_CREDENTIALS_TOO_SHORT', statusCode: 400 },
         );
       }
+      validatePasswordStrength(password);
 
       dependencies.transaction.begin();
       try {

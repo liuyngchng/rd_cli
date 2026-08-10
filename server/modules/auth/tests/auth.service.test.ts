@@ -25,6 +25,7 @@ function createDependencies(overrides: Partial<AuthDependencies> = {}): AuthDepe
     hashPassword: async () => 'hashed-password',
     comparePassword: async () => false,
     generateToken: () => 'signed-token',
+    revokeToken: () => undefined,
     ...overrides,
   };
 }
@@ -54,11 +55,48 @@ test('register hashes credentials and commits through injected dependencies', as
     },
   }));
 
-  const result = await service.register('alice', 'secret12');
+  // Password must be >= 10 chars with uppercase, lowercase, and digit.
+  const result = await service.register('alice', 'Secret12abc');
 
   assert.equal(result.token, 'signed-token');
   assert.deepEqual(result.user, { id: 1, username: 'alice', role: 'admin' });
-  assert.deepEqual(operations, ['begin', 'hash:secret12', 'create:alice:hash', 'commit', 'login:1']);
+  assert.deepEqual(operations, ['begin', 'hash:Secret12abc', 'create:alice:hash', 'commit', 'login:1']);
+});
+
+test('register rejects a password shorter than 10 characters', async () => {
+  const service = createAuthService(createDependencies());
+
+  await assert.rejects(
+    service.register('alice', 'Short1!'),
+    (error: unknown) => error instanceof AppError && error.code === 'AUTH_PASSWORD_TOO_SHORT',
+  );
+});
+
+test('register rejects a password without an uppercase letter', async () => {
+  const service = createAuthService(createDependencies());
+
+  await assert.rejects(
+    service.register('alice', 'alllowercase1'),
+    (error: unknown) => error instanceof AppError && error.code === 'AUTH_PASSWORD_WEAK',
+  );
+});
+
+test('register rejects a password without a lowercase letter', async () => {
+  const service = createAuthService(createDependencies());
+
+  await assert.rejects(
+    service.register('alice', 'ALLUPPERCASE1'),
+    (error: unknown) => error instanceof AppError && error.code === 'AUTH_PASSWORD_WEAK',
+  );
+});
+
+test('register rejects a password without a digit', async () => {
+  const service = createAuthService(createDependencies());
+
+  await assert.rejects(
+    service.register('alice', 'NoDigitsHere'),
+    (error: unknown) => error instanceof AppError && error.code === 'AUTH_PASSWORD_WEAK',
+  );
 });
 
 test('login rejects an invalid password without issuing a token', async () => {
@@ -99,4 +137,28 @@ test('refreshSession issues a replacement token for the authenticated user', () 
 
   assert.deepEqual(result, { token: 'replacement-token' });
   assert.deepEqual(tokenUser, { id: 7, username: 'alice', role: 'user' });
+});
+
+test('logout calls revokeToken with the request object', () => {
+  let revokedRequest: unknown = null;
+  const service = createAuthService(createDependencies({
+    revokeToken: (req) => {
+      revokedRequest = req;
+    },
+  }));
+
+  const mockRequest = { headers: { authorization: 'Bearer some-token' } };
+  const result = service.logout(mockRequest);
+
+  assert.deepEqual(result, { success: true, message: 'Logged out successfully' });
+  assert.equal(revokedRequest, mockRequest);
+});
+
+test('adminSetUserActive prevents self-disable', () => {
+  const service = createAuthService(createDependencies());
+
+  assert.throws(
+    () => service.adminSetUserActive({ id: 1, username: 'admin', role: 'admin' }, 1, false),
+    (error: unknown) => error instanceof AppError && error.code === 'AUTH_CANNOT_SELF_DISABLE',
+  );
 });

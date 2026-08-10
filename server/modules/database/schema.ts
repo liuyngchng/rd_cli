@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS user_credentials (
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT 1,
+    is_encrypted BOOLEAN DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;

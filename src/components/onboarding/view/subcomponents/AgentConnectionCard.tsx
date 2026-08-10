@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type { LLMProvider } from '../../../../types/app';
 import type { ProviderAuthStatus } from '../../../provider-auth/types';
@@ -22,13 +23,14 @@ export default function AgentConnectionCard({
   loginButtonClassName,
   onLogin,
 }: AgentConnectionCardProps) {
+  const { t } = useTranslation('onboarding');
   const containerClassName = status.authenticated ? connectedClassName : 'border-border bg-card';
 
   const statusText = status.loading
-    ? 'Checking...'
+    ? t('agentCard.checking')
     : status.authenticated
-      ? status.email || 'Connected'
-      : status.error || 'Not connected';
+      ? status.email || t('agentCard.connected')
+      : status.error || t('agentCard.notConnected');
 
   return (
     <div className={`rounded-xl border px-3 py-2.5 transition-colors ${containerClassName}`}>
@@ -52,7 +54,7 @@ export default function AgentConnectionCard({
             onClick={onLogin}
             className={`${loginButtonClassName} flex-shrink-0 rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-colors`}
           >
-            Login
+            {t('agentCard.login')}
           </button>
         )}
       </div>

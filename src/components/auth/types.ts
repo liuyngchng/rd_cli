@@ -7,12 +7,12 @@ export type AuthUser = {
   [key: string]: unknown;
 };
 
-export type AuthActionResult = { success: true } | { success: false; error: string };
+export type AuthActionResult = { success: true } | { success: false; error: string; errorCode?: string };
 
 export type AuthSessionPayload = {
   token?: string;
   user?: AuthUser;
-  error?: string;
+  error?: string | { code?: string; message?: string };
   message?: string;
 };
 

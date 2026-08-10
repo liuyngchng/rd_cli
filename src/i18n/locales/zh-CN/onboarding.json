@@ -1,0 +1,29 @@
+{
+  "agentConnections": {
+    "title": "连接你的 AI 助手",
+    "description": "登录一个或多个 AI 编程助手，全部可选。",
+    "footer": "你可以稍后在设置中进行配置。"
+  },
+  "agentCard": {
+    "checking": "检查中...",
+    "connected": "已连接",
+    "notConnected": "未连接",
+    "login": "登录"
+  },
+  "gitConfig": {
+    "title": "Git 配置",
+    "description": "配置你的 Git 身份信息，确保提交记录的归属正确。",
+    "nameLabel": "Git 用户名",
+    "emailLabel": "Git 邮箱",
+    "nameHelp": "保存为 `git config --global user.name`。",
+    "emailHelp": "保存为 `git config --global user.email`。"
+  },
+  "steps": {
+    "gitConfig": "Git 配置",
+    "connectAgents": "连接助手",
+    "required": "必填"
+  },
+  "completeSetup": "完成设置",
+  "completing": "完成中...",
+  "failedToComplete": "新手引导完成失败"
+}

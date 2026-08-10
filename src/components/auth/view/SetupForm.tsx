@@ -23,6 +23,15 @@ type SetupFormProps = {
   onSwitchToLogin?: () => void;
 };
 
+const REGISTER_ERROR_CODE_I18N_MAP: Record<string, string> = {
+  AUTH_USERNAME_CONFLICT: 'register.errors.usernameTaken',
+  AUTH_CREDENTIALS_REQUIRED: 'register.errors.requiredFields',
+  AUTH_CREDENTIALS_TOO_SHORT: 'register.errors.usernameTooShort',
+  AUTH_PASSWORD_TOO_SHORT: 'register.errors.passwordTooShort',
+  AUTH_PASSWORD_WEAK: 'register.errors.weakPassword',
+  RATE_LIMIT_EXCEEDED: 'register.errors.rateLimited',
+};
+
 /**
  * Account setup / registration form.
  * Uses `autoComplete="new-password"` on password fields so that password
@@ -56,8 +65,23 @@ export default function SetupForm({ onSwitchToLogin }: SetupFormProps) {
         return;
       }
 
-      if (formState.password.length < 6) {
+      if (formState.password.length < 10) {
         setErrorMessage(t('register.errors.passwordTooShort'));
+        return;
+      }
+
+      if (!/[A-Z]/.test(formState.password)) {
+        setErrorMessage(t('register.errors.passwordNeedsUppercase'));
+        return;
+      }
+
+      if (!/[a-z]/.test(formState.password)) {
+        setErrorMessage(t('register.errors.passwordNeedsLowercase'));
+        return;
+      }
+
+      if (!/[0-9]/.test(formState.password)) {
+        setErrorMessage(t('register.errors.passwordNeedsDigit'));
         return;
       }
 
@@ -69,7 +93,8 @@ export default function SetupForm({ onSwitchToLogin }: SetupFormProps) {
       setIsSubmitting(true);
       const result = await register(formState.username.trim(), formState.password);
       if (!result.success) {
-        setErrorMessage(result.error);
+        const i18nKey = result.errorCode ? REGISTER_ERROR_CODE_I18N_MAP[result.errorCode] : undefined;
+        setErrorMessage(i18nKey ? t(i18nKey) : result.error);
       }
       setIsSubmitting(false);
     },

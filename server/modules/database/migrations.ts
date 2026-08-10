@@ -526,6 +526,19 @@ export const runMigrations = (db: Database) => {
       db.exec('DROP TABLE workspace_original_paths');
     }
 
+    // Add is_encrypted column to user_credentials for credential-at-rest encryption
+    {
+      const credsTableInfo = getTableInfo(db, 'user_credentials');
+      const credsColumnNames = credsTableInfo.map((column) => column.name);
+      addColumnToTableIfNotExists(
+        db,
+        'user_credentials',
+        credsColumnNames,
+        'is_encrypted',
+        'BOOLEAN DEFAULT 0'
+      );
+    }
+
     db.exec(LAST_SCANNED_AT_SQL);
     console.log('Database migrations completed successfully');
   } catch (error: any) {

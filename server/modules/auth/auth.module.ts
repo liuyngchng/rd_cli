@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 
 import { getConnection, userDb } from '@/modules/database/index.js';
 
-import { authenticateToken, generateToken } from './auth.middleware.js';
+import { authenticateToken, generateToken, revokeToken } from './auth.middleware.js';
 import { createAuthRouter } from './auth.routes.js';
 import { createAuthService } from './auth.service.js';
 
@@ -34,6 +34,7 @@ const authService = createAuthService({
   hashPassword: (password) => bcrypt.hash(password, 12),
   comparePassword: (password, passwordHash) => bcrypt.compare(password, passwordHash),
   generateToken,
+  revokeToken,
 });
 
 /** Simple admin role check middleware — must run after authenticateToken. */

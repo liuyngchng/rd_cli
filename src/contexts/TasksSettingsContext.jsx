@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../utils/api';
+import { api, getStoredAuthToken } from '../utils/api';
 
 const TasksSettingsContext = createContext({
   tasksEnabled: true,
@@ -39,6 +39,10 @@ export const TasksSettingsProvider = ({ children }) => {
   // Check TaskMaster installation status asynchronously on component mount
   useEffect(() => {
     const checkInstallation = async () => {
+      if (!getStoredAuthToken()) {
+        setIsCheckingInstallation(false);
+        return;
+      }
       try {
         const response = await api.get('/taskmaster/installation-status');
         if (response.ok) {
