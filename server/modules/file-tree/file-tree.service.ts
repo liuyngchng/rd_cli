@@ -159,8 +159,8 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
     : 1;
   const { acquire, release } = createConcurrencyLimiter(concurrencyLimit);
 
-  async function resolveProjectRoot(projectId: string): Promise<string> {
-    const projectRoot = await dependencies.projects.getProjectPathById(projectId);
+  async function resolveProjectRoot(projectId: string, userId?: number): Promise<string> {
+    const projectRoot = await dependencies.projects.getProjectPathById(projectId, userId);
     if (!projectRoot) {
       throw createFileTreeError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
@@ -354,8 +354,8 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       return { success: true, path: targetPath };
     },
 
-    async readTextFile(projectId, filePath) {
-      const projectRoot = await resolveProjectRoot(projectId);
+    async readTextFile(projectId, filePath, userId) {
+      const projectRoot = await resolveProjectRoot(projectId, userId);
       const resolvedPath = resolvePathInsideProject(projectRoot, filePath);
       try {
         const content = await fileSystem.readTextFile(resolvedPath);
@@ -368,8 +368,8 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       }
     },
 
-    async openFile(projectId, filePath) {
-      const projectRoot = await resolveProjectRoot(projectId);
+    async openFile(projectId, filePath, userId) {
+      const projectRoot = await resolveProjectRoot(projectId, userId);
       const resolvedPath = resolvePathInsideProject(projectRoot, filePath);
       try {
         await fileSystem.access(resolvedPath);
@@ -383,8 +383,8 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       };
     },
 
-    async saveTextFile(projectId, filePath, content) {
-      const projectRoot = await resolveProjectRoot(projectId);
+    async saveTextFile(projectId, filePath, content, userId) {
+      const projectRoot = await resolveProjectRoot(projectId, userId);
       const resolvedPath = resolvePathInsideProject(projectRoot, filePath);
       try {
         await fileSystem.writeTextFile(resolvedPath, content);
@@ -398,8 +398,8 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       return { success: true, path: resolvedPath, message: 'File saved successfully' };
     },
 
-    async listProjectFiles(projectId, options) {
-      const projectRoot = await resolveProjectRoot(projectId);
+    async listProjectFiles(projectId, options, userId) {
+      const projectRoot = await resolveProjectRoot(projectId, userId);
       try {
         await fileSystem.access(projectRoot);
       } catch {
@@ -423,7 +423,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
 
     async createEntry(input) {
       validateFilename(input.name);
-      const projectRoot = await resolveProjectRoot(input.projectId);
+      const projectRoot = await resolveProjectRoot(input.projectId, input.userId);
       const targetPath = input.parentPath
         ? path.join(input.parentPath, input.name)
         : input.name;
@@ -470,7 +470,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
 
     async renameEntry(input) {
       validateFilename(input.newName);
-      const projectRoot = await resolveProjectRoot(input.projectId);
+      const projectRoot = await resolveProjectRoot(input.projectId, input.userId);
       const resolvedOldPath = resolvePathInsideProject(projectRoot, input.oldPath);
 
       try {
@@ -512,7 +512,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
     },
 
     async deleteEntry(input) {
-      const projectRoot = await resolveProjectRoot(input.projectId);
+      const projectRoot = await resolveProjectRoot(input.projectId, input.userId);
       const resolvedPath = resolvePathInsideProject(projectRoot, input.targetPath);
       let stats;
       try {
@@ -554,7 +554,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       }
 
       try {
-        const projectRoot = await resolveProjectRoot(input.projectId);
+        const projectRoot = await resolveProjectRoot(input.projectId, input.userId);
         const resolvedTargetDirectory = !input.targetPath
           || input.targetPath === '.'
           || input.targetPath === './'

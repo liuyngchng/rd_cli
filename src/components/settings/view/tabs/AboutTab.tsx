@@ -6,7 +6,7 @@ import { useVersionCheck } from '../../../../hooks/useVersionCheck';
 
 export default function AboutTab() {
   const { t } = useTranslation('settings');
-  const { updateAvailable, latestVersion, currentVersion } = useVersionCheck('siteboon', 'claudecodeui');
+  const { updateAvailable, latestVersion, currentVersion } = useVersionCheck();
 
   return (
     <div className="space-y-6">

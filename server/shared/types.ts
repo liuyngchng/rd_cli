@@ -964,7 +964,7 @@ export type FileTreeFileSystem = {
  * never import the Database module or its repositories directly.
  */
 export type FileTreeProjectGateway = {
-  getProjectPathById(projectId: string): string | null | Promise<string | null>;
+  getProjectPathById(projectId: string, userId?: number): string | null | Promise<string | null>;
 };
 
 /**
@@ -1031,9 +1031,9 @@ export type FileTreeServices = {
     suggestions: Array<{ path: string; name: string; type: 'directory' }>;
   }>;
   createWorkspaceFolder(folderPath: string): Promise<{ success: true; path: string }>;
-  readTextFile(projectId: string, filePath: string): Promise<{ content: string; path: string }>;
-  openFile(projectId: string, filePath: string): Promise<{ contentType: string; stream: Readable }>;
-  saveTextFile(projectId: string, filePath: string, content: string): Promise<{
+  readTextFile(projectId: string, filePath: string, userId?: number): Promise<{ content: string; path: string }>;
+  openFile(projectId: string, filePath: string, userId?: number): Promise<{ contentType: string; stream: Readable }>;
+  saveTextFile(projectId: string, filePath: string, content: string, userId?: number): Promise<{
     success: true;
     path: string;
     message: string;
@@ -1041,21 +1041,23 @@ export type FileTreeServices = {
   listProjectFiles(
     projectId: string,
     options?: { respectGitignore: boolean },
+    userId?: number,
   ): Promise<FileTreeNode[]>;
   createEntry(input: {
     projectId: string;
     parentPath: string;
     type: 'file' | 'directory';
     name: string;
+    userId?: number;
   }): Promise<{ success: true; path: string; name: string; type: 'file' | 'directory'; message: string }>;
-  renameEntry(input: { projectId: string; oldPath: string; newName: string }): Promise<{
+  renameEntry(input: { projectId: string; oldPath: string; newName: string; userId?: number }): Promise<{
     success: true;
     oldPath: string;
     newPath: string;
     newName: string;
     message: string;
   }>;
-  deleteEntry(input: { projectId: string; targetPath: string }): Promise<{
+  deleteEntry(input: { projectId: string; targetPath: string; userId?: number }): Promise<{
     success: true;
     path: string;
     type: 'file' | 'directory';
@@ -1067,6 +1069,7 @@ export type FileTreeServices = {
     relativePaths: string[];
     requestedFileCount: number;
     files: FileTreeUploadedFile[];
+    userId?: number;
   }): Promise<{
     success: true;
     files: Array<{ name: string; path: string; size: number; mimeType: string }>;

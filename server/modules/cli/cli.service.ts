@@ -151,7 +151,7 @@ function showHelp(dependencies: CliServiceDependencies): void {
 ╚═══════════════════════════════════════════════════════════════╝
 
 Usage:
-  claude-code-ui [command] [options]
+  rdcli [command] [options]
   rdcli [command] [options]
 
 Commands:

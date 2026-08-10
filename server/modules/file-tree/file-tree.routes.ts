@@ -17,6 +17,15 @@ type UploadedRequest = Request & {
   files?: Express.Multer.File[];
 };
 
+function readUserId(request: Request): number | undefined {
+  const user = (request as Request & { user?: { id?: number | string } }).user;
+  if (user?.id != null) {
+    const id = typeof user.id === 'string' ? Number(user.id) : user.id;
+    return Number.isFinite(id) ? id : undefined;
+  }
+  return undefined;
+}
+
 function readBody(request: Request): Record<string, unknown> {
   return typeof request.body === 'object' && request.body !== null
     ? request.body as Record<string, unknown>
@@ -127,12 +136,12 @@ export function createFileTreeRouter(
 
   router.get('/projects/:projectId/file', createRouteHandler(async (request, response) => {
     const filePath = readRequiredString(request.query.filePath, 'filePath', 'Invalid file path');
-    response.json(await services.readTextFile(readProjectId(request), filePath));
+    response.json(await services.readTextFile(readProjectId(request), filePath, readUserId(request)));
   }, logger));
 
   router.get('/projects/:projectId/files/content', createRouteHandler(async (request, response) => {
     const filePath = readRequiredString(request.query.path, 'path', 'Invalid file path');
-    const file = await services.openFile(readProjectId(request), filePath);
+    const file = await services.openFile(readProjectId(request), filePath, readUserId(request));
     response.setHeader('Content-Type', file.contentType);
     file.stream.pipe(response);
     file.stream.on('error', (error) => {
@@ -158,13 +167,13 @@ export function createFileTreeRouter(
         statusCode: 400,
       });
     }
-    response.json(await services.saveTextFile(readProjectId(request), filePath, body.content));
+    response.json(await services.saveTextFile(readProjectId(request), filePath, body.content, readUserId(request)));
   }, logger));
 
   router.get('/projects/:projectId/files', createRouteHandler(async (request, response) => {
     response.json(await services.listProjectFiles(readProjectId(request), {
       respectGitignore: request.query.respectGitignore === 'true',
-    }));
+    }, readUserId(request)));
   }, logger));
 
   router.post('/projects/:projectId/files/create', createRouteHandler(async (request, response) => {
@@ -183,6 +192,7 @@ export function createFileTreeRouter(
       parentPath,
       type,
       name,
+      userId: readUserId(request),
     }));
   }, logger));
 
@@ -198,6 +208,7 @@ export function createFileTreeRouter(
       projectId: readProjectId(request),
       oldPath: readRequiredString(body.oldPath, 'oldPath'),
       newName: readRequiredString(body.newName, 'newName'),
+      userId: readUserId(request),
     }));
   }, logger));
 
@@ -207,6 +218,7 @@ export function createFileTreeRouter(
     response.json(await services.deleteEntry({
       projectId: readProjectId(request),
       targetPath,
+      userId: readUserId(request),
     }));
   }, logger));
 
@@ -220,6 +232,7 @@ export function createFileTreeRouter(
       relativePaths: readRelativePaths(body.relativePaths),
       requestedFileCount: readRequestedFileCount(body.requestedFileCount, files.length),
       files,
+      userId: readUserId(request),
     }));
   }, logger);
 

@@ -344,7 +344,7 @@ Custom commands can be created in:
     // Read version from package.json
     const packageJsonPath = path.join(APP_ROOT, "package.json");
     let version = "unknown";
-    let packageName = "claude-code-ui";
+    let packageName = "@rdcli-ai/rdcli";
 
     try {
       const packageJson = JSON.parse(

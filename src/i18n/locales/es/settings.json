@@ -481,7 +481,7 @@
   },
   "pluginSettings": {
     "title": "Plugins",
-    "description": "Amplía la interfaz con plugins personalizados. Instala desde git o suelta una carpeta en ~/.claude-code-ui/plugins/",
+    "description": "Amplía la interfaz con plugins personalizados. Instala desde git o suelta una carpeta en ~/.rdcli/plugins/",
     "installPlaceholder": "https://github.com/usuario/mi-plugin",
     "installButton": "Instalar",
     "installing": "Instalando…",

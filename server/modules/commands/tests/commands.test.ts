@@ -50,7 +50,7 @@ async function executeCommand(
 ): Promise<Record<string, unknown>> {
   const router = createCommandsRouter({
     fileSystem: {
-      readFile: async () => JSON.stringify({ name: 'claude-code-ui', version: '0.0.0-test' }),
+      readFile: async () => JSON.stringify({ name: '@rdcli-ai/rdcli', version: '0.0.0-test' }),
     } as unknown as typeof import('node:fs/promises'),
     homeDirectory: () => '/home/test',
     appRoot: '/app',

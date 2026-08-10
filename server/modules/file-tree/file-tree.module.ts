@@ -58,7 +58,7 @@ const fileTreeFileSystem: FileTreeFileSystem = {
  * only the narrow project-path lookup contract.
  */
 const fileTreeProjects: FileTreeProjectGateway = {
-  getProjectPathById: (projectId) => projectsDb.getProjectPathById(projectId),
+  getProjectPathById: (projectId, userId) => projectsDb.getProjectPathById(projectId, userId),
 };
 
 /**

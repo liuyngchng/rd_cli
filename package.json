@@ -19,13 +19,6 @@
     "README.md"
   ],
   "homepage": "https://rdcli.ai",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/siteboon/claudecodeui.git"
-  },
-  "bugs": {
-    "url": "https://github.com/siteboon/claudecodeui/issues"
-  },
   "scripts": {
     "dev": "concurrently --kill-others \"npm run server:dev\" \"npm run client\"",
     "server": "node dist-server/server/index.js",
@@ -118,7 +111,6 @@
   "keywords": [
     "claude code",
     "claude-code",
-    "claude-code-ui",
     "rdcli",
     "codex",
     "cursor",
