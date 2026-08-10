@@ -1,0 +1,246 @@
+import { AppError } from '@/shared/utils.js';
+
+type AuthUser = {
+  id: number | bigint;
+  username: string;
+  role: string;
+};
+
+type AuthLoginUser = AuthUser & { password_hash: string; is_active: number };
+
+type AuthDependencies = {
+  users: {
+    hasUsers(): boolean;
+    createUser(username: string, passwordHash: string, role?: string): AuthUser;
+    getUserByUsername(username: string): AuthLoginUser | undefined;
+    updateLastLogin(userId: number): void;
+    listUsers(): AuthUser[];
+    setUserActive(userId: number, isActive: boolean): void;
+  };
+  transaction: {
+    begin(): void;
+    commit(): void;
+    rollback(): void;
+  };
+  hashPassword(password: string): Promise<string>;
+  comparePassword(password: string, passwordHash: string): Promise<boolean>;
+  generateToken(user: AuthUser): string;
+};
+
+function numericUserId(userId: number | bigint): number {
+  return Number(userId);
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'SQLITE_CONSTRAINT_UNIQUE';
+}
+
+function validateAuthUser(user: unknown): AuthUser {
+  if (
+    typeof user !== 'object'
+    || user === null
+    || !('id' in user)
+    || !('username' in user)
+    || !('role' in user)
+    || (typeof user.id !== 'number' && typeof user.id !== 'bigint')
+    || typeof user.username !== 'string'
+    || typeof user.role !== 'string'
+  ) {
+    throw new AppError('Authenticated user is required', {
+      code: 'AUTH_USER_REQUIRED',
+      statusCode: 401,
+    });
+  }
+  return user as AuthUser;
+}
+
+/**
+ * Creates the Auth application service around explicit persistence, crypto,
+ * transaction, and token dependencies.
+ */
+export function createAuthService(dependencies: AuthDependencies) {
+  return {
+    getStatus() {
+      return {
+        needsSetup: !dependencies.users.hasUsers(),
+        isAuthenticated: false,
+      };
+    },
+
+    async register(usernameInput: unknown, passwordInput: unknown) {
+      const username = typeof usernameInput === 'string' ? usernameInput : '';
+      const password = typeof passwordInput === 'string' ? passwordInput : '';
+
+      if (!username || !password) {
+        throw new AppError('Username and password are required', {
+          code: 'AUTH_CREDENTIALS_REQUIRED',
+          statusCode: 400,
+        });
+      }
+      if (username.length < 3 || password.length < 6) {
+        throw new AppError(
+          'Username must be at least 3 characters, password at least 6 characters',
+          { code: 'AUTH_CREDENTIALS_TOO_SHORT', statusCode: 400 },
+        );
+      }
+
+      dependencies.transaction.begin();
+      try {
+        const isFirstUser = !dependencies.users.hasUsers();
+        const passwordHash = await dependencies.hashPassword(password);
+        const user = dependencies.users.createUser(username, passwordHash, isFirstUser ? 'admin' : 'user');
+        const token = dependencies.generateToken(user);
+        dependencies.transaction.commit();
+        dependencies.users.updateLastLogin(numericUserId(user.id));
+
+        return {
+          success: true,
+          user: { id: user.id, username: user.username, role: user.role },
+          token,
+        };
+      } catch (error) {
+        dependencies.transaction.rollback();
+        if (isUniqueConstraintError(error)) {
+          throw new AppError('Username already exists', {
+            code: 'AUTH_USERNAME_CONFLICT',
+            statusCode: 409,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async login(usernameInput: unknown, passwordInput: unknown) {
+      const username = typeof usernameInput === 'string' ? usernameInput : '';
+      const password = typeof passwordInput === 'string' ? passwordInput : '';
+      if (!username || !password) {
+        throw new AppError('Username and password are required', {
+          code: 'AUTH_CREDENTIALS_REQUIRED',
+          statusCode: 400,
+        });
+      }
+
+      const user = dependencies.users.getUserByUsername(username);
+      const validPassword = user
+        ? await dependencies.comparePassword(password, user.password_hash)
+        : false;
+      if (!user || !validPassword) {
+        throw new AppError('Invalid username or password', {
+          code: 'AUTH_INVALID_CREDENTIALS',
+          statusCode: 401,
+        });
+      }
+
+      if (!user.is_active) {
+        throw new AppError('Account is disabled. Contact your administrator.', {
+          code: 'AUTH_ACCOUNT_DISABLED',
+          statusCode: 403,
+        });
+      }
+
+      dependencies.users.updateLastLogin(numericUserId(user.id));
+      return {
+        success: true,
+        user: { id: user.id, username: user.username, role: user.role },
+        token: dependencies.generateToken(user),
+      };
+    },
+
+    getCurrentUser(user: unknown) {
+      return { user };
+    },
+
+    refreshSession(user: unknown) {
+      const validated = validateAuthUser(user);
+      return { token: dependencies.generateToken(validated) };
+    },
+
+    logout() {
+      return { success: true, message: 'Logged out successfully' };
+    },
+
+    // ── Admin ──────────────────────────────────────────────────────────
+
+    async adminCreateUser(currentUser: unknown, usernameInput: unknown, passwordInput: unknown) {
+      const current = validateAuthUser(currentUser);
+      if (current.role !== 'admin') {
+        throw new AppError('Only administrators can create users', {
+          code: 'AUTH_FORBIDDEN',
+          statusCode: 403,
+        });
+      }
+
+      const username = typeof usernameInput === 'string' ? usernameInput : '';
+      const password = typeof passwordInput === 'string' ? passwordInput : '';
+
+      if (!username || !password) {
+        throw new AppError('Username and password are required', {
+          code: 'AUTH_CREDENTIALS_REQUIRED',
+          statusCode: 400,
+        });
+      }
+      if (username.length < 3 || password.length < 6) {
+        throw new AppError(
+          'Username must be at least 3 characters, password at least 6 characters',
+          { code: 'AUTH_CREDENTIALS_TOO_SHORT', statusCode: 400 },
+        );
+      }
+
+      dependencies.transaction.begin();
+      try {
+        const passwordHash = await dependencies.hashPassword(password);
+        const user = dependencies.users.createUser(username, passwordHash, 'user');
+        dependencies.transaction.commit();
+        return {
+          success: true,
+          user: { id: user.id, username: user.username, role: user.role },
+        };
+      } catch (error) {
+        dependencies.transaction.rollback();
+        if (isUniqueConstraintError(error)) {
+          throw new AppError('Username already exists', {
+            code: 'AUTH_USERNAME_CONFLICT',
+            statusCode: 409,
+          });
+        }
+        throw error;
+      }
+    },
+
+    adminListUsers(currentUser: unknown) {
+      const current = validateAuthUser(currentUser);
+      if (current.role !== 'admin') {
+        throw new AppError('Only administrators can list users', {
+          code: 'AUTH_FORBIDDEN',
+          statusCode: 403,
+        });
+      }
+      return { users: dependencies.users.listUsers() };
+    },
+
+    adminSetUserActive(currentUser: unknown, targetUserId: unknown, isActive: unknown) {
+      const current = validateAuthUser(currentUser);
+      if (current.role !== 'admin') {
+        throw new AppError('Only administrators can manage users', {
+          code: 'AUTH_FORBIDDEN',
+          statusCode: 403,
+        });
+      }
+      const userId = typeof targetUserId === 'number' ? targetUserId : Number(targetUserId);
+      if (!Number.isFinite(userId) || userId <= 0) {
+        throw new AppError('Invalid user ID', { code: 'AUTH_INVALID_USER_ID', statusCode: 400 });
+      }
+      if (userId === numericUserId(current.id)) {
+        throw new AppError('Cannot disable your own account', {
+          code: 'AUTH_CANNOT_SELF_DISABLE',
+          statusCode: 400,
+        });
+      }
+      dependencies.users.setUserActive(userId, Boolean(isActive));
+      return { success: true };
+    },
+  };
+}
