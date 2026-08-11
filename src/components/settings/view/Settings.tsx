@@ -9,7 +9,6 @@ import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
 import VoiceSettingsTab from '../view/tabs/VoiceSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
-import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
@@ -185,9 +184,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 />
               )}
 
-              {activeTab === 'tasks' && <TasksSettingsTab />}
-
-              {activeTab === 'notifications' && (
+{activeTab === 'notifications' && (
                 <NotificationsSettingsTab
                   notificationPreferences={notificationPreferences}
                   onNotificationPreferencesChange={setNotificationPreferences}

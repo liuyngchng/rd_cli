@@ -1,4 +1,4 @@
-import { Bell, Bot, Info, ListChecks, Mic, Palette } from 'lucide-react';
+import { Bell, Bot, Info, Mic, Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
@@ -20,7 +20,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agents', labelKey: 'mainTabs.agents', icon: Bot },
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
   { id: 'voice', labelKey: 'mainTabs.voice', icon: Mic },
-  { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];

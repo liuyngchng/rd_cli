@@ -10,6 +10,9 @@ postcss.config.js
 vite.config.js
 tailwind.config.js
 
+# Sourcemaps — prevents original TS source from leaking via dist-server/
+*.js.map
+
 # Database files
 authdb/
 *.db

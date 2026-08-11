@@ -18,8 +18,7 @@ const TAB_CONFIG: MainTabConfig[] = [
   { id: 'agents', labelKey: 'mainTabs.agents' },
   { id: 'appearance', labelKey: 'mainTabs.appearance' },
   { id: 'voice', labelKey: 'mainTabs.voice' },
-  { id: 'tasks', labelKey: 'mainTabs.tasks' },
-  { id: 'notifications', labelKey: 'mainTabs.notifications' },
+{ id: 'notifications', labelKey: 'mainTabs.notifications' },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];
 

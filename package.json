@@ -10,8 +10,6 @@
   },
   "files": [
     "electron/",
-    "server/",
-    "shared/",
     "public/api-docs.html",
     "dist/",
     "dist-server/",
