@@ -16,6 +16,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_NAME="${IMAGE_NAME:-my_claude_code}"
 
 # ---- Resolve version -------------------------------------------------------
@@ -43,7 +44,7 @@ docker build \
     -t "${FULL_TAG}" \
     -t "${IMAGE_NAME}:latest" \
     -f "${SCRIPT_DIR}/Dockerfile" \
-    "${SCRIPT_DIR}"
+    "${PROJECT_ROOT}"
 
 echo ""
 echo "============================================"

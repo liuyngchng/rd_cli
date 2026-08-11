@@ -1,0 +1,24 @@
+# Dependencies (fresh install in builder)
+node_modules/
+
+# Build output (rebuilt from source in builder)
+dist/
+dist-server/
+
+# VCS
+.git/
+.gitmodules
+
+# IDE / editor
+.claude/
+.agents/
+.windsurf/
+.serena/
+.gemini/
+
+# Misc
+release/
+docs/
+*.log
+.DS_Store
+Thumbs.db
