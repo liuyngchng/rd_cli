@@ -10,8 +10,13 @@ ENV LANG=C.UTF-8 \
 
 # ---------------------------------------------------------------------------
 # System dependencies
-# build-essential + python3 are required to compile native npm modules
-# (better-sqlite3, bcrypt, node-pty). The rest are runtime conveniences.
+# ---------------------------------------------------------------------------
+# python3-venv + python3-pip        → Python virtualenv & package management
+# build-essential + python3-setuptools → compile native npm modules
+# LibreOffice writer/calc/impress/draw → Office doc processing (doc→docx, etc.)
+# pandoc                            → document format conversion (pypandoc)
+# ffmpeg                            → media processing
+# ripgrep / jq / sqlite3 / zip ...  → runtime tooling for Claude Code
 # ---------------------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -19,7 +24,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     build-essential \
     python3 \
+    python3-venv \
+    python3-pip \
     python3-setuptools \
+    pandoc \
+    ffmpeg \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
+    libreoffice-draw \
     jq \
     ripgrep \
     sqlite3 \
@@ -28,6 +41,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tree \
     vim-tiny \
     && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Python virtualenv – Office document processing (Word, PDF, Excel, PPT)
+# ---------------------------------------------------------------------------
+# Activating: the venv bin directory is prepended to PATH below so Python
+# scripts and Claude Code always see the venv packages.
+# ---------------------------------------------------------------------------
+COPY requirements.txt /opt/requirements.txt
+
+RUN python3 -m venv /opt/llm_py_env \
+    && . /opt/llm_py_env/bin/activate \
+    && pip install --no-cache-dir -r /opt/requirements.txt \
+    && rm -rf /root/.cache/pip
 
 # ---------------------------------------------------------------------------
 # nvm + Node.js v22.22.3
@@ -42,9 +68,9 @@ RUN mkdir -p "$NVM_DIR" \
     && nvm alias default "$NODE_VERSION" \
     && nvm cache clear
 
-# Make node / npm / npx available in all subsequent layers and at runtime
+# Prepend both nvm Node bin and Python venv to PATH
 ENV NODE_HOME=/root/.nvm/versions/node/v22.22.3
-ENV PATH=${NODE_HOME}/bin:${PATH}
+ENV PATH=/opt/llm_py_env/bin:${NODE_HOME}/bin:${PATH}
 
 # ---------------------------------------------------------------------------
 # Claude Code CLI
@@ -55,7 +81,8 @@ RUN npm install -g @anthropic-ai/claude-code \
     --fetch-retry-maxtimeout=120000 \
     --fetch-timeout=600000 \
     --no-audit \
-    --no-fund
+    --no-fund \
+    && npm cache clean --force
 
 # ---------------------------------------------------------------------------
 # rdCLI – web-based UI for Claude Code
@@ -66,7 +93,14 @@ RUN npm install -g @rdcli-ai/rdcli \
     --fetch-retry-maxtimeout=120000 \
     --fetch-timeout=600000 \
     --no-audit \
-    --no-fund
+    --no-fund \
+    && npm cache clean --force
+
+# ---------------------------------------------------------------------------
+# Claude Code global memory – office document assistant role
+# ---------------------------------------------------------------------------
+RUN mkdir -p /root/.claude
+COPY CLAUDE.md /root/.claude/CLAUDE.md
 
 # ---------------------------------------------------------------------------
 # Runtime

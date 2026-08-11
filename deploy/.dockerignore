@@ -1,0 +1,46 @@
+# rdcli source code – never include in Docker image
+node_modules/
+dist/
+dist-server/
+src/
+server/
+electron/
+shared/
+public/
+plugins/
+scripts/
+
+# Git & config
+.git/
+.gitmodules
+.gitignore
+.npmignore
+.nvmrc
+
+# Dev config
+eslint.config.js
+tsconfig.json
+server/tsconfig.json
+vite.config.js
+tailwind.config.js
+postcss.config.js
+index.html
+
+# Docs & meta
+docs/
+README.md
+LICENSE
+NOTICE
+release.sh
+update-platform.sh
+
+# Docker / deploy infra itself
+docker/
+deploy/
+.claude/
+.agents/
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.map

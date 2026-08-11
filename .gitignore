@@ -108,6 +108,7 @@ temp/
 .windsurf/
 .serena/
 CLAUDE.md
+!deploy/CLAUDE.md
 .mcp.json
 .gemini/
 

@@ -3,7 +3,12 @@ set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Build script for my_claude_code Docker image
-# ---------------------------------------------------------------------------
+#
+# Includes:
+#   - Node.js v22.22.3 (nvm) + Claude Code CLI + rdCLI web UI
+#   - Python virtualenv /opt/llm_py_env (Office doc processing: Word, PDF, Excel, PPT)
+#   - LibreOffice (doc → docx conversion)
+#
 # Usage:
 #   ./build.sh              # Use version from package.json, fallback to "1.0"
 #   ./build.sh 2.0          # Explicit version
