@@ -56,20 +56,25 @@ RUN python3 -m venv /opt/llm_py_env \
     && rm -rf /root/.cache/pip
 
 # ---------------------------------------------------------------------------
-# nvm + Node.js v22.22.3
+# Node.js – install from local tarball (no network needed for this step)
+# ---------------------------------------------------------------------------
+# Uses nvm-compatible directory layout so npm global packages land in the
+# expected path and CMD can use the familiar nvm-style absolute path.
 # ---------------------------------------------------------------------------
 ENV NVM_DIR=/root/.nvm \
-    NODE_VERSION=v22.22.3
+    NODE_VERSION=v22.23.2
 
-RUN mkdir -p "$NVM_DIR" \
-    && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \
-    && . "$NVM_DIR/nvm.sh" \
-    && nvm install "$NODE_VERSION" \
-    && nvm alias default "$NODE_VERSION" \
-    && nvm cache clear
+COPY node-v22.23.2-linux-x64.tar.xz /tmp/
+
+RUN mkdir -p "$NVM_DIR/versions/node" \
+    && tar -xJf /tmp/node-v22.23.2-linux-x64.tar.xz -C "$NVM_DIR/versions/node" \
+    && mv "$NVM_DIR/versions/node/node-v22.23.2-linux-x64" "$NVM_DIR/versions/node/$NODE_VERSION" \
+    && mkdir -p "$NVM_DIR/alias" \
+    && echo "$NODE_VERSION" > "$NVM_DIR/alias/default" \
+    && rm /tmp/node-v22.23.2-linux-x64.tar.xz
 
 # Prepend both nvm Node bin and Python venv to PATH
-ENV NODE_HOME=/root/.nvm/versions/node/v22.22.3
+ENV NODE_HOME=/root/.nvm/versions/node/v22.23.2
 ENV PATH=/opt/llm_py_env/bin:${NODE_HOME}/bin:${PATH}
 
 # ---------------------------------------------------------------------------
@@ -107,4 +112,4 @@ COPY CLAUDE.md /root/.claude/CLAUDE.md
 # ---------------------------------------------------------------------------
 EXPOSE 3001
 
-CMD ["/root/.nvm/versions/node/v22.22.3/bin/rdcli"]
+CMD ["/root/.nvm/versions/node/v22.23.2/bin/rdcli"]
