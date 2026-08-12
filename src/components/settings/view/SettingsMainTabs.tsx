@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react';
+import { Info, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsMainTab } from '../types/types';
 
@@ -11,7 +11,7 @@ type MainTabConfig = {
   id: SettingsMainTab;
   labelKey?: string;
   label?: string;
-  icon?: typeof GitBranch;
+  icon?: LucideIcon;
 };
 
 const TAB_CONFIG: MainTabConfig[] = [
