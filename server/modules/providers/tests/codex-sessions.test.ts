@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, sessionsDb, userDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 
@@ -16,6 +16,18 @@ const patchHomeDir = (nextHomeDir: string) => {
   };
 };
 
+const patchUserRootDir = (nextUserRoot: string) => {
+  const original = process.env.RDCLI_USER_ROOT;
+  process.env.RDCLI_USER_ROOT = nextUserRoot;
+  return () => {
+    if (original === undefined) {
+      delete process.env.RDCLI_USER_ROOT;
+    } else {
+      process.env.RDCLI_USER_ROOT = original;
+    }
+  };
+};
+
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'codex-provider-db-'));
@@ -24,6 +36,10 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
   closeConnection();
   process.env.DATABASE_PATH = databasePath;
   await initializeDatabase();
+
+  // Synchronizer attribution sets user_id on discovered rows, so the isolated
+  // database needs the matching user row for the foreign key.
+  userDb.createUser('sync-user', 'x');
 
   try {
     await runTest();
@@ -66,9 +82,11 @@ const writeCodexTranscript = async (
 
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await writeCodexTranscript(tempRoot, 'codex-app-1', workspacePath, 'Fix the login redirect bug');
@@ -84,6 +102,7 @@ test('Codex synchronizer titles app-created sessions from the first user message
       assert.equal(sessionsDb.getSessionById('app-1')?.custom_name, 'Fix the login redirect bug');
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -91,9 +110,11 @@ test('Codex synchronizer titles app-created sessions from the first user message
 
 test('Codex synchronizer skips sub-agent rollout files', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-subagent-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     // Codex >=0.144 spawn_agent threads write their own rollout files into the
@@ -125,6 +146,7 @@ test('Codex synchronizer skips sub-agent rollout files', { concurrency: false },
       assert.equal(sessionsDb.getSessionById('codex-subagent-1'), null);
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -132,9 +154,11 @@ test('Codex synchronizer skips sub-agent rollout files', { concurrency: false },
 
 test('Codex synchronizer leaves indexed sessions untitled when no name is available', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-indexed-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     // A CLI-created session has no app row; its first user message must NOT be
@@ -147,6 +171,7 @@ test('Codex synchronizer leaves indexed sessions untitled when no name is availa
       assert.equal(sessionsDb.getSessionById('codex-indexed-1')?.custom_name, 'Untitled Codex Session');
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -154,9 +179,11 @@ test('Codex synchronizer leaves indexed sessions untitled when no name is availa
 
 test('Codex history renders Promise.all shell wrappers as Bash activity', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-exec-history-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     const providerSessionId = 'codex-exec-1';
@@ -186,6 +213,7 @@ test('Codex history renders Promise.all shell wrappers as Bash activity', { conc
       assert.equal(toolResults.some((message) => message.toolCallId === 'plan-1'), false);
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }

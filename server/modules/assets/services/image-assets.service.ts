@@ -42,9 +42,19 @@ export function isAllowedImageMimeType(mimeType: string): boolean {
   return ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
 }
 
-/** Creates the global `~/.rdcli/assets` folder if needed and returns it. */
-export async function ensureImageAssetsDir(): Promise<string> {
-  const assetsDir = getGlobalImageAssetsDir();
+/**
+ * Returns the per-user assets folder (`~/.rdcli/assets/<userId>`). Keeping
+ * each user's attachments in their own subfolder of the global assets dir
+ * means the existing image-source trust boundary (`isAllowedImageSourcePath`)
+ * continues to accept these paths unchanged.
+ */
+export function getUserImageAssetsDir(userId: number): string {
+  return path.join(getGlobalImageAssetsDir(), String(userId));
+}
+
+/** Creates the user's `~/.rdcli/assets/<userId>` folder if needed and returns it. */
+export async function ensureUserImageAssetsDir(userId: number): Promise<string> {
+  const assetsDir = getUserImageAssetsDir(userId);
   await fs.mkdir(assetsDir, { recursive: true });
   return assetsDir;
 }
@@ -54,8 +64,8 @@ export async function ensureImageAssetsDir(): Promise<string> {
  * chat composer. The absolute path is what providers receive and what session
  * history carries back to the UI.
  */
-export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImageAsset[] {
-  const assetsDir = getGlobalImageAssetsDir();
+export function buildStoredImageRecords(files: UploadedImageFile[], userId: number): StoredImageAsset[] {
+  const assetsDir = getUserImageAssetsDir(userId);
   return files.map((file) => ({
     name: file.originalname,
     path: toPosixPath(path.join(assetsDir, file.filename)),
@@ -69,23 +79,25 @@ export function buildStoredImageRecords(files: UploadedImageFile[]): StoredImage
  * assets route. The shared storage format intentionally matches image records
  * so one uploaded file can move through queueing and provider dispatch.
  */
-export function buildStoredAttachmentRecords(files: UploadedAttachmentFile[]): StoredImageAsset[] {
-  return buildStoredImageRecords(files);
+export function buildStoredAttachmentRecords(files: UploadedAttachmentFile[], userId: number): StoredImageAsset[] {
+  return buildStoredImageRecords(files, userId);
 }
 
 /**
- * Resolves one asset filename to its absolute path inside the global assets
- * folder, or null when the name is empty, contains path separators/traversal,
- * or would escape the folder. This is the only lookup the serving route uses,
- * so nothing outside `~/.rdcli/assets` can ever be read through it.
+ * Resolves one asset filename to its absolute path inside the requesting
+ * user's assets folder, or null when the name is empty, contains path
+ * separators/traversal, or would escape the folder. This is the only lookup
+ * the serving route uses, so nothing outside the user's own
+ * `~/.rdcli/assets/<userId>` can ever be read through it — a file stored by
+ * another user resolves outside this folder and reads as missing.
  */
-export function resolveImageAssetFile(filename: string): string | null {
+export function resolveImageAssetFile(filename: string, userId: number): string | null {
   const trimmed = typeof filename === 'string' ? filename.trim() : '';
   if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.includes('..')) {
     return null;
   }
 
-  const assetsDir = path.resolve(getGlobalImageAssetsDir());
+  const assetsDir = path.resolve(getUserImageAssetsDir(userId));
   const resolved = path.resolve(assetsDir, trimmed);
   if (!resolved.startsWith(assetsDir + path.sep)) {
     return null;
@@ -98,8 +110,8 @@ export function resolveImageAssetFile(filename: string): string | null {
  * Resolves a general chat attachment for the assets serving route. It shares
  * the image resolver's strict direct-child containment boundary.
  */
-export function resolveAttachmentAssetFile(filename: string): string | null {
-  return resolveImageAssetFile(filename);
+export function resolveAttachmentAssetFile(filename: string, userId: number): string | null {
+  return resolveImageAssetFile(filename, userId);
 }
 
 /**
@@ -107,8 +119,8 @@ export function resolveAttachmentAssetFile(filename: string): string | null {
  * filesystem reads. The route translates the lookup status and streams the
  * returned direct-child file to the authenticated client.
  */
-export async function openStoredAttachmentAsset(filename: string) {
-  const resolved = resolveAttachmentAssetFile(filename);
+export async function openStoredAttachmentAsset(filename: string, userId: number) {
+  const resolved = resolveAttachmentAssetFile(filename, userId);
   if (!resolved) {
     return { status: 'invalid' as const };
   }

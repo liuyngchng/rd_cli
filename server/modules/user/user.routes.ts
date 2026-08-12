@@ -30,9 +30,9 @@ export function createUserRouter(service: ReturnType<typeof createUserService>):
     }
   });
 
-  router.post('/complete-onboarding', (req, res, next) => {
+  router.post('/complete-onboarding', async (req, res, next) => {
     try {
-      res.json(service.completeOnboarding(readUserId(req)));
+      res.json(await service.completeOnboarding(readUserId(req)));
     } catch (error) {
       next(error);
     }

@@ -6,7 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
-import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
+import type { AuthenticatedWebSocketRequest, WorkspacePathValidationResult } from '@/shared/types.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -106,6 +106,11 @@ type ShellWebSocketDependencies = {
     sessionId: string,
     provider: string,
   ) => string | null | undefined;
+  resolveUserWorkspaceRoot: (userId: number) => Promise<string>;
+  validateUserWorkspacePath: (
+    userId: number,
+    candidatePath: string,
+  ) => Promise<WorkspacePathValidationResult>;
   spawnPty?: typeof pty.spawn;
 };
 
@@ -310,7 +315,15 @@ export function handleShellConnection(
       }
 
       if (data.type === 'init') {
-        const projectPath = readString(data.projectPath, process.cwd());
+        if (userId == null) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
+          return;
+        }
+
+        // The per-user workspace directory is the default project root; the
+        // client-supplied path (when present) must still resolve inside it.
+        const userRoot = await dependencies.resolveUserWorkspaceRoot(userId);
+        const projectPath = readString(data.projectPath, userRoot);
         const sessionId = readString(data.sessionId) || null;
         const hasSession = readBoolean(data.hasSession);
         const provider = readString(data.provider, 'claude');
@@ -378,7 +391,13 @@ export function handleShellConnection(
           return;
         }
 
-        const resolvedProjectPath = path.resolve(projectPath);
+        const validation = await dependencies.validateUserWorkspacePath(userId, projectPath);
+        if (!validation.valid) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Project path is outside your workspace' }));
+          return;
+        }
+
+        const resolvedProjectPath = validation.resolvedPath ?? path.resolve(projectPath);
         try {
           const stats = fs.statSync(resolvedProjectPath);
           if (!stats.isDirectory()) {
@@ -423,7 +442,7 @@ export function handleShellConnection(
           ws,
           buffer: [],
           timeoutId: null,
-          projectPath,
+          projectPath: resolvedProjectPath,
           sessionId,
         });
 

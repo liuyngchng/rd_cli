@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 
 import { providerModelsService } from '@/modules/providers/index.js';
+import { userWorkspaceService } from '@/modules/user/index.js';
 import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
 
 import { createCommandsRouter } from './commands.routes.js';
@@ -18,5 +19,9 @@ export const commandsRoutes = createCommandsRouter({
     version: process.version,
     platform: process.platform,
     pid: process.pid,
+  },
+  userWorkspace: {
+    validatePathWithinUserRoot: (userId, candidatePath) =>
+      userWorkspaceService.validatePathWithinUserRoot(userId, candidatePath),
   },
 });

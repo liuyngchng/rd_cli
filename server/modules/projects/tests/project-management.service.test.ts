@@ -32,6 +32,7 @@ test('createProject throws when path validation fails', async () => {
         { projectPath: '/invalid/path' },
         {
           validatePath: async () => ({ valid: false, error: 'blocked path' }),
+          validateUserPath: async () => ({ valid: true, resolvedPath: '' }),
           ensureWorkspaceDirectory: async () => undefined,
           persistProjectPath: () => ({ outcome: 'created', project: projectRow }),
           getProjectByPath: () => projectRow,
@@ -54,6 +55,7 @@ test('createProject throws conflict when active project path already exists', as
         { projectPath: '/workspace/my-project' },
         {
           validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
+          validateUserPath: async () => ({ valid: true, resolvedPath: '' }),
           ensureWorkspaceDirectory: async () => undefined,
           persistProjectPath: () => ({ outcome: 'active_conflict', project: projectRow }),
           getProjectByPath: () => projectRow,
@@ -76,6 +78,7 @@ test('createProject falls back to directory name when custom name is not provide
     { projectPath: '/workspace/my-project', customName: '' },
     {
       validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
+      validateUserPath: async () => ({ valid: true, resolvedPath: '' }),
       ensureWorkspaceDirectory: async () => undefined,
       persistProjectPath: (_projectPath, customName) => {
         capturedCustomName = customName;
@@ -101,6 +104,7 @@ test('createProject returns archived reuse outcome when archived row is reused',
     { projectPath: '/workspace/my-project' },
     {
       validatePath: async () => ({ valid: true, resolvedPath: '/workspace/my-project' }),
+      validateUserPath: async () => ({ valid: true, resolvedPath: '' }),
       ensureWorkspaceDirectory: async () => undefined,
       persistProjectPath: () => ({
         outcome: 'reactivated_archived',

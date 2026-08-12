@@ -6,7 +6,6 @@ import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
-import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps } from '../types/types';
@@ -49,13 +48,11 @@ function Sidebar({
   const { sidebarVisible } = preferences;
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
   const { tasksEnabled } = useTasksSettings();
-  const paletteOps = usePaletteOps();
 
   const {
     isSidebarCollapsed,
     expandedProjects,
     editingProject,
-    showNewProject,
     editingName,
     initialSessionsLoaded,
     currentTime,
@@ -101,7 +98,6 @@ function Sidebar({
     updateSessionSummary,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
-    setShowNewProject,
     setEditingName,
     setEditingSession,
     setEditingSessionName,
@@ -136,10 +132,6 @@ function Sidebar({
     document.documentElement.classList.toggle('pwa-mode', isPWA);
     document.body.classList.toggle('pwa-mode', isPWA);
   }, [isPWA]);
-
-  const handleProjectCreated = () => {
-    void paletteOps.refreshProjects();
-  };
 
   const projectListProps: SidebarProjectListProps = {
     projects,
@@ -200,9 +192,6 @@ function Sidebar({
         showSettings={showSettings}
         settingsInitialTab={settingsInitialTab}
         onCloseSettings={onCloseSettings}
-        showNewProject={showNewProject}
-        onCloseNewProject={() => setShowNewProject(false)}
-        onProjectCreated={handleProjectCreated}
         deleteConfirmation={deleteConfirmation}
         onCancelDeleteProject={() => setDeleteConfirmation(null)}
         onConfirmDeleteProject={confirmDeleteProject}
@@ -293,7 +282,6 @@ function Sidebar({
               void refreshProjects();
             }}
             isRefreshing={isRefreshing}
-            onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}

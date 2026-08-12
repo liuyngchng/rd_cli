@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveUserIdFromWorkspacePath } from '@/modules/user/user-workspace.service.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -15,6 +16,7 @@ import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 type ParsedSession = {
   sessionId: string;
   projectPath: string;
+  userId: number;
   sessionName?: string;
 };
 
@@ -60,7 +62,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        parsed.userId
       );
       processed += 1;
     }
@@ -90,7 +93,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      parsed.userId
     );
   }
 
@@ -122,6 +126,13 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    // Sessions started outside any user's workspace directory are skipped
+    // entirely (no session row, no implicit project row).
+    const userId = resolveUserIdFromWorkspacePath(parsed.projectPath);
+    if (userId === null) {
+      return null;
+    }
+
     // App-created sessions are keyed by an app id, so disk-discovered provider
     // ids must be resolved through the provider-id mapping first.
     const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
@@ -130,6 +141,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     if (existingSessionName && existingSessionName !== 'Untitled Codex Session') {
       return {
         ...parsed,
+        userId,
         sessionName: normalizeSessionName(existingSessionName, 'Untitled Codex Session'),
       };
     }
@@ -157,6 +169,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
 
     return {
       ...parsed,
+      userId,
       sessionName: normalizeSessionName(sessionName, 'Untitled Codex Session'),
     };
   }

@@ -20,6 +20,19 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 
 const router = express.Router();
 
+type AuthenticatedUser = {
+  id?: number | string;
+};
+
+function getUserId(req: Request): number | undefined {
+  const user = (req as typeof req & { user?: AuthenticatedUser }).user;
+  if (user?.id != null) {
+    const id = typeof user.id === 'string' ? Number(user.id) : user.id;
+    return Number.isFinite(id) ? id : undefined;
+  }
+  return undefined;
+}
+
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {
     return value;
@@ -552,7 +565,15 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
-    const result = sessionsService.createAppSession(provider, projectPath);
+    const userId = getUserId(req);
+    if (userId == null) {
+      throw new AppError('Authentication required', {
+        code: 'AUTH_REQUIRED',
+        statusCode: 401,
+      });
+    }
+
+    const result = await sessionsService.createAppSession(provider, projectPath, userId);
     res.status(201).json(createApiSuccessResponse(result));
   }),
 );

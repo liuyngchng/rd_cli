@@ -26,6 +26,10 @@ function createDependencies(overrides: Partial<AuthDependencies> = {}): AuthDepe
     comparePassword: async () => false,
     generateToken: () => 'signed-token',
     revokeToken: () => undefined,
+    userWorkspace: {
+      ensureUserWorkspace: async () => undefined,
+    },
+    logWarn: () => undefined,
     ...overrides,
   };
 }

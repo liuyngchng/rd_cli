@@ -55,8 +55,8 @@ export async function deleteSessionJsonlFilesForProjectPath(projectPath: string)
  * - **Force** (`force` true): for each session row for that `project_path`, delete the file at `jsonl_path`
  *   (when set), then remove session rows and the `projects` row.
  */
-export async function deleteOrArchiveProject(projectId: string, force: boolean): Promise<void> {
-  const row = projectsDb.getProjectById(projectId);
+export async function deleteOrArchiveProject(projectId: string, force: boolean, userId?: number): Promise<void> {
+  const row = projectsDb.getProjectById(projectId, userId);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
       code: 'PROJECT_NOT_FOUND',
@@ -65,20 +65,20 @@ export async function deleteOrArchiveProject(projectId: string, force: boolean):
   }
 
   if (!force) {
-    projectsDb.updateProjectIsArchivedById(projectId, true);
+    projectsDb.updateProjectIsArchivedById(projectId, true, userId);
     return;
   }
 
   await deleteSessionJsonlFilesForProjectPath(row.project_path);
   sessionsDb.deleteSessionsByProjectPath(row.project_path);
-  projectsDb.deleteProjectById(projectId);
+  projectsDb.deleteProjectById(projectId, userId);
 }
 
 /**
  * Restores one archived project row back into the active project list.
  */
-export function restoreArchivedProject(projectId: string): void {
-  const row = projectsDb.getProjectById(projectId);
+export function restoreArchivedProject(projectId: string, userId?: number): void {
+  const row = projectsDb.getProjectById(projectId, userId);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
       code: 'PROJECT_NOT_FOUND',
@@ -86,5 +86,5 @@ export function restoreArchivedProject(projectId: string): void {
     });
   }
 
-  projectsDb.updateProjectIsArchivedById(projectId, false);
+  projectsDb.updateProjectIsArchivedById(projectId, false, userId);
 }

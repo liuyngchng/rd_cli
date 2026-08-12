@@ -8,13 +8,13 @@ import multer from 'multer';
 import { projectsDb } from '@/modules/database/index.js';
 import { createFileTreeRouter } from '@/modules/file-tree/file-tree.routes.js';
 import { createFileTreeService } from '@/modules/file-tree/file-tree.service.js';
+import { getUserWorkspacePath, userWorkspaceService } from '@/modules/user/index.js';
 import type {
   FileTreeFileSystem,
   FileTreeLogger,
   FileTreeProjectGateway,
   FileTreeWorkspaceGateway,
 } from '@/shared/types.js';
-import { WORKSPACES_ROOT, validateWorkspacePath } from '@/shared/utils.js';
 
 const MAXIMUM_UPLOAD_SIZE_MEGABYTES = 200;
 const MAXIMUM_UPLOAD_SIZE_BYTES = MAXIMUM_UPLOAD_SIZE_MEGABYTES * 1024 * 1024;
@@ -63,12 +63,13 @@ const fileTreeProjects: FileTreeProjectGateway = {
 
 /**
  * Workspace-policy boundary used only by File Tree production composition.
- * Keeping both the configured root and symlink-aware validator together makes
- * the path policy explicit for every service instance.
+ * Filesystem browsing and folder creation are scoped to the requesting user's
+ * own workspace directory instead of the global workspace root.
  */
 const fileTreeWorkspace: FileTreeWorkspaceGateway = {
-  rootPath: WORKSPACES_ROOT,
-  validatePath: (candidatePath) => validateWorkspacePath(candidatePath),
+  rootPathFor: (userId) => getUserWorkspacePath(userId),
+  validatePath: (userId, candidatePath) =>
+    userWorkspaceService.validatePathWithinUserRoot(userId, candidatePath),
 };
 
 const fileTreeLogger: FileTreeLogger = {

@@ -12,6 +12,9 @@ type UserDependencies = {
     completeOnboarding(userId: number): void;
     hasCompletedOnboarding(userId: number): boolean;
   };
+  userWorkspace: {
+    ensureUserWorkspaceProject(userId: number): Promise<string>;
+  };
   readSystemGitConfig(): Promise<GitConfig>;
   applyGlobalGitConfig(gitName: string, gitEmail: string): Promise<void>;
   logInfo(message: string): void;
@@ -70,9 +73,23 @@ export function createUserService(dependencies: UserDependencies) {
       return { success: true, gitName, gitEmail };
     },
 
-    completeOnboarding(userId: number) {
+    async completeOnboarding(userId: number) {
       dependencies.users.completeOnboarding(userId);
-      return { success: true, message: 'Onboarding completed successfully' };
+
+      let workspacePath: string | null = null;
+      try {
+        workspacePath = await dependencies.userWorkspace.ensureUserWorkspaceProject(userId);
+      } catch (error) {
+        // Onboarding itself succeeded; the workspace is repaired lazily on the
+        // next project-list fetch if filesystem creation fails here.
+        dependencies.logError('Failed to create user workspace during onboarding', error);
+      }
+
+      return {
+        success: true,
+        message: 'Onboarding completed successfully',
+        workspacePath,
+      };
     },
 
     getOnboardingStatus(userId: number) {

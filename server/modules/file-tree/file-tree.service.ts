@@ -270,12 +270,17 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
   }
 
   return {
-    async browseWorkspace(inputPath) {
+    async browseWorkspace(inputPath, userId) {
+      if (userId == null) {
+        throw createFileTreeError('Authentication required', 401, 'AUTH_REQUIRED');
+      }
+
+      const workspaceRoot = dependencies.workspace.rootPathFor(userId);
       const requestedPath = inputPath
-        ? expandWorkspacePath(dependencies.workspace.rootPath, inputPath)
-        : dependencies.workspace.rootPath;
+        ? expandWorkspacePath(workspaceRoot, inputPath)
+        : workspaceRoot;
       const targetPath = path.resolve(requestedPath);
-      const validation = await dependencies.workspace.validatePath(targetPath);
+      const validation = await dependencies.workspace.validatePath(userId, targetPath);
       if (!validation.valid) {
         throw createFileTreeError(validation.error ?? 'Path is outside the workspace root', 403, 'INVALID_WORKSPACE_PATH');
       }
@@ -304,11 +309,11 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
           return left.name.localeCompare(right.name);
         });
 
-      let resolvedWorkspaceRoot = dependencies.workspace.rootPath;
+      let resolvedWorkspaceRoot = workspaceRoot;
       try {
-        resolvedWorkspaceRoot = await fileSystem.realpath(dependencies.workspace.rootPath);
+        resolvedWorkspaceRoot = await fileSystem.realpath(workspaceRoot);
       } catch {
-        // The configured workspace root remains the comparison fallback.
+        // The user's workspace root remains the comparison fallback.
       }
 
       const suggestions = resolvedPath === resolvedWorkspaceRoot
@@ -321,10 +326,15 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       return { path: resolvedPath, suggestions };
     },
 
-    async createWorkspaceFolder(folderPath) {
-      const expandedPath = expandWorkspacePath(dependencies.workspace.rootPath, folderPath);
+    async createWorkspaceFolder(folderPath, userId) {
+      if (userId == null) {
+        throw createFileTreeError('Authentication required', 401, 'AUTH_REQUIRED');
+      }
+
+      const workspaceRoot = dependencies.workspace.rootPathFor(userId);
+      const expandedPath = expandWorkspacePath(workspaceRoot, folderPath);
       const resolvedInput = path.resolve(expandedPath);
-      const validation = await dependencies.workspace.validatePath(resolvedInput);
+      const validation = await dependencies.workspace.validatePath(userId, resolvedInput);
       if (!validation.valid) {
         throw createFileTreeError(validation.error ?? 'Path is outside the workspace root', 403, 'INVALID_WORKSPACE_PATH');
       }

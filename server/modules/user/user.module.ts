@@ -1,9 +1,12 @@
+import { promises as fsPromises } from 'node:fs';
+
 import spawn from 'cross-spawn';
 
-import { userDb } from '@/modules/database/index.js';
+import { projectsDb, userDb } from '@/modules/database/index.js';
 
 import { createUserRouter } from './user.routes.js';
 import { createUserService } from './user.service.js';
+import { createUserWorkspaceService, RDCLI_USER_ROOT } from './user-workspace.service.js';
 
 type GitCommandResult = { stdout: string };
 
@@ -34,6 +37,29 @@ async function readSystemGitConfig() {
   };
 }
 
+/**
+ * Production per-user workspace service: filesystem access, the project-path
+ * upsert boundary, and the configured user root are all explicit.
+ */
+export const userWorkspaceService = createUserWorkspaceService({
+  userRootPath: RDCLI_USER_ROOT,
+  fileSystem: {
+    access: (candidatePath) => fsPromises.access(candidatePath),
+    mkdir: (directoryPath, options) => fsPromises.mkdir(directoryPath, options),
+    realpath: (candidatePath) => fsPromises.realpath(candidatePath),
+    lstat: (candidatePath) => fsPromises.lstat(candidatePath),
+    readlink: (candidatePath) => fsPromises.readlink(candidatePath),
+  },
+  projects: {
+    createProjectPath: (projectPath, customProjectName, userId) => projectsDb.createProjectPath(
+      projectPath,
+      customProjectName,
+      userId,
+    ),
+  },
+  logWarn: (message, error) => console.warn(message, error),
+});
+
 const userService = createUserService({
   users: {
     getGitConfig: (userId) => userDb.getGitConfig(userId),
@@ -44,6 +70,15 @@ const userService = createUserService({
     ),
     completeOnboarding: (userId) => userDb.completeOnboarding(userId),
     hasCompletedOnboarding: (userId) => userDb.hasCompletedOnboarding(userId),
+  },
+  userWorkspace: {
+    ensureUserWorkspaceProject: (userId) => {
+      const username = userDb.getUserById(userId)?.username;
+      return userWorkspaceService.ensureUserWorkspaceProject(
+        userId,
+        username ? `${username} 的工作区` : null,
+      );
+    },
   },
   readSystemGitConfig,
   applyGlobalGitConfig: async (gitName, gitEmail) => {

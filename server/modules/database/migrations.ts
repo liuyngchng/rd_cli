@@ -1,4 +1,9 @@
+import os from 'node:os';
+import path from 'node:path';
+
 import { Database } from 'better-sqlite3';
+
+import { resolveUserIdFromWorkspacePath } from '@/modules/user/user-workspace.service.js';
 
 import {
   APP_CONFIG_TABLE_SCHEMA_SQL,
@@ -439,6 +444,57 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
   `);
 };
 
+/**
+ * Backfills per-user workspace ownership for rows indexed before the per-user
+ * directory model existed. Idempotent: only rows with a NULL user_id whose
+ * project_path sits under `<RDCLI_USER_ROOT>/<n>/` are updated; everything else
+ * keeps its legacy NULL ownership.
+ */
+const backfillUserWorkspaceOwnership = (db: Database): void => {
+  if (!tableExists(db, 'projects') || !tableExists(db, 'sessions')) {
+    return;
+  }
+
+  const projectsTableInfo = getTableInfo(db, 'projects');
+  const sessionsTableInfo = getTableInfo(db, 'sessions');
+  if (
+    !projectsTableInfo.some((column) => column.name === 'user_id')
+    || !sessionsTableInfo.some((column) => column.name === 'user_id')
+  ) {
+    return;
+  }
+
+  const userRoot = path.resolve(
+    process.env.RDCLI_USER_ROOT || path.join(os.homedir(), '.rdcli', 'users'),
+  );
+
+  const updateOwnership = (table: string, idColumn: string, pathColumn: string): void => {
+    const rows = db.prepare(
+      `SELECT ${idColumn} AS id, ${pathColumn} AS project_path FROM ${table} WHERE user_id IS NULL`
+    ).all() as Array<{ id: string; project_path: string | null }>;
+
+    const updateStatement = db.prepare(`UPDATE ${table} SET user_id = ? WHERE ${idColumn} = ?`);
+    let updated = 0;
+
+    for (const row of rows) {
+      const ownerId = resolveUserIdFromWorkspacePath(row.project_path ?? '', userRoot);
+      if (ownerId === null) {
+        continue;
+      }
+
+      updateStatement.run(ownerId, row.id);
+      updated += 1;
+    }
+
+    if (updated > 0) {
+      console.log(`Migration: attributed ${updated} ${table} rows to per-user workspaces`);
+    }
+  };
+
+  updateOwnership('projects', 'project_id', 'project_path');
+  updateOwnership('sessions', 'session_id', 'project_path');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -504,6 +560,8 @@ export const runMigrations = (db: Database) => {
     if (firstUser && firstUser.role !== 'admin') {
       db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', firstUser.id);
     }
+
+    backfillUserWorkspaceOwnership(db);
 
     ensureProjectsForSessionPaths(db);
 

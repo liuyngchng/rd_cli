@@ -87,7 +87,7 @@ export const sessionsDb = {
 
     // First, ensure the project path is recorded in the projects table,
     // since it's a foreign key in the sessions table.
-    projectsDb.createProjectPath(normalizedProjectPath);
+    projectsDb.createProjectPath(normalizedProjectPath, null, userId);
 
     const existing = db
       .prepare(
@@ -163,7 +163,7 @@ export const sessionsDb = {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
 
-    projectsDb.createProjectPath(normalizedProjectPath);
+    projectsDb.createProjectPath(normalizedProjectPath, null, userId);
 
     db.prepare(
       `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, user_id, jsonl_path, isArchived, created_at, updated_at)

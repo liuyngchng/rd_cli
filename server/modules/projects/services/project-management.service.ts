@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
+import { userWorkspaceService } from '@/modules/user/index.js';
 import type {
   CreateProjectPathResult,
   ProjectRepositoryRow,
@@ -17,6 +18,7 @@ type CreateProjectInput = {
 
 type CreateProjectDependencies = {
   validatePath: (projectPath: string) => Promise<WorkspacePathValidationResult>;
+  validateUserPath: (userId: number, projectPath: string) => Promise<WorkspacePathValidationResult>;
   ensureWorkspaceDirectory: (projectPath: string) => Promise<void>;
   persistProjectPath: (projectPath: string, customName: string | null, userId?: number) => CreateProjectPathResult;
   getProjectByPath: (projectPath: string, userId?: number) => ProjectRepositoryRow | null;
@@ -44,6 +46,8 @@ type CreateProjectServiceResult = {
 
 const defaultDependencies: CreateProjectDependencies = {
   validatePath: validateWorkspacePath,
+  validateUserPath: (userId: number, projectPath: string) =>
+    userWorkspaceService.validatePathWithinUserRoot(userId, projectPath),
   ensureWorkspaceDirectory: async (projectPath: string): Promise<void> => {
     await fs.mkdir(projectPath, { recursive: true });
     const directoryStats = await fs.stat(projectPath);
@@ -54,10 +58,10 @@ const defaultDependencies: CreateProjectDependencies = {
       });
     }
   },
-  persistProjectPath: (projectPath: string, customName: string | null): CreateProjectPathResult =>
-    projectsDb.createProjectPath(projectPath, customName),
-  getProjectByPath: (projectPath: string): ProjectRepositoryRow | null =>
-    projectsDb.getProjectPath(projectPath),
+  persistProjectPath: (projectPath: string, customName: string | null, userId?: number): CreateProjectPathResult =>
+    projectsDb.createProjectPath(projectPath, customName, userId),
+  getProjectByPath: (projectPath: string, userId?: number): ProjectRepositoryRow | null =>
+    projectsDb.getProjectPath(projectPath, userId),
 };
 
 function resolveDisplayName(customName: string | null | undefined, projectPath: string): string {
@@ -107,6 +111,20 @@ export async function createProject(
     });
   }
 
+  // Projects must live inside the requesting user's own workspace directory.
+  if (input.userId != null) {
+    const userPathValidation = await dependencies.validateUserPath(input.userId, normalizedPath);
+    if (!userPathValidation.valid) {
+      throw new AppError(
+        userPathValidation.error ?? 'Project path must be inside your workspace',
+        {
+          code: 'PROJECT_PATH_OUTSIDE_USER_ROOT',
+          statusCode: 403,
+        },
+      );
+    }
+  }
+
   const resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
   await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
 
@@ -139,7 +157,7 @@ export async function createProject(
 /**
  * Sets `projects.custom_project_name` for the given `projectId` (or clears it when empty).
  */
-export function updateProjectDisplayName(projectId: string, newDisplayName: unknown): void {
+export function updateProjectDisplayName(projectId: string, newDisplayName: unknown, userId?: number): void {
   const trimmed = typeof newDisplayName === 'string' ? newDisplayName.trim() : '';
-  projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null);
+  projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null, userId);
 }

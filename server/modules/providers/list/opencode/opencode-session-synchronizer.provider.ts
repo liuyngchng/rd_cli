@@ -4,6 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveUserIdFromWorkspacePath } from '@/modules/user/user-workspace.service.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import {
   getOpenCodeDatabasePath,
@@ -112,6 +113,13 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       return null;
     }
 
+    // Sessions started outside any user's workspace directory are skipped
+    // entirely (no session row, no implicit project row).
+    const userId = resolveUserIdFromWorkspacePath(projectPath);
+    if (userId === null) {
+      return null;
+    }
+
     const fallbackTitle = 'Untitled OpenCode Session';
     const pendingAppSession = sessionsDb.getSessionByProviderSessionId(sessionId)
       ?? sessionsDb.getSessionById(sessionId)
@@ -162,6 +170,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       normalizeProviderTimestamp(row.time_created),
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
+      userId,
     );
   }
 
