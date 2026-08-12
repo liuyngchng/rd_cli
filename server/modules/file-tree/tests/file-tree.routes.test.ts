@@ -36,6 +36,12 @@ async function withFileTreeServer(
 ): Promise<void> {
   const app = express();
   app.use(express.json());
+  // Simulate the authenticated mount: production routes run behind
+  // authenticateToken, so `req.user` is always populated here.
+  app.use((req, _res, next) => {
+    (req as typeof req & { user?: { id: number } }).user = { id: 7 };
+    next();
+  });
   app.use('/api/file-tree', createFileTreeRouter(
     services,
     passUploadRequest,
@@ -72,7 +78,7 @@ test('project files route uses the File Tree API namespace and forwards the proj
     assert.deepEqual(await response.json(), []);
   });
 
-  assert.deepEqual(inputs, [['project-1', { respectGitignore: false }]]);
+  assert.deepEqual(inputs, [['project-1', { respectGitignore: false }, 7]]);
 });
 
 test('project files route requests gitignore filtering when explicitly enabled', async () => {
@@ -92,7 +98,7 @@ test('project files route requests gitignore filtering when explicitly enabled',
     assert.equal(response.status, 200);
   });
 
-  assert.deepEqual(inputs, [['project-1', { respectGitignore: true }]]);
+  assert.deepEqual(inputs, [['project-1', { respectGitignore: true }, 7]]);
 });
 
 test('create route parses the transport payload before invoking the service', async () => {
@@ -129,6 +135,7 @@ test('create route parses the transport payload before invoking the service', as
     parentPath: '/workspace/project/src',
     type: 'file',
     name: 'example.ts',
+    userId: 7,
   }]);
 });
 
