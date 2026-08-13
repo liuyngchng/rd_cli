@@ -17,7 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-IMAGE_NAME="${IMAGE_NAME:-my_claude_code}"
+IMAGE_NAME="${IMAGE_NAME:-rd_cli}"
 
 # ---- Resolve version -------------------------------------------------------
 if [ -n "${VERSION:-}" ]; then
