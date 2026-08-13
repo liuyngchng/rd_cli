@@ -29,3 +29,18 @@ npm run dev
 GNU 通用公共许可证 v3.0 - 详见 LICENSE 文件。
 
 该项目为开源软件，在 GPL v3 许可证下可自由使用、修改与分发。
+## Windows setup
+
+Windows 上打包便携版 exe
+
+在项目目录下（PowerShell 或 CMD）执行：
+
+```
+npm install
+npm run build
+npm run desktop:stage
+# 一个exe，首次需解压，略慢  
+npx electron-builder --projectDir .desktop-build/desktop-app --win portable
+# 启动速度快
+npx electron-builder --projectDir .desktop-build/desktop-app --win dir
+```
