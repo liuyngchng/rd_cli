@@ -74,10 +74,10 @@ function buildDesktopPackageJson(copiedOptionalDependencies) {
     license: packageJson.license,
     type: 'module',
     main: 'electron/main.js',
+    // The bundled dist-server runs under Electron's Node runtime, so the
+    // desktop app ships every runtime dependency of the main package.
     dependencies: {
-      ws: packageJson.dependencies.ws,
-      // Bundled Claude Code CLI runtime (JS SDK + platform binary copied below).
-      '@anthropic-ai/claude-agent-sdk': packageJson.dependencies['@anthropic-ai/claude-agent-sdk'],
+      ...packageJson.dependencies,
     },
     optionalDependencies: copiedOptionalDependencies,
     build: {
@@ -113,23 +113,22 @@ await fs.mkdir(stageDir, { recursive: true });
 
 await copyRequired('electron');
 await copyRequired('dist');
+await copyRequired('dist-server');
 await copyRequired('public');
 
+// Copy every runtime dependency (server + Claude Code SDK). The build machine's
+// node_modules already holds the correct platform binaries for each module.
 const copiedRuntimeDependencies = [];
-if (await copyNodeModule('ws')) {
-  copiedRuntimeDependencies.push('ws');
-} else {
-  throw new Error('Required desktop dependency is missing from node_modules: ws');
+for (const name of Object.keys(packageJson.dependencies || {})) {
+  if (await copyNodeModule(name)) {
+    copiedRuntimeDependencies.push(name);
+  } else {
+    console.warn(`Warning: ${name} not found in node_modules — will not be bundled.`);
+  }
 }
 
-// Bundle the Claude Code CLI (agent SDK + platform binary, e.g. claude.exe on
-// Windows) so the desktop app works on machines without a global claude install.
-if (await copyNodeModule('@anthropic-ai/claude-agent-sdk')) {
-  copiedRuntimeDependencies.push('@anthropic-ai/claude-agent-sdk');
-} else {
-  console.warn('Warning: @anthropic-ai/claude-agent-sdk not found in node_modules — Claude Code CLI will not be bundled.');
-}
-
+// The Claude Code CLI platform binary (e.g. claude.exe on Windows) ships as an
+// optional dependency of @anthropic-ai/claude-agent-sdk; copy it explicitly.
 const claudeSdkPlatformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
 if (!(await copyNodeModule(claudeSdkPlatformPackage))) {
   console.warn(`Warning: ${claudeSdkPlatformPackage} not found in node_modules — Claude Code CLI will not be bundled.`);
