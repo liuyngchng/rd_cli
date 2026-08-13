@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
@@ -103,6 +104,18 @@ function getDesktopPath() {
     : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
   return [...commonPaths, currentPath].filter(Boolean).join(path.delimiter);
+}
+
+/**
+ * Path to the Claude Code CLI bundled inside the packaged app
+ * (<appRoot>/node_modules/@anthropic-ai/claude-agent-sdk-<platform>-<arch>/claude[.exe]),
+ * or null when it is not present (e.g. development machines or musl builds).
+ */
+function getBundledClaudeCliPath(appRoot) {
+  const binaryName = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const platformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  const candidate = path.join(appRoot, 'node_modules', platformPackage, binaryName);
+  return existsSync(candidate) ? candidate : null;
 }
 
 function getNodeRuntime(usePackagedElectronRuntime) {
@@ -405,6 +418,9 @@ export class LocalServerController {
     this.appendStartupLog(`cwd: ${serverCwd}`);
     this.appendStartupLog(`HOST=${bindHost} SERVER_PORT=${port}`);
 
+    // Point the server at the bundled Claude Code CLI (unless the user already set CLAUDE_CLI_PATH).
+    const bundledClaudeCliPath = process.env.CLAUDE_CLI_PATH ? null : getBundledClaudeCliPath(this.appRoot);
+
     this.ownedServerProcess = spawn(runtime.command, [serverEntry], {
       cwd: serverCwd,
       detached: true,
@@ -414,6 +430,7 @@ export class LocalServerController {
         HOST: bindHost,
         SERVER_PORT: String(port),
         PATH: getDesktopPath(),
+        ...(bundledClaudeCliPath ? { CLAUDE_CLI_PATH: bundledClaudeCliPath } : {}),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

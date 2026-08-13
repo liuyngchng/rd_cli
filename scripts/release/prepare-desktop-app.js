@@ -76,6 +76,8 @@ function buildDesktopPackageJson(copiedOptionalDependencies) {
     main: 'electron/main.js',
     dependencies: {
       ws: packageJson.dependencies.ws,
+      // Bundled Claude Code CLI runtime (JS SDK + platform binary copied below).
+      '@anthropic-ai/claude-agent-sdk': packageJson.dependencies['@anthropic-ai/claude-agent-sdk'],
     },
     optionalDependencies: copiedOptionalDependencies,
     build: {
@@ -118,6 +120,19 @@ if (await copyNodeModule('ws')) {
   copiedRuntimeDependencies.push('ws');
 } else {
   throw new Error('Required desktop dependency is missing from node_modules: ws');
+}
+
+// Bundle the Claude Code CLI (agent SDK + platform binary, e.g. claude.exe on
+// Windows) so the desktop app works on machines without a global claude install.
+if (await copyNodeModule('@anthropic-ai/claude-agent-sdk')) {
+  copiedRuntimeDependencies.push('@anthropic-ai/claude-agent-sdk');
+} else {
+  console.warn('Warning: @anthropic-ai/claude-agent-sdk not found in node_modules — Claude Code CLI will not be bundled.');
+}
+
+const claudeSdkPlatformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+if (!(await copyNodeModule(claudeSdkPlatformPackage))) {
+  console.warn(`Warning: ${claudeSdkPlatformPackage} not found in node_modules — Claude Code CLI will not be bundled.`);
 }
 
 const copiedOptionalDependencies = {};

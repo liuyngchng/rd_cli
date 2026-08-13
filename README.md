@@ -45,6 +45,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
 
 产物：`release/rdcli-desktop-<版本号>-win-x64.zip`
 
+> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**，只需为 Claude 配置一次 API 密钥（写入 `C:\Users\<用户名>\.claude\settings.json` 的 `env` 块，或运行一次 `claude login`）。
+
 > 脚本仅限 Windows 运行；在 Linux/WSL 上执行会直接报错退出，避免误打出 Linux 版。
 
 ### 常见问题
