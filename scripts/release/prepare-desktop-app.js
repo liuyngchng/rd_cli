@@ -127,6 +127,37 @@ for (const name of Object.keys(packageJson.dependencies || {})) {
   }
 }
 
+/**
+ * Remove Spectre mitigation from the staged node-pty binding.gyp.
+ *
+ * node-pty sets SpectreMitigation in its binding.gyp on Windows, so the
+ * electron-builder native rebuild (node-gyp -> MSBuild) fails with MSB8040
+ * unless the "Spectre-mitigated libraries" VS component is installed.
+ * Strip it so packaging works with a plain VS Build Tools install; the
+ * locally built binaries simply ship without /Qspectre hardening.
+ *
+ * @see https://github.com/microsoft/node-pty/issues/645
+ * @async
+ * @function stripNodePtySpectreMitigation
+ * @returns {Promise<void>} Resolves after patching, or when node-pty is absent.
+ */
+async function stripNodePtySpectreMitigation() {
+  const gypPath = path.join(stageDir, 'node_modules', 'node-pty', 'binding.gyp');
+  if (!(await pathExists(gypPath))) return;
+
+  const gyp = await fs.readFile(gypPath, 'utf8');
+  const patched = gyp.replace(/^[ \t]*'SpectreMitigation':[ \t]*'Spectre',?\r?\n/m, '');
+  if (patched === gyp) {
+    console.warn('Warning: SpectreMitigation not found in node-pty binding.gyp — MSB8040 may occur.');
+    return;
+  }
+
+  await fs.writeFile(gypPath, patched, 'utf8');
+  console.log('[stage] Removed SpectreMitigation from node-pty binding.gyp');
+}
+
+await stripNodePtySpectreMitigation();
+
 // The Claude Code CLI platform binary (e.g. claude.exe on Windows) ships as an
 // optional dependency of @anthropic-ai/claude-agent-sdk; copy it explicitly.
 const claudeSdkPlatformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
