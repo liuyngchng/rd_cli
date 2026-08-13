@@ -54,6 +54,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
   `.\scripts\release\build-win.ps1`（仅影响当前用户，无需管理员权限）。
 - **SmartScreen 提示"未知发布者"**：未做代码签名的正常现象，点「更多信息 → 仍要运行」即可。
 - **首次打包较慢**：需下载 Windows 版 Electron（约 130MB），之后走本地缓存，很快。
+- **报"字符串缺少终止符"或中文乱码**：脚本需以 UTF-8 带 BOM 编码保存（Windows PowerShell 5.1
+  会把无 BOM 的 UTF-8 按 GBK 读取）。仓库内的脚本已是正确编码，若自行编辑后出现此错，用以下命令重新保存：
+
+  ```powershell
+  $p = "$PWD\scripts\release\build-win.ps1"
+  $c = Get-Content -Raw -Encoding UTF8 $p
+  [System.IO.File]::WriteAllText($p, $c, (New-Object System.Text.UTF8Encoding $true))
+  ```
 
 ### 手动打包（可选）
 
