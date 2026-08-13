@@ -242,8 +242,11 @@ export class ViewHost {
     const view = this.getOrCreateTabView(tabId);
     this.attach(view);
     const html = buildPlaceholderHtml(target.name || this.appName, message);
-    await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    if (view.__rdcliStartupHtml === html) return;
+    // Mark before awaiting so a concurrent call does not start a second load
+    // that aborts this one with ERR_ABORTED (-3).
     view.__rdcliStartupHtml = html;
+    await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     view.__rdcliLoadedUrl = null;
   }
 
@@ -253,8 +256,11 @@ export class ViewHost {
     this.attach(view);
     const html = buildPlaceholderHtml(target.name || this.appName, '正在启动本地 rdCLI...', logs);
     if (view.__rdcliStartupHtml === html) return;
-    await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    // Mark before awaiting so a concurrent call (e.g. the state sync in
+    // syncDesktopState) does not start a second load that aborts this one
+    // with ERR_ABORTED (-3).
     view.__rdcliStartupHtml = html;
+    await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     view.__rdcliLoadedUrl = null;
   }
 

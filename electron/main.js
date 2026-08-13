@@ -555,7 +555,12 @@ async function openLocalInDesktop() {
   const pendingTarget = localServer.getPendingTarget();
   tabs.upsertTarget(pendingTarget);
   setActiveTarget(pendingTarget);
-  await desktopWindow.showLocalStartupTarget(pendingTarget, localServer.getStartupLogs());
+  await desktopWindow.showLocalStartupTarget(pendingTarget, localServer.getStartupLogs())
+    .catch((error) => {
+      // A concurrent state sync may start its own load of this view; the aborted
+      // first load surfaces as ERR_ABORTED (-3) and is expected here.
+      if (!isExpectedNavigationAbort(error)) throw error;
+    });
   desktopWindow.emitDesktopState();
 
   const target = await localServer.getResolvedTarget();
