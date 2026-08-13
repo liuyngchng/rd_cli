@@ -121,7 +121,9 @@ RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
 # Wire up the rdcli command
-RUN ln -s /opt/rdcli/dist-server/server/modules/cli/cli.js ${NODE_HOME}/bin/rdcli
+# (tsc emits cli.js with 0644 perms and no exec bit – chmod it so runc can exec it)
+RUN chmod +x /opt/rdcli/dist-server/server/modules/cli/cli.js \
+    && ln -s /opt/rdcli/dist-server/server/modules/cli/cli.js ${NODE_HOME}/bin/rdcli
 
 # ---------------------------------------------------------------------------
 # Claude Code global memory – office document assistant role
