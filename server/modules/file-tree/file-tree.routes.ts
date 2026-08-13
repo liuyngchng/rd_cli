@@ -125,13 +125,13 @@ export function createFileTreeRouter(
   const router = express.Router();
 
   router.get('/browse-filesystem', createRouteHandler(async (request, response) => {
-    response.json(await services.browseWorkspace(readOptionalString(request.query.path)));
+    response.json(await services.browseWorkspace(readOptionalString(request.query.path), readUserId(request)));
   }, logger));
 
   router.post('/create-folder', createRouteHandler(async (request, response) => {
     const body = readBody(request);
     const folderPath = readRequiredString(body.path, 'path', 'Path is required');
-    response.json(await services.createWorkspaceFolder(folderPath));
+    response.json(await services.createWorkspaceFolder(folderPath, readUserId(request)));
   }, logger));
 
   router.get('/projects/:projectId/file', createRouteHandler(async (request, response) => {

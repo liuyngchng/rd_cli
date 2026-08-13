@@ -13,6 +13,9 @@ function createDependencies(overrides: Partial<UserDependencies> = {}): UserDepe
       completeOnboarding: () => undefined,
       hasCompletedOnboarding: () => false,
     },
+    userWorkspace: {
+      ensureUserWorkspaceProject: async () => '/user-root/1',
+    },
     readSystemGitConfig: async () => ({ git_name: null, git_email: null }),
     applyGlobalGitConfig: async () => undefined,
     logInfo: () => undefined,

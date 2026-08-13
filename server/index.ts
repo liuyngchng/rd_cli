@@ -35,7 +35,7 @@ import { createSystemModule } from './modules/system/index.js';
 import { createAgentModule } from './modules/agent/index.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
-import { userRoutes } from './modules/user/index.js';
+import { userRoutes, userWorkspaceService } from './modules/user/index.js';
 import {
     getPluginPort,
     pluginsRoutes,
@@ -114,6 +114,9 @@ const wss = createWebSocketServer(server, {
 
             return null;
         },
+        resolveUserWorkspaceRoot: (userId) => userWorkspaceService.ensureUserWorkspace(userId),
+        validateUserWorkspacePath: (userId, candidatePath) =>
+            userWorkspaceService.validatePathWithinUserRoot(userId, candidatePath),
     },
     getPluginPort,
 });

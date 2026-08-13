@@ -26,6 +26,10 @@ type AuthDependencies = {
   comparePassword(password: string, passwordHash: string): Promise<boolean>;
   generateToken(user: AuthUser): string;
   revokeToken(request: unknown): void;
+  userWorkspace: {
+    ensureUserWorkspace(userId: number): Promise<void>;
+  };
+  logWarn(message: string, error?: unknown): void;
 };
 
 function numericUserId(userId: number | bigint): number {
@@ -134,6 +138,12 @@ export function createAuthService(dependencies: AuthDependencies) {
         dependencies.transaction.commit();
         dependencies.users.updateLastLogin(numericUserId(user.id));
 
+        // Workspace creation is deliberately non-fatal: a failure here is
+        // repaired lazily on the next project-list fetch.
+        await dependencies.userWorkspace.ensureUserWorkspace(numericUserId(user.id)).catch(
+          (error) => dependencies.logWarn('Failed to create user workspace during registration', error),
+        );
+
         return {
           success: true,
           user: { id: user.id, username: user.username, role: user.role },
@@ -239,6 +249,12 @@ export function createAuthService(dependencies: AuthDependencies) {
         const passwordHash = await dependencies.hashPassword(password);
         const user = dependencies.users.createUser(username, passwordHash, 'user');
         dependencies.transaction.commit();
+
+        // Non-fatal, like registration: the lazy project-list fallback repairs it.
+        await dependencies.userWorkspace.ensureUserWorkspace(numericUserId(user.id)).catch(
+          (error) => dependencies.logWarn('Failed to create user workspace during admin user creation', error),
+        );
+
         return {
           success: true,
           user: { id: user.id, username: user.username, role: user.role },

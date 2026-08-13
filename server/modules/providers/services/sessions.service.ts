@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { userWorkspaceService } from '@/modules/user/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type {
@@ -156,7 +157,11 @@ export const sessionsService = {
    * for the lifetime of the conversation. The provider-native id is mapped to
    * this row later, when the provider runtime announces it mid-run.
    */
-  createAppSession(provider: LLMProvider, projectPath: string): CreateAppSessionResult {
+  async createAppSession(
+    provider: LLMProvider,
+    projectPath: string,
+    userId: number,
+  ): Promise<CreateAppSessionResult> {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
       throw new AppError('projectPath is required.', {
@@ -165,13 +170,28 @@ export const sessionsService = {
       });
     }
 
+    const validation = await userWorkspaceService.validatePathWithinUserRoot(
+      userId,
+      normalizedProjectPath,
+    );
+    if (!validation.valid) {
+      throw new AppError(
+        validation.error ?? 'Project path must be inside your workspace',
+        {
+          code: 'PROJECT_PATH_OUTSIDE_USER_ROOT',
+          statusCode: 403,
+        },
+      );
+    }
+
+    const resolvedProjectPath = validation.resolvedPath ?? normalizedProjectPath;
     const sessionId = randomUUID();
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath);
+    sessionsDb.createAppSession(sessionId, provider, resolvedProjectPath, userId);
 
     return {
       sessionId,
       provider,
-      projectPath: normalizedProjectPath,
+      projectPath: resolvedProjectPath,
     };
   },
 

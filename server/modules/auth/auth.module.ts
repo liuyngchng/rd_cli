@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
 import { getConnection, userDb } from '@/modules/database/index.js';
+import { userWorkspaceService } from '@/modules/user/user.module.js';
 
 import { authenticateToken, generateToken, revokeToken } from './auth.middleware.js';
 import { createAuthRouter } from './auth.routes.js';
@@ -35,6 +36,12 @@ const authService = createAuthService({
   comparePassword: (password, passwordHash) => bcrypt.compare(password, passwordHash),
   generateToken,
   revokeToken,
+  userWorkspace: {
+    ensureUserWorkspace: async (userId) => {
+      await userWorkspaceService.ensureUserWorkspace(userId);
+    },
+  },
+  logWarn: (message, error) => console.warn(message, error),
 });
 
 /** Simple admin role check middleware — must run after authenticateToken. */

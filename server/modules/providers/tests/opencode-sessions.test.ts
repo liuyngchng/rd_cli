@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import Database from 'better-sqlite3';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { closeConnection, initializeDatabase, sessionsDb, userDb } from '@/modules/database/index.js';
 import { OpenCodeSessionSynchronizer } from '@/modules/providers/list/opencode/opencode-session-synchronizer.provider.js';
 import { OpenCodeSessionsProvider } from '@/modules/providers/list/opencode/opencode-sessions.provider.js';
 import { appendImagesInputTag } from '@/shared/image-attachments.js';
@@ -28,6 +28,10 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
   process.env.DATABASE_PATH = databasePath;
   await initializeDatabase();
 
+  // Synchronizer attribution sets user_id on discovered rows, so the isolated
+  // database needs the matching user row for the foreign key.
+  userDb.createUser('sync-user', 'x');
+
   try {
     await runTest();
   } finally {
@@ -40,6 +44,18 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
     await rm(tempDirectory, { recursive: true, force: true });
   }
 }
+
+const patchUserRootDir = (nextUserRoot: string) => {
+  const original = process.env.RDCLI_USER_ROOT;
+  process.env.RDCLI_USER_ROOT = nextUserRoot;
+  return () => {
+    if (original === undefined) {
+      delete process.env.RDCLI_USER_ROOT;
+    } else {
+      process.env.RDCLI_USER_ROOT = original;
+    }
+  };
+};
 
 const createOpenCodeDatabase = async (homeDir: string, workspacePath: string): Promise<void> => {
   const dataDir = path.join(homeDir, '.local', 'share', 'opencode');
@@ -248,9 +264,11 @@ const createOpenCodeDatabase = async (homeDir: string, workspacePath: string): P
 
 test('OpenCode session synchronizer indexes sqlite sessions without deletable transcript paths', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
@@ -268,6 +286,7 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
       });
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -275,9 +294,11 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
 
 test('OpenCode session synchronizer returns the app session id once provider mapping exists', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-mapped-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
@@ -293,6 +314,7 @@ test('OpenCode session synchronizer returns the app session id once provider map
       });
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -300,9 +322,11 @@ test('OpenCode session synchronizer returns the app session id once provider map
 
 test('OpenCode session synchronizer adopts the pending app session before watcher sync creates a duplicate', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-race-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
@@ -317,6 +341,7 @@ test('OpenCode session synchronizer adopts the pending app session before watche
       });
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -324,9 +349,11 @@ test('OpenCode session synchronizer adopts the pending app session before watche
 
 test('OpenCode sessions provider strips <images_input> from user turns and exposes attachments', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-images-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
@@ -352,6 +379,7 @@ test('OpenCode sessions provider strips <images_input> from user turns and expos
     assert.equal(userMessage?.content, 'Look at this screenshot.');
     assert.deepEqual(userMessage?.images, [{ path: 'C:/Users/x/.rdcli/assets/shot.png' }]);
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -381,9 +409,11 @@ test('OpenCode sessions provider normalizes quoted live text and skips user echo
 
 test('OpenCode sessions provider reads sqlite history and token usage', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-history-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await createOpenCodeDatabase(tempRoot, workspacePath);
@@ -413,6 +443,7 @@ test('OpenCode sessions provider reads sqlite history and token usage', { concur
     assert.equal(paged.hasMore, true);
     assert.equal(paged.messages[0]?.content, 'The provider is wired.');
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -472,9 +503,11 @@ const seedOpenCodeSession = async (
 
 test('OpenCode synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-app-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     // Stored title differs from the first message so we can prove the first
@@ -493,6 +526,7 @@ test('OpenCode synchronizer titles app-created sessions from the first user mess
       assert.equal(sessionsDb.getSessionById('app-1')?.custom_name, 'Fix the checkout crash');
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -500,9 +534,11 @@ test('OpenCode synchronizer titles app-created sessions from the first user mess
 
 test('OpenCode synchronizer keeps the stored title for indexed sessions', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-session-sync-indexed-'));
-  const workspacePath = path.join(tempRoot, 'workspace');
+  const userRoot = path.join(tempRoot, 'user-root');
+  const workspacePath = path.join(userRoot, '1');
   await mkdir(workspacePath, { recursive: true });
   const restoreHomeDir = patchHomeDir(tempRoot);
+  const restoreUserRootDir = patchUserRootDir(userRoot);
 
   try {
     await seedOpenCodeSession(tempRoot, workspacePath, {
@@ -516,6 +552,7 @@ test('OpenCode synchronizer keeps the stored title for indexed sessions', { conc
       assert.equal(sessionsDb.getSessionById('oc-indexed-1')?.custom_name, 'OpenCode generated title');
     });
   } finally {
+    restoreUserRootDir();
     restoreHomeDir();
     await rm(tempRoot, { recursive: true, force: true });
   }

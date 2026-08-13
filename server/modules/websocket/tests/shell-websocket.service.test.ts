@@ -51,10 +51,12 @@ function createFakePty() {
   };
 }
 
-test('a stale socket close cannot detach the socket that replaced it', () => {
+test('a stale socket close cannot detach the socket that replaced it', async () => {
   const pty = createFakePty();
   const dependencies = {
     resolveProviderSessionId: () => null,
+    resolveUserWorkspaceRoot: async () => process.cwd(),
+    validateUserWorkspacePath: async (_userId: number, candidatePath: string) => ({ valid: true, resolvedPath: candidatePath }),
     spawnPty: () => pty as never,
   };
   const initMessage = JSON.stringify({
@@ -67,14 +69,18 @@ test('a stale socket close cannot detach the socket that replaced it', () => {
     initialCommand: 'test-command',
   });
 
+  const flushAsyncInit = () => new Promise((resolve) => setImmediate(resolve));
+
   const fakeRequest = createFakeRequest();
   const firstSocket = createFakeSocket();
   handleShellConnection(firstSocket as never, fakeRequest, dependencies);
   firstSocket.emit('message', initMessage);
+  await flushAsyncInit();
 
   const replacementSocket = createFakeSocket();
   handleShellConnection(replacementSocket as never, fakeRequest, dependencies);
   replacementSocket.emit('message', initMessage);
+  await flushAsyncInit();
   replacementSocket.frames.length = 0;
 
   // This ordering reproduces a delayed close from a backgrounded mobile tab.
@@ -88,12 +94,14 @@ test('a stale socket close cannot detach the socket that replaced it', () => {
   pty.emitExit();
 });
 
-test('shell output detects and normalizes a wrapped authentication URL', () => {
+test('shell output detects and normalizes a wrapped authentication URL', async () => {
   const pty = createFakePty();
   const socket = createFakeSocket();
   const fakeRequest = createFakeRequest();
   const dependencies = {
     resolveProviderSessionId: () => null,
+    resolveUserWorkspaceRoot: async () => process.cwd(),
+    validateUserWorkspacePath: async (_userId: number, candidatePath: string) => ({ valid: true, resolvedPath: candidatePath }),
     spawnPty: () => pty as never,
   };
 
@@ -110,6 +118,7 @@ test('shell output detects and normalizes a wrapped authentication URL', () => {
       initialCommand: 'test-command',
     })
   );
+  await new Promise((resolve) => setImmediate(resolve));
   socket.frames.length = 0;
 
   pty.emitData("Continue in your browser: https://example.com/authorize?\ncode=abc\x1b[0m");

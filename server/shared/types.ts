@@ -970,12 +970,12 @@ export type FileTreeProjectGateway = {
 /**
  * Workspace validation boundary used by filesystem browsing and folder creation.
  *
- * The injected validator enforces the configured workspace root and resolves
- * symlinks before the File Tree service exposes or mutates paths.
+ * The injected validator enforces the requesting user's own workspace root and
+ * resolves symlinks before the File Tree service exposes or mutates paths.
  */
 export type FileTreeWorkspaceGateway = {
-  rootPath: string;
-  validatePath(candidatePath: string): Promise<WorkspacePathValidationResult>;
+  rootPathFor(userId: number): string;
+  validatePath(userId: number, candidatePath: string): Promise<WorkspacePathValidationResult>;
 };
 
 /**
@@ -1026,11 +1026,11 @@ export type FileTreeServiceDependencies = {
  * mutations themselves.
  */
 export type FileTreeServices = {
-  browseWorkspace(inputPath: string | null): Promise<{
+  browseWorkspace(inputPath: string | null, userId: number | undefined): Promise<{
     path: string;
     suggestions: Array<{ path: string; name: string; type: 'directory' }>;
   }>;
-  createWorkspaceFolder(folderPath: string): Promise<{ success: true; path: string }>;
+  createWorkspaceFolder(folderPath: string, userId: number | undefined): Promise<{ success: true; path: string }>;
   readTextFile(projectId: string, filePath: string, userId?: number): Promise<{ content: string; path: string }>;
   openFile(projectId: string, filePath: string, userId?: number): Promise<{ contentType: string; stream: Readable }>;
   saveTextFile(projectId: string, filePath: string, content: string, userId?: number): Promise<{

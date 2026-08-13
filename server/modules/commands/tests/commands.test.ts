@@ -60,6 +60,9 @@ async function executeCommand(
       memoryUsage: () => ({ rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 }),
       version: 'v22', platform: 'linux', pid: 1,
     },
+    userWorkspace: {
+      validatePathWithinUserRoot: async () => ({ valid: true, resolvedPath: '/home/test' }),
+    },
   });
   const app = express().use(express.json()).use('/api/commands', router);
   const server = app.listen(0, '127.0.0.1');

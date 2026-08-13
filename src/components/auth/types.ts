@@ -29,7 +29,9 @@ export type OnboardingStatusPayload = {
 };
 
 export type ApiErrorPayload = {
-  error?: string;
+  // The server returns `error` either as a plain message or as a structured
+  // `{ code, message }` object.
+  error?: string | { code?: string; message?: string };
   message?: string;
 };
 

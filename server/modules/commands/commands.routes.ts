@@ -17,6 +17,9 @@ type CommandsRouterDependencies = {
     platform: NodeJS.Platform;
     pid: number;
   };
+  userWorkspace: {
+    validatePathWithinUserRoot: (userId: number, candidatePath: string) => Promise<import('../../shared/types.js').WorkspacePathValidationResult>;
+  };
 };
 
 /** Creates Commands routes around explicit filesystem, model-catalog, and runtime adapters. */
@@ -27,6 +30,23 @@ const APP_ROOT = dependencies.appRoot;
 const providerModelsService = dependencies.models;
 const process = dependencies.runtime;
 const router = express.Router();
+
+/**
+ * Rejects a client-supplied project path that resolves outside the requesting
+ * user's own workspace directory. Returns null when the path is acceptable.
+ */
+const validateProjectPathForUser = async (req, projectPath) => {
+  const userId = req?.user?.id != null ? Number(req.user.id) : null;
+  if (!projectPath || userId == null) {
+    return null;
+  }
+
+  const validation = await dependencies.userWorkspace.validatePathWithinUserRoot(userId, projectPath);
+  if (!validation.valid) {
+    return { error: "Project path is outside your workspace", status: 403 };
+  }
+  return null;
+};
 
 const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode"];
 
@@ -448,6 +468,13 @@ router.post("/list", async (req, res) => {
     const { projectPath } = req.body;
     const allCommands = [...builtInCommands];
 
+    if (projectPath) {
+      const pathError = await validateProjectPathForUser(req, projectPath);
+      if (pathError) {
+        return res.status(pathError.status).json({ error: pathError.error });
+      }
+    }
+
     // Scan project-level commands (.claude/commands/)
     if (projectPath) {
       const projectCommandsDir = path.join(projectPath, ".claude", "commands");
@@ -500,6 +527,13 @@ router.post("/list", async (req, res) => {
 router.post("/execute", async (req, res) => {
   try {
     const { commandName, commandPath, args = [], context = {} } = req.body;
+
+    if (context?.projectPath) {
+      const pathError = await validateProjectPathForUser(req, context.projectPath);
+      if (pathError) {
+        return res.status(pathError.status).json({ error: pathError.error });
+      }
+    }
 
     if (!commandName) {
       return res.status(400).json({

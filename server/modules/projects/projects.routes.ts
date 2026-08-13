@@ -7,6 +7,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { userWorkspaceService } from '@/modules/user/index.js';
 
 const router = express.Router();
 
@@ -83,6 +84,17 @@ router.get(
     const sessionsLimit = readOptionalNumericQueryValue(req.query.sessionsLimit) ?? undefined;
     const sessionsOffset = readOptionalNumericQueryValue(req.query.sessionsOffset) ?? undefined;
     const userId = getUserId(req);
+
+    // Lazy fallback: guarantees every user has exactly one fixed project row
+    // (their workspace directory) even if registration-time creation failed.
+    if (userId != null) {
+      try {
+        await userWorkspaceService.ensureUserWorkspaceProject(userId);
+      } catch (error) {
+        console.warn('Failed to ensure user workspace on project list fetch', error);
+      }
+    }
+
     const projects = await getProjectsWithSessions({
       skipSynchronization,
       sessionsLimit,
@@ -246,7 +258,7 @@ router.put('/:projectId/rename', (req, res) => {
   try {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { displayName } = req.body as { displayName?: unknown };
-    updateProjectDisplayName(projectId, displayName);
+    updateProjectDisplayName(projectId, displayName, getUserId(req));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
@@ -257,7 +269,7 @@ router.post(
   '/:projectId/toggle-star',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    const { isStarred } = toggleProjectStar(projectId);
+    const { isStarred } = toggleProjectStar(projectId, getUserId(req));
     res.json({ success: true, isStarred });
   }),
 );
@@ -266,7 +278,7 @@ router.post(
   '/:projectId/restore',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    restoreArchivedProject(projectId);
+    restoreArchivedProject(projectId, getUserId(req));
     res.json(createApiSuccessResponse({ projectId, isArchived: false }));
   }),
 );
@@ -280,7 +292,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const force = req.query.force === 'true';
-    await deleteOrArchiveProject(projectId, force);
+    await deleteOrArchiveProject(projectId, force, getUserId(req));
     res.json({ success: true });
   }),
 );

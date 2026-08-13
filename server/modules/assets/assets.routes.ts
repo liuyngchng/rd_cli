@@ -4,18 +4,36 @@ import multer from 'multer';
 import {
   buildStoredAttachmentRecords,
   buildStoredImageRecords,
-  ensureImageAssetsDir,
+  ensureUserImageAssetsDir,
   isAllowedImageMimeType,
   openStoredAttachmentAsset,
 } from '@/modules/assets/services/image-assets.service.js';
 
 const router = express.Router();
 
-// Multer writes uploads straight into the global assets folder; the service
-// owns the folder location and the response record shape.
+type AuthenticatedRequest = express.Request & { user?: { id?: number | string } };
+
+function readUserId(req: express.Request): number | null {
+  const rawUserId = (req as AuthenticatedRequest).user?.id;
+  if (rawUserId == null) {
+    return null;
+  }
+
+  const userId = typeof rawUserId === 'string' ? Number(rawUserId) : rawUserId;
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+}
+
+// Multer writes uploads straight into the requesting user's assets folder; the
+// service owns the folder location and the response record shape.
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    ensureImageAssetsDir()
+    const userId = readUserId(req);
+    if (userId == null) {
+      cb(new Error('Authentication required'), '');
+      return;
+    }
+
+    ensureUserImageAssetsDir(userId)
       .then((assetsDir) => cb(null, assetsDir))
       .catch((error) => cb(error as Error, ''));
   },
@@ -50,8 +68,9 @@ const attachmentUpload = multer({
 });
 
 /**
- * Stores chat image attachments in the global `~/.rdcli/assets` folder and
- * returns their absolute paths for use in provider prompts and chat history.
+ * Stores chat image attachments in the requesting user's `~/.rdcli/assets/<userId>`
+ * folder and returns their absolute paths for use in provider prompts and chat
+ * history.
  */
 router.post('/images', (req, res) => {
   upload.array('images', 5)(req, res, (err: unknown) => {
@@ -65,7 +84,12 @@ router.post('/images', (req, res) => {
       return res.status(400).json({ error: 'No image files provided' });
     }
 
-    res.json({ images: buildStoredImageRecords(files) });
+    const userId = readUserId(req);
+    if (userId == null) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    res.json({ images: buildStoredImageRecords(files, userId) });
   });
 });
 
@@ -86,16 +110,27 @@ router.post('/files', (req, res) => {
       return res.status(400).json({ error: 'No files provided' });
     }
 
-    res.json({ attachments: buildStoredAttachmentRecords(files) });
+    const userId = readUserId(req);
+    if (userId == null) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    res.json({ attachments: buildStoredAttachmentRecords(files, userId) });
   });
 });
 
 /**
  * Serves one stored image asset by filename. Only files directly inside the
- * global assets folder are reachable; traversal attempts resolve to null.
+ * requesting user's assets folder are reachable; traversal attempts resolve to
+ * null and other users' files read as missing (404).
  */
 router.get('/images/:filename', async (req, res) => {
-  const asset = await openStoredAttachmentAsset(req.params.filename);
+  const userId = readUserId(req);
+  if (userId == null) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const asset = await openStoredAttachmentAsset(req.params.filename, userId);
   if (asset.status === 'invalid') {
     return res.status(400).json({ error: 'Invalid asset filename' });
   }
@@ -127,7 +162,12 @@ router.get('/images/:filename', async (req, res) => {
  * uploaded HTML or other active formats from rendering in the application.
  */
 router.get('/files/:filename', async (req, res) => {
-  const asset = await openStoredAttachmentAsset(req.params.filename);
+  const userId = readUserId(req);
+  if (userId == null) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const asset = await openStoredAttachmentAsset(req.params.filename, userId);
   if (asset.status === 'invalid') {
     return res.status(400).json({ error: 'Invalid asset filename' });
   }

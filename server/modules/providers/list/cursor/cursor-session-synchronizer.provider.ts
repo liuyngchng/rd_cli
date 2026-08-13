@@ -6,6 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveUserIdFromWorkspacePath } from '@/modules/user/user-workspace.service.js';
 import {
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
@@ -17,6 +18,7 @@ import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 type ParsedSession = {
   sessionId: string;
   projectPath: string;
+  userId: number;
   sessionName?: string;
 };
 
@@ -64,7 +66,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        parsed.userId
       );
       processed += 1;
     }
@@ -93,7 +96,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      parsed.userId
     );
   }
 
@@ -134,6 +138,13 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    // Sessions started outside any user's workspace directory are skipped
+    // entirely (no session row, no implicit project row).
+    const userId = resolveUserIdFromWorkspacePath(projectPath);
+    if (userId === null) {
+      return null;
+    }
+
     return extractFirstValidJsonlData(filePath, (rawData) => {
       const data = rawData as Record<string, any>;
       if (data.role !== 'user') {
@@ -152,6 +163,7 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       return {
         sessionId,
         projectPath,
+        userId,
         sessionName: normalizeSessionName(firstLine, 'Untitled Cursor Session'),
       };
     });
