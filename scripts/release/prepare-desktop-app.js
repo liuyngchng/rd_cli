@@ -54,14 +54,7 @@ async function copyIfExists(relativePath) {
 }
 
 async function copyNodeModule(packageName) {
-  const parts = packageName.split('/');
-  const source = path.join(rootDir, 'node_modules', ...parts);
-  if (!(await pathExists(source))) return false;
-
-  const target = path.join(stageDir, 'node_modules', ...parts);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.cp(source, target, { recursive: true });
-  return true;
+  return copyModuleFromRoot(path.join('node_modules', ...packageName.split('/')));
 }
 
 function buildDesktopPackageJson(copiedOptionalDependencies) {
@@ -116,11 +109,38 @@ await copyRequired('dist');
 await copyRequired('dist-server');
 await copyRequired('public');
 
-// Copy every runtime dependency (server + Claude Code SDK). The build machine's
-// node_modules already holds the correct platform binaries for each module.
+// Copy every runtime dependency and its full transitive closure (server +
+// Claude Code SDK). The build machine's node_modules already holds the
+// correct platform binaries and resolved versions for each module; the staged
+// tree mirrors the root layout, so Node's runtime module resolution finds
+// hoisted and nested transitive dependencies exactly as it does in dev.
+const copiedModulePaths = new Set();
+
+/**
+ * Copy a module from the root node_modules to the same root-relative path in
+ * the stage dir (e.g. 'node_modules/@scope/pkg'), so nested/hoisted layouts
+ * resolve identically in the packaged app.
+ *
+ * @async
+ * @function copyModuleFromRoot
+ * @param {string} rootRelPath Root-relative path starting at 'node_modules'.
+ * @returns {Promise<boolean>} true if the module exists and was copied (or had
+ *   already been copied), false if it is not installed in root node_modules.
+ */
+async function copyModuleFromRoot(rootRelPath) {
+  if (copiedModulePaths.has(rootRelPath)) return true;
+  const from = path.join(rootDir, rootRelPath);
+  if (!(await pathExists(from))) return false;
+  const to = path.join(stageDir, rootRelPath);
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  await fs.cp(from, to, { recursive: true });
+  copiedModulePaths.add(rootRelPath);
+  return true;
+}
+
 const copiedRuntimeDependencies = [];
 for (const name of Object.keys(packageJson.dependencies || {})) {
-  if (await copyNodeModule(name)) {
+  if (await copyModuleFromRoot(path.join('node_modules', ...name.split('/')))) {
     copiedRuntimeDependencies.push(name);
   } else {
     console.warn(`Warning: ${name} not found in node_modules — will not be bundled.`);
@@ -172,7 +192,7 @@ for (const [name, version] of Object.entries(packageJson.optionalDependencies ||
   }
 }
 
-for (const name of [
+const extraRuntimeModules = [
   '@nut-tree-fork/default-clipboard-provider',
   '@nut-tree-fork/libnut',
   '@nut-tree-fork/provider-interfaces',
@@ -180,9 +200,67 @@ for (const name of [
   'jimp',
   'node-abort-controller',
   'temp',
-]) {
+];
+for (const name of extraRuntimeModules) {
   await copyNodeModule(name);
 }
+
+/**
+ * Copy the transitive dependency closure of the given root modules into the
+ * stage dir, mirroring Node's resolution order: each dependency is looked up
+ * along its parent's ancestor chain inside node_modules (deepest first), then
+ * at the hoisted top level. Missing optional / platform-specific packages are
+ * skipped silently.
+ *
+ * @async
+ * @function copyDependencyClosure
+ * @param {string[]} seedNames Top-level module names to start from.
+ * @returns {Promise<void>} Resolves when the whole reachable closure is copied.
+ */
+async function copyDependencyClosure(seedNames) {
+  const queue = seedNames.map((name) => ({ name, parent: null }));
+  while (queue.length > 0) {
+    const { name, parent } = queue.shift();
+
+    const ancestors = parent ? parent.split(path.sep) : [];
+    let source = null;
+    for (let i = ancestors.length; i >= 0; i--) {
+      if (i === 1) continue; // bare 'node_modules' is not a module directory
+      const candidate = path.join(
+        ...ancestors.slice(0, i), 'node_modules', ...name.split('/'),
+      );
+      if (await pathExists(path.join(rootDir, candidate))) {
+        source = candidate;
+        break;
+      }
+    }
+    if (!source || !(await copyModuleFromRoot(source))) continue;
+
+    let manifest;
+    try {
+      manifest = JSON.parse(
+        await fs.readFile(path.join(rootDir, source, 'package.json'), 'utf8'),
+      );
+    } catch {
+      continue; // no readable manifest — treat as a leaf
+    }
+    const transitive = [
+      ...Object.keys(manifest.dependencies || {}),
+      ...Object.keys(manifest.optionalDependencies || {}),
+      ...Object.keys(manifest.peerDependencies || {}),
+    ];
+    for (const dep of transitive) {
+      queue.push({ name: dep, parent: source });
+    }
+  }
+}
+
+await copyDependencyClosure([
+  ...copiedRuntimeDependencies,
+  ...Object.keys(copiedOptionalDependencies),
+  claudeSdkPlatformPackage,
+  ...extraRuntimeModules,
+]);
 
 await fs.writeFile(
   path.join(stageDir, 'package.json'),
