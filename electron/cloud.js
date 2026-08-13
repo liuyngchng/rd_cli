@@ -150,7 +150,7 @@ export class CloudController {
 
   async cloudApi(pathname, options = {}) {
     if (!this.cloudAccount?.apiKey) {
-      throw new Error('Connect your rdCLI account first.');
+      throw new Error('请先连接您的 rdCLI 账号。');
     }
 
     const controller = new AbortController();

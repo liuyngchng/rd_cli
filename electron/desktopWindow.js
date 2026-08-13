@@ -224,7 +224,7 @@ export class DesktopWindowManager {
     }
 
     if (!tab.target?.url) {
-      throw new Error('This tab does not have a target URL.');
+      throw new Error('此标签页没有目标地址。');
     }
 
     await this.showTarget(tab.target, { trackTab: false });
@@ -341,46 +341,46 @@ export class DesktopWindowManager {
     const items = [];
     const statusSuffix = environment.status === 'running' ? '' : ` (${environment.status})`;
     items.push({
-      label: 'Open Environment',
+      label: '打开环境',
       click: () => void this.actions.openEnvironmentInDesktop(environment)
-        .catch((error) => this.actions.showError(`Could not open ${environment.name || environment.subdomain}${statusSuffix}`, error)),
+        .catch((error) => this.actions.showError(`无法打开 ${environment.name || environment.subdomain}${statusSuffix}`, error)),
     });
     items.push({
-      label: 'Open in Browser',
+      label: '在浏览器中打开',
       click: () => void this.actions.openEnvironmentInBrowser(environment)
-        .catch((error) => this.actions.showError('Could not open environment in browser', error)),
+        .catch((error) => this.actions.showError('无法在浏览器中打开环境', error)),
     });
     items.push({
-      label: 'Open in VS Code',
+      label: '在 VS Code 中打开',
       click: () => void this.actions.openEnvironmentInIde(environment, 'vscode')
-        .catch((error) => this.actions.showError('Could not open environment in VS Code', error)),
+        .catch((error) => this.actions.showError('无法在 VS Code 中打开环境', error)),
     });
     items.push({
-      label: 'Open in Cursor',
+      label: '在 Cursor 中打开',
       click: () => void this.actions.openEnvironmentInIde(environment, 'cursor')
-        .catch((error) => this.actions.showError('Could not open environment in Cursor', error)),
+        .catch((error) => this.actions.showError('无法在 Cursor 中打开环境', error)),
     });
     items.push({
-      label: 'Open SSH Terminal',
+      label: '打开 SSH 终端',
       click: () => void this.actions.openEnvironmentInSsh(environment)
-        .catch((error) => this.actions.showError('Could not open SSH terminal', error)),
+        .catch((error) => this.actions.showError('无法打开 SSH 终端', error)),
     });
     items.push({
-      label: 'Copy Mobile/Web URL',
+      label: '复制移动端/网页地址',
       click: () => this.actions.copyText(this.actions.getEnvironmentUrl(environment)),
     });
     if (environment.status !== 'running') {
       items.unshift({
-        label: environment.status === 'paused' ? 'Resume' : 'Start',
+        label: environment.status === 'paused' ? '恢复' : '启动',
         click: () => void this.actions.startEnvironment(environment)
-          .catch((error) => this.actions.showError('Could not start environment', error)),
+          .catch((error) => this.actions.showError('无法启动环境', error)),
       });
     }
     if (environment.status === 'running') {
       items.push({
-        label: 'Stop',
+        label: '停止',
         click: () => void this.actions.stopEnvironment(environment)
-          .catch((error) => this.actions.showError('Could not stop environment', error)),
+          .catch((error) => this.actions.showError('无法停止环境', error)),
       });
     }
     return items;
@@ -391,15 +391,15 @@ export class DesktopWindowManager {
     if (!cloudState.account?.apiKey) {
       return [
         {
-          label: cloudState.account?.email ? `Reconnect ${cloudState.account.email}` : 'Login',
+          label: cloudState.account?.email ? `重新连接 ${cloudState.account.email}` : '登录',
           click: () => void this.actions.connectCloudAccount()
-            .catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
+            .catch((error) => this.actions.showError('无法连接 rdCLI 账号', error)),
         },
       ];
     }
 
     if (!cloudState.environments.length) {
-      return [{ label: 'No environments found', enabled: false }];
+      return [{ label: '未找到环境', enabled: false }];
     }
 
     return cloudState.environments.map((environment) => ({
@@ -414,119 +414,119 @@ export class DesktopWindowManager {
     const localState = this.getLocalState();
     const remoteItems = this.getRemoteEnvironmentMenuItems();
     const cloudAccountLabel = cloudState.account?.apiKey
-      ? (cloudState.account?.email ? `Connected: ${cloudState.account.email}` : 'rdCLI Connected')
-      : (cloudState.account?.email ? `Reconnect: ${cloudState.account.email}` : 'Connect rdCLI Account...');
+      ? (cloudState.account?.email ? `已连接：${cloudState.account.email}` : 'rdCLI 已连接')
+      : (cloudState.account?.email ? `重新连接：${cloudState.account.email}` : '连接 rdCLI 账号...');
 
     const template = [
       {
         label: this.appName,
         submenu: [
-          { label: `About ${this.appName}`, role: 'about' },
+          { label: `关于 ${this.appName}`, role: 'about' },
           { type: 'separator' },
           {
-            label: 'Show Launcher',
+            label: '显示启动器',
             accelerator: 'CmdOrCtrl+Shift+L',
-            click: () => void this.showLauncher().catch((error) => this.actions.showError('Could not show launcher', error)),
+            click: () => void this.showLauncher().catch((error) => this.actions.showError('无法显示启动器', error)),
           },
           {
-            label: 'Switch Environment',
+            label: '切换环境',
             accelerator: 'CmdOrCtrl+Shift+E',
-            click: () => void this.actions.showEnvironmentPicker().catch((error) => this.actions.showError('Could not switch environment', error)),
+            click: () => void this.actions.showEnvironmentPicker().catch((error) => this.actions.showError('无法切换环境', error)),
           },
           {
-            label: 'Diagnostics',
+            label: '诊断',
             submenu: [
               {
-                label: 'Copy Diagnostics',
+                label: '复制诊断信息',
                 click: () => void this.actions.copyDiagnostics(),
               },
             ],
           },
           { type: 'separator' },
           {
-            label: process.platform === 'darwin' ? `Hide ${this.appName}` : 'Hide',
+            label: process.platform === 'darwin' ? `隐藏 ${this.appName}` : '隐藏',
             role: 'hide',
             visible: process.platform === 'darwin',
           },
-          { label: 'Hide Others', role: 'hideOthers', visible: process.platform === 'darwin' },
-          { label: 'Show All', role: 'unhide', visible: process.platform === 'darwin' },
+          { label: '隐藏其他', role: 'hideOthers', visible: process.platform === 'darwin' },
+          { label: '全部显示', role: 'unhide', visible: process.platform === 'darwin' },
           { type: 'separator', visible: process.platform === 'darwin' },
-          { label: `Quit ${this.appName}`, accelerator: 'CmdOrCtrl+Q', role: 'quit' },
+          { label: `退出 ${this.appName}`, accelerator: 'CmdOrCtrl+Q', role: 'quit' },
         ],
       },
       {
-        label: 'Environment',
+        label: '环境',
         submenu: [
           {
-            label: 'Show Launcher',
+            label: '显示启动器',
             accelerator: 'CmdOrCtrl+Shift+L',
-            click: () => void this.showLauncher().catch((error) => this.actions.showError('Could not show launcher', error)),
+            click: () => void this.showLauncher().catch((error) => this.actions.showError('无法显示启动器', error)),
           },
           {
-            label: 'Switch Environment',
+            label: '切换环境',
             accelerator: 'CmdOrCtrl+Shift+E',
-            click: () => void this.actions.showEnvironmentPicker().catch((error) => this.actions.showError('Could not switch environment', error)),
+            click: () => void this.actions.showEnvironmentPicker().catch((error) => this.actions.showError('无法切换环境', error)),
           },
           { type: 'separator' },
           {
-            label: 'Open Local rdCLI',
+            label: '打开本地 rdCLI',
             accelerator: 'CmdOrCtrl+L',
-            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local rdCLI', error)),
+            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('无法打开本地 rdCLI', error)),
           },
           {
-            label: 'Open Local Web UI in Browser',
+            label: '在浏览器中打开本地 Web 界面',
             accelerator: 'CmdOrCtrl+Shift+W',
-            click: () => void this.actions.openLocalWebUi().catch((error) => this.actions.showError('Could not open local web UI', error)),
+            click: () => void this.actions.openLocalWebUi().catch((error) => this.actions.showError('无法打开本地 Web 界面', error)),
           },
           {
-            label: 'Copy Local Web URL',
+            label: '复制本地 Web 地址',
             accelerator: 'CmdOrCtrl+Shift+U',
-            click: () => void this.actions.copyLocalWebUrl().catch((error) => this.actions.showError('Could not copy local web URL', error)),
+            click: () => void this.actions.copyLocalWebUrl().catch((error) => this.actions.showError('无法复制本地 Web 地址', error)),
           },
           { type: 'separator' },
           {
-            label: 'Keep Local Server Running After Quit',
+            label: '退出后保持本地服务运行',
             type: 'checkbox',
             checked: localState.desktopSettings.keepLocalServerRunning,
             click: (menuItem) => void this.actions.updateDesktopSetting('keepLocalServerRunning', menuItem.checked)
-              .catch((error) => this.actions.showError('Could not update desktop setting', error)),
+              .catch((error) => this.actions.showError('无法更新桌面设置', error)),
           },
           {
-            label: 'Allow LAN Access to Local Server',
+            label: '允许局域网访问本地服务',
             type: 'checkbox',
             checked: localState.desktopSettings.exposeLocalServerOnNetwork,
             click: (menuItem) => void this.actions.updateDesktopSetting('exposeLocalServerOnNetwork', menuItem.checked)
-              .catch((error) => this.actions.showError('Could not update desktop setting', error)),
+              .catch((error) => this.actions.showError('无法更新桌面设置', error)),
           },
         ],
       },
       {
-        label: 'Cloud',
+        label: '云端',
         submenu: [
           {
             label: cloudAccountLabel,
             accelerator: 'CmdOrCtrl+Shift+C',
-            click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
+            click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('无法连接 rdCLI 账号', error)),
           },
           {
-            label: 'Refresh Cloud Environments',
-            click: () => void this.actions.refreshCloudEnvironments().catch((error) => this.actions.showError('Could not load rdCLI environments', error)),
+            label: '刷新云端环境',
+            click: () => void this.actions.refreshCloudEnvironments().catch((error) => this.actions.showError('无法加载 rdCLI 环境', error)),
             enabled: Boolean(cloudState.account?.apiKey),
           },
           {
-            label: 'Logout rdCLI Account',
-            click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('Could not logout', error)),
+            label: '退出 rdCLI 账号',
+            click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('无法退出登录', error)),
             enabled: Boolean(cloudState.account?.apiKey),
           },
           { type: 'separator' },
           {
-            label: 'Remote Environments',
+            label: '远程环境',
             submenu: remoteItems,
           },
         ],
       },
       {
-        label: 'Edit',
+        label: '编辑',
         submenu: [
           { role: 'undo' },
           { role: 'redo' },
@@ -538,25 +538,25 @@ export class DesktopWindowManager {
         ],
       },
       {
-        label: 'View',
+        label: '视图',
         submenu: [
           { role: 'reload' },
           { role: 'forceReload' },
           { role: 'toggleDevTools' },
           {
-            label: 'Open Active Tab DevTools',
+            label: '打开当前标签页 DevTools',
             click: () => this.openActiveTabDevTools(),
           },
           {
-            label: 'Copy WebContents Diagnostics',
+            label: '复制 WebContents 诊断信息',
             click: () => this.copyWebContentsDiagnostics(),
           },
           {
-            label: 'Reload Active BrowserView',
+            label: '重新加载当前 BrowserView',
             click: () => this.reloadActiveBrowserViewForDiagnostics(),
           },
           {
-            label: 'Detach Active BrowserView',
+            label: '分离当前 BrowserView',
             click: () => this.detachActiveBrowserViewForDiagnostics(),
           },
           { type: 'separator' },
@@ -568,7 +568,7 @@ export class DesktopWindowManager {
         ],
       },
       {
-        label: 'Window',
+        label: '窗口',
         submenu: [
           { role: 'minimize' },
           { role: 'zoom' },
@@ -576,14 +576,14 @@ export class DesktopWindowManager {
         ],
       },
       {
-        label: 'Help',
+        label: '帮助',
         submenu: [
         {
-          label: 'Open rdcli.ai',
+          label: '打开 rdcli.ai',
           click: () => void this.actions.openCloudDashboard(),
         },
           {
-            label: 'Copy Diagnostics',
+            label: '复制诊断信息',
             click: () => void this.actions.copyDiagnostics(),
           },
         ],
@@ -601,39 +601,39 @@ export class DesktopWindowManager {
 
     const template = [
       {
-        label: 'Local',
+        label: '本地',
         submenu: [
           {
-            label: localState.localServerRunning ? 'Open Local in rdCLI' : 'Start Local in rdCLI',
-            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('Could not open local rdCLI', error)),
+            label: localState.localServerRunning ? '在 rdCLI 中打开本地' : '在 rdCLI 中启动本地',
+            click: () => void this.actions.openLocalInDesktop().catch((error) => this.actions.showError('无法打开本地 rdCLI', error)),
           },
           {
-            label: 'Open Local in Browser',
-            click: () => void this.actions.openLocalWebUi().catch((error) => this.actions.showError('Could not open local web UI', error)),
+            label: '在浏览器中打开本地',
+            click: () => void this.actions.openLocalWebUi().catch((error) => this.actions.showError('无法打开本地 Web 界面', error)),
           },
           {
-            label: 'Copy Local URL',
-            click: () => void this.actions.copyLocalWebUrl().catch((error) => this.actions.showError('Could not copy local web URL', error)),
+            label: '复制本地地址',
+            click: () => void this.actions.copyLocalWebUrl().catch((error) => this.actions.showError('无法复制本地 Web 地址', error)),
           },
         ],
       },
       {
-        label: 'Cloud Environments',
+        label: '云端环境',
         submenu: this.buildTrayEnvironmentSection(),
       },
       { type: 'separator' },
       {
-        label: cloudState.account?.email ? `Connected: ${cloudState.account.email}` : 'Login',
-        click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('Could not connect rdCLI account', error)),
+        label: cloudState.account?.email ? `已连接：${cloudState.account.email}` : '登录',
+        click: () => void this.actions.connectCloudAccount().catch((error) => this.actions.showError('无法连接 rdCLI 账号', error)),
       },
       {
-        label: 'Logout rdCLI Account',
-        click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('Could not logout', error)),
+        label: '退出 rdCLI 账号',
+        click: () => void this.actions.clearCloudAccount().catch((error) => this.actions.showError('无法退出登录', error)),
         enabled: Boolean(cloudState.account?.apiKey),
       },
       { type: 'separator' },
       {
-        label: `Quit ${this.appName}`,
+        label: `退出 ${this.appName}`,
         role: 'quit',
       },
     ];
@@ -740,7 +740,7 @@ export class DesktopWindowManager {
     });
 
     this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      void this.openExternalUrl(url).catch((error) => this.actions.showError('Could not open external link', error));
+      void this.openExternalUrl(url).catch((error) => this.actions.showError('无法打开外部链接', error));
       return { action: 'deny' };
     });
 

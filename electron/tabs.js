@@ -4,7 +4,7 @@ export class TabsController {
     this.tabs = [
       {
         id: 'home',
-        title: 'Launcher',
+        title: '启动器',
         kind: 'launcher',
         closable: false,
       },

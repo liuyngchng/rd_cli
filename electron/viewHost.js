@@ -13,7 +13,7 @@ function escapeHtml(value) {
 function buildPlaceholderHtml(title, message, logs = []) {
   const logHtml = logs.length
     ? `<pre>${logs.map(escapeHtml).join('\n')}</pre>`
-    : '<pre>Waiting for process output...</pre>';
+    : '<pre>等待进程输出...</pre>';
   return [
     '<!doctype html><meta charset="utf-8">',
     '<style>',
@@ -25,7 +25,7 @@ function buildPlaceholderHtml(title, message, logs = []) {
     'pre{margin:0;flex:1;overflow:auto;border:1px solid #262626;border-radius:10px;background:#050505;color:#d4d4d4;padding:14px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:pre-wrap;user-select:text}',
     '</style>',
     '<div class="shell">',
-    `<div class="box"><span class="dot"></span><span>${escapeHtml(message || `Opening ${title}...`)}</span></div>`,
+    `<div class="box"><span class="dot"></span><span>${escapeHtml(message || `正在打开 ${title}...`)}</span></div>`,
     logHtml,
     '</div>',
   ].join('');
@@ -82,7 +82,7 @@ export class ViewHost {
 
   configureChildWebContents(webContents) {
     webContents.setWindowOpenHandler(({ url }) => {
-      void this.openExternalUrl(url).catch((error) => this.showError('Could not open external link', error));
+      void this.openExternalUrl(url).catch((error) => this.showError('无法打开外部链接', error));
       return { action: 'deny' };
     });
   }
@@ -251,7 +251,7 @@ export class ViewHost {
     const view = this.getOrCreateTabView(tabId);
     if (view.__rdcliLoadingUrl) return;
     this.attach(view);
-    const html = buildPlaceholderHtml(target.name || this.appName, 'Starting Local rdCLI...', logs);
+    const html = buildPlaceholderHtml(target.name || this.appName, '正在启动本地 rdCLI...', logs);
     if (view.__rdcliStartupHtml === html) return;
     await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     view.__rdcliStartupHtml = html;

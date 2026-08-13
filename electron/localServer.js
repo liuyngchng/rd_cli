@@ -294,7 +294,7 @@ export class LocalServerController {
   getPendingTarget() {
     return {
       kind: 'local',
-      name: 'Local rdCLI',
+      name: '本地 rdCLI',
       url: this.localServerUrl || `http://${DISPLAY_HOST}:${this.localServerPort || DEFAULT_PORT}`,
     };
   }
@@ -357,7 +357,7 @@ export class LocalServerController {
 
   async updateDesktopSetting(key, value) {
     if (!Object.prototype.hasOwnProperty.call(this.desktopSettings, key)) {
-      throw new Error(`Unknown desktop setting: ${key}`);
+      throw new Error(`未知的桌面设置：${key}`);
     }
 
     const wasExposeSetting = key === 'exposeLocalServerOnNetwork';
@@ -383,7 +383,7 @@ export class LocalServerController {
     }
 
     if (!this.appVersion) {
-      throw new Error('Cannot install local server: app version is unknown.');
+      throw new Error('无法安装本地服务：应用版本未知。');
     }
     const bundleConfig = await readServerBundleConfig(this.appRoot);
     const installer = new ServerInstaller({
@@ -454,7 +454,7 @@ export class LocalServerController {
     if (devUrl) {
       const ready = await waitForrdCLIServer(defaultUrl, SERVER_START_TIMEOUT_MS);
       if (!ready) {
-        throw new Error(`Development backend did not become ready at ${defaultDisplayUrl}`);
+        throw new Error(`开发后端未在 ${defaultDisplayUrl} 就绪`);
       }
       this.localServerPort = DEFAULT_PORT;
       return devUrl;
@@ -466,7 +466,7 @@ export class LocalServerController {
         if (await isrdCLIServer(candidateUrl)) {
           const displayUrl = getDisplayUrl(candidateUrl);
           this.localServerPort = getPortFromUrl(candidateUrl);
-          this.appendStartupLog(`Using existing Local rdCLI at ${displayUrl}`);
+          this.appendStartupLog(`使用现有本地 rdCLI：${displayUrl}`);
           return displayUrl;
         }
       }
@@ -486,12 +486,12 @@ export class LocalServerController {
       await this.shutdownOwnedServer();
       this.localServerPort = null;
       throw new Error([
-        `Bundled backend did not become ready at ${displayUrl}.`,
-        recentLogs ? `Recent startup output:\n${recentLogs}` : 'No startup output was captured.',
+        `内置后端未在 ${displayUrl} 就绪。`,
+        recentLogs ? `最近的启动输出：\n${recentLogs}` : '未捕获到启动输出。',
       ].join('\n\n'));
     }
 
-    this.appendStartupLog(`Local rdCLI ready at ${displayUrl}`);
+    this.appendStartupLog(`本地 rdCLI 已在 ${displayUrl} 就绪`);
     this.localServerUrl = displayUrl;
     return displayUrl;
   }
@@ -507,7 +507,7 @@ export class LocalServerController {
     await this.ensureLocalServer();
     return {
       kind: 'local',
-      name: 'Local rdCLI',
+      name: '本地 rdCLI',
       url: this.localServerUrl,
     };
   }

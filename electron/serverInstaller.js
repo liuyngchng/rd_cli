@@ -38,7 +38,7 @@ export class ServerInstaller {
     bundleReleaseTag = process.env.RDCLI_SERVER_BUNDLE_RELEASE_TAG || '',
     onLog,
   } = {}) {
-    if (!version) throw new Error('ServerInstaller requires the app version');
+    if (!version) throw new Error('ServerInstaller 需要应用版本号');
     this.version = version;
     this.platform = mapPlatform(platform);
     this.arch = mapArch(arch);
@@ -184,13 +184,13 @@ export class ServerInstaller {
     try {
       expected = (await this.#fetchText(`${url}.sha256`)).trim().split(/\s+/)[0];
     } catch (error) {
-      throw new Error(`Could not verify server bundle checksum: ${error.message}`);
+      throw new Error(`无法校验服务端安装包：${error.message}`);
     }
     const actual = await this.#sha256(archivePath);
     if (expected.toLowerCase() !== actual.toLowerCase()) {
-      throw new Error('Checksum mismatch — refusing to install');
+      throw new Error('安装包校验和不匹配，已拒绝安装');
     }
-    this.log('Checksum verified.');
+    this.log('安装包校验通过。');
   }
 
   #fetchText(url, redirectsLeft = MAX_REDIRECTS) {

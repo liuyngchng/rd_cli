@@ -120,12 +120,12 @@ window.__MOCK_STATE__ = {
 
   function statusMeta(status) {
     var map = {
-      running: { label: 'Running', cls: 'ok', dot: '#10b981', verb: 'Opening', open: 'Open' },
-      starting: { label: 'Starting', cls: 'warn', dot: '#f59e0b', verb: 'Starting', open: 'Open', busy: true },
-      stopped: { label: 'Stopped', cls: 'idle', dot: '#6b7280', verb: 'Starting', open: 'Start & open' },
-      paused: { label: 'Paused', cls: 'warn', dot: '#f59e0b', verb: 'Resuming', open: 'Resume' },
+      running: { label: '运行中', cls: 'ok', dot: '#10b981', verb: '正在打开', open: '打开' },
+      starting: { label: '启动中', cls: 'warn', dot: '#f59e0b', verb: '正在启动', open: '打开', busy: true },
+      stopped: { label: '已停止', cls: 'idle', dot: '#6b7280', verb: '正在启动', open: '启动并打开' },
+      paused: { label: '已暂停', cls: 'warn', dot: '#f59e0b', verb: '正在恢复', open: '恢复' },
     };
-    return map[status] || { label: status || 'Unknown', cls: 'idle', dot: '#6b7280', verb: 'Starting', open: 'Start & open' };
+    return map[status] || { label: status || '未知', cls: 'idle', dot: '#6b7280', verb: '正在启动', open: '启动并打开' };
   }
 
   function connected(state) {
@@ -137,10 +137,10 @@ window.__MOCK_STATE__ = {
   }
 
   function accountLabel(state) {
-    if (authState(state) === 'expired') return 'Reconnect';
+    if (authState(state) === 'expired') return '重新连接';
     if (state && state.account && state.account.email) return state.account.email;
-    if (connected(state)) return 'Connected';
-    return 'Log in';
+    if (connected(state)) return '已连接';
+    return '登录';
   }
 
   function localUrl(state) {
@@ -149,7 +149,7 @@ window.__MOCK_STATE__ = {
 
   function envCount(state) {
     var count = state && state.environments ? state.environments.length : 0;
-    return count + ' environment' + (count === 1 ? '' : 's');
+    return count + ' 个环境';
   }
 
   function errMsg(error) {
@@ -260,10 +260,10 @@ window.__MOCK_STATE__ = {
     var env = (CC.state.environments || []).filter(function (environment) { return environment.id === id; })[0];
     var meta = statusMeta(env ? env.status : '');
     CC._busyEnv = id;
-    CC._status = { msg: (meta.verb || 'Opening') + ' ' + ((env && (env.name || env.subdomain)) || 'environment') + '...', tone: 'progress' };
+    CC._status = { msg: (meta.verb || '正在打开') + ' ' + ((env && (env.name || env.subdomain)) || '环境') + '...', tone: 'progress' };
     if (env) {
       var tabId = 'remote:' + env.id;
-      var tabs = CC.state.tabs && CC.state.tabs.length ? CC.state.tabs : [{ id: 'home', title: 'Launcher', kind: 'launcher', closable: false }];
+      var tabs = CC.state.tabs && CC.state.tabs.length ? CC.state.tabs : [{ id: 'home', title: '启动器', kind: 'launcher', closable: false }];
       tabs = tabs.map(function (tab) {
         tab.active = false;
         return tab;
@@ -294,55 +294,57 @@ window.__MOCK_STATE__ = {
   CC.act = function (name, node) {
     switch (name) {
       case 'local':
-        return CC.run('Starting Local rdCLI...', function () { return bridge.openLocal(); });
+        return CC.run('正在启动本地 rdCLI...', function () { return bridge.openLocal(); });
       case 'connect':
-        return CC.run('Opening rdcli.ai to connect your account...', function () { return bridge.connectCloud(); });
+        return CC.run('正在打开 rdcli.ai 以连接您的账号...', function () { return bridge.connectCloud(); });
       case 'logout':
-        return CC.run('Logging out...', function () { return bridge.disconnectCloud(); });
+        return CC.run('正在退出登录...', function () { return bridge.disconnectCloud(); });
       case 'open-web':
-        return CC.run('Opening local web UI in your browser...', function () { return bridge.openLocalWebUi(); });
+        return CC.run('正在浏览器中打开本地 Web 界面...', function () { return bridge.openLocalWebUi(); });
       case 'copy-web':
-        return CC.run('Copied local URL to clipboard', function () { return bridge.copyLocalWebUrl(); });
+        return CC.run('已复制本地地址到剪贴板', function () { return bridge.copyLocalWebUrl(); });
       case 'diagnostics':
-        return CC.run('Copied diagnostics to clipboard', function () { return bridge.copyDiagnostics(); });
+        return CC.run('已复制诊断信息到剪贴板', function () { return bridge.copyDiagnostics(); });
       case 'set-setting':
-        return CC.run('Saved', function () { return bridge.updateSetting(node.key, node.value); });
+        return CC.run('已保存', function () { return bridge.updateSetting(node.key, node.value); });
       case 'set-theme-mode':
-        return CC.run('Saved', function () { return bridge.updateSetting('themeMode', node.value); });
+        return CC.run('已保存', function () { return bridge.updateSetting('themeMode', node.value); });
       case 'settings-toggle':
-        return CC.run('Opening desktop settings...', function () { return bridge.showDesktopSettings(); });
+        return CC.run('正在打开桌面设置...', function () { return bridge.showDesktopSettings(); });
       case 'desktop-settings-toggle':
-        return CC.run('Opening desktop settings...', function () { return bridge.showDesktopSettings(); });
+        return CC.run('正在打开桌面设置...', function () { return bridge.showDesktopSettings(); });
       case 'local-settings-toggle':
-        return CC.run('Opening local settings...', function () { return bridge.showLocalSettings(); });
+        return CC.run('正在打开本地设置...', function () { return bridge.showLocalSettings(); });
       case 'settings-close':
         return CC.closeSheet();
       case 'dashboard':
-        return CC.run('Opening rdCLI dashboard...', function () { return bridge.openCloudDashboard(); });
+        return CC.run('正在打开 rdCLI 控制台...', function () { return bridge.openCloudDashboard(); });
       case 'refresh-environments':
-        return CC.run('Refreshing cloud environments...', function () { return bridge.refreshEnvironments(); });
+        return CC.run('正在刷新云端环境...', function () { return bridge.refreshEnvironments(); });
       case 'refresh-tab':
-        return CC.run('Refreshing tab...', function () { return bridge.refreshActiveTab(); });
+        return CC.run('正在刷新标签页...', function () { return bridge.refreshActiveTab(); });
       case 'env-action':
-        return CC.run('Opening environment...', function () { return bridge.runActiveEnvironmentAction(node.getAttribute('data-cc-env-action')); });
+        return CC.run('正在打开环境...', function () { return bridge.runActiveEnvironmentAction(node.getAttribute('data-cc-env-action')); });
       case 'env-menu':
-        return CC.run('Opening environment actions...', function () { return bridge.showActiveEnvironmentActionsMenu(); });
+        return CC.run('正在打开环境操作...', function () { return bridge.showActiveEnvironmentActionsMenu(); });
       case 'env-row-menu':
-        return CC.run('Opening environment actions...', function () { return bridge.showEnvironmentActionsMenu(node.getAttribute('data-cc-environment-id')); });
+        return CC.run('正在打开环境操作...', function () { return bridge.showEnvironmentActionsMenu(node.getAttribute('data-cc-environment-id')); });
       default:
         return;
     }
   };
 
   function renderTabs(state) {
-    var tabs = state.tabs && state.tabs.length ? state.tabs : [{ id: 'home', title: 'Home', closable: false, active: true }];
+    var tabs = state.tabs && state.tabs.length ? state.tabs : [{ id: 'home', title: '主页', closable: false, active: true }];
+    // 简化界面：启动器（主页）标签不显示在标题栏中，可通过菜单「环境 → 显示启动器」进入
+    tabs = tabs.filter(function (tab) { return tab.kind !== 'launcher'; });
     return tabs.map(function (tab) {
       var title = tab.title || '';
       var visibleChars = Math.min(title.length, 20);
       var tabWidth = Math.max(112, Math.min(232, (visibleChars * 8) + (tab.closable ? 56 : 38)));
       return '<button class="tb-tab no-drag' + (tab.active ? ' active' : '') + '" data-cc-tab="' + esc(tab.id) + '" title="' + esc(title) + '" style="width:' + tabWidth + 'px;flex-basis:' + tabWidth + 'px">' +
         '<span>' + esc(title) + '</span>' +
-        (tab.closable ? '<span class="tb-close" data-cc-close-tab="' + esc(tab.id) + '" title="Close tab">&times;</span>' : '') +
+        (tab.closable ? '<span class="tb-close" data-cc-close-tab="' + esc(tab.id) + '" title="关闭标签页">&times;</span>' : '') +
         '</button>';
     }).join('');
   }
@@ -356,18 +358,18 @@ window.__MOCK_STATE__ = {
     }
     var activeRefreshable = (state.activeTarget && (state.activeTarget.kind === 'remote' || state.activeTarget.kind === 'local')) ||
       (activeTab && activeTab.id !== 'home');
-    var envActions = activeEnvironmentId ? '<button class="btn sm tb-action no-drag" data-cc-action="env-row-menu" data-cc-environment-id="' + esc(activeEnvironmentId) + '" title="Open environment actions">Open environment in...</button>' : '';
-    var refreshAction = activeRefreshable ? '<button class="icon-btn tb-action no-drag" data-cc-action="refresh-tab" title="Refresh tab">' + icon('refresh', 16) + '</button>' : '';
-    var logoutAction = (conn || authState(state) === 'expired') ? '<button class="icon-btn tb-action no-drag" data-cc-action="logout" title="Logout">' + icon('logOut', 16) + '</button>' : '';
+    var envActions = activeEnvironmentId ? '<button class="btn sm tb-action no-drag" data-cc-action="env-row-menu" data-cc-environment-id="' + esc(activeEnvironmentId) + '" title="环境操作">在...中打开环境</button>' : '';
+    var refreshAction = activeRefreshable ? '<button class="icon-btn tb-action no-drag" data-cc-action="refresh-tab" title="刷新标签页">' + icon('refresh', 16) + '</button>' : '';
+    var logoutAction = (conn || authState(state) === 'expired') ? '<button class="icon-btn tb-action no-drag" data-cc-action="logout" title="退出登录">' + icon('logOut', 16) + '</button>' : '';
     return '<div class="titlebar">' +
       '<div class="brand"><img class="mk" src="' + esc(LOGO_URL) + '" alt=""><span>rdCLI</span></div>' +
       '<div class="tb-tabs no-drag">' + renderTabs(state) + '</div>' +
       '<span style="flex:1"></span>' +
       refreshAction +
       envActions +
-      '<button class="btn sm tb-action no-drag" data-cc-action="connect" title="' + esc(authState(state) === 'expired' ? 'Reconnect your rdCLI account' : accountLabel(state)) + '"><span class="dot" style="background:' + (conn ? 'var(--ok)' : (authState(state) === 'expired' ? 'var(--warn)' : 'var(--tx3)')) + '"></span>' + esc(accountLabel(state)) + '</button>' +
+      '<button class="btn sm tb-action no-drag" data-cc-action="connect" title="' + esc(authState(state) === 'expired' ? '重新连接您的 rdCLI 账号' : accountLabel(state)) + '"><span class="dot" style="background:' + (conn ? 'var(--ok)' : (authState(state) === 'expired' ? 'var(--warn)' : 'var(--tx3)')) + '"></span>' + esc(accountLabel(state)) + '</button>' +
       logoutAction +
-      '<button class="icon-btn tb-action no-drag" data-cc-action="settings-toggle" title="Settings">' + icon('settings', 16) + '</button>' +
+      '<button class="icon-btn tb-action no-drag" data-cc-action="settings-toggle" title="设置">' + icon('settings', 16) + '</button>' +
       '</div>';
   };
 
@@ -375,9 +377,9 @@ window.__MOCK_STATE__ = {
     var status = CC._status || {};
     var running = !!state.localServerRunning;
     return '<div class="statusbar">' +
-      '<span><span class="dot" style="width:7px;height:7px;background:' + (running ? 'var(--ok)' : 'var(--tx3)') + '"></span> local ' + (running ? 'running · ' + esc(localUrl(state)) : 'idle') + '</span>' +
+      '<span><span class="dot" style="width:7px;height:7px;background:' + (running ? 'var(--ok)' : 'var(--tx3)') + '"></span> 本地服务 ' + (running ? '运行中 · ' + esc(localUrl(state)) : '空闲') + '</span>' +
       '<span class="sep">·</span><span>' + esc(envCount(state)) + '</span>' +
-      '<span class="sep">·</span><span>' + (authState(state) === 'expired' ? 'session expired' : (connected(state) ? esc(accountLabel(state)) : 'not connected')) + '</span>' +
+      '<span class="sep">·</span><span>' + (authState(state) === 'expired' ? '会话已过期' : (connected(state) ? esc(accountLabel(state)) : '未连接')) + '</span>' +
       '<span style="flex:1"></span>' +
       (status.msg ? '<span class="status-msg ' + esc(status.tone) + '">' + esc(status.msg) + '</span><span class="sep">·</span>' : '') +
       '<span>v' + esc(VERSION) + '</span>' +
@@ -389,7 +391,7 @@ window.__MOCK_STATE__ = {
       '<div class="cc-sheet cc-modal">' +
       '<div class="cc-sheet-header">' +
       '<div class="cc-sheet-copy"><div class="cc-sheet-title">' + esc(title) + '</div><div class="cc-sheet-subtitle">' + esc(subtitle || '') + '</div></div>' +
-      '<button class="icon-btn cc-sheet-close" data-cc-action="settings-close" title="Close">' + icon('x', 16) + '</button>' +
+      '<button class="icon-btn cc-sheet-close" data-cc-action="settings-close" title="关闭">' + icon('x', 16) + '</button>' +
       '</div>' +
       '<div class="cc-sheet-body">' + sections.join('') + '</div>' +
       (footer ? '<div class="cc-sheet-footer">' + footer + '</div>' : '') +
@@ -440,30 +442,30 @@ window.__MOCK_STATE__ = {
   CC.buildLocalServerSection = function (state, options) {
     options = options || {};
     var settings = state.desktopSettings || {};
-    var url = localUrl(state) || 'starts on demand';
+    var url = localUrl(state) || '按需启动';
     var body = '<div class="cc-surface">' +
       '<div class="cc-meta mono">' + esc(url) + '</div>' +
-      '<div class="cc-row2"><button class="btn sm" data-cc-action="open-web">' + icon('arrow', 14) + 'Open in browser</button><button class="btn sm" data-cc-action="copy-web">' + icon('copy', 14) + 'Copy URL</button></div>';
+      '<div class="cc-row2"><button class="btn sm" data-cc-action="open-web">' + icon('arrow', 14) + '在浏览器中打开</button><button class="btn sm" data-cc-action="copy-web">' + icon('copy', 14) + '复制地址</button></div>';
     if (options.includePreferences) {
       body +=
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + (settings.keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local rdCLI available after you quit the app.</span></label>' +
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + (settings.exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>Allow LAN access</b><br>Use the copied URL from another device on this network.</span></label>';
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + (settings.keepLocalServerRunning ? ' checked' : '') + '><span><b>保持服务运行</b><br>退出应用后仍保持本地 rdCLI 可用。</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + (settings.exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>允许局域网访问</b><br>允许同一网络下的其他设备通过复制的地址访问。</span></label>';
     }
     body += '</div>';
     return CC.renderSection(
-      options.eyebrow || 'LOCAL SERVER',
-      options.title || 'Run Local rdCLI on this machine',
+      options.eyebrow || '本地服务',
+      options.title || '在本机运行本地 rdCLI',
       body
     );
   };
 
   CC.buildThemeSection = function (state) {
     var settings = state.desktopSettings || {};
-    return CC.renderSection('APPEARANCE', 'Desktop theme', '' +
+    return CC.renderSection('外观', '桌面主题', '' +
       '<div class="cc-surface cc-choice-group">' +
-      CC.renderRadioOption('desktop-theme', 'system', settings.themeMode === 'system', 'System', 'Follow the operating system appearance.') +
-      CC.renderRadioOption('desktop-theme', 'light', settings.themeMode === 'light', 'Light', 'Use the light interface appearance.') +
-      CC.renderRadioOption('desktop-theme', 'dark', settings.themeMode === 'dark', 'Dark', 'Use the dark interface appearance.') +
+      CC.renderRadioOption('desktop-theme', 'system', settings.themeMode === 'system', '跟随系统', '跟随操作系统的外观设置。') +
+      CC.renderRadioOption('desktop-theme', 'light', settings.themeMode === 'light', '浅色', '使用浅色界面外观。') +
+      CC.renderRadioOption('desktop-theme', 'dark', settings.themeMode === 'dark', '深色', '使用深色界面外观。') +
       '</div>'
     );
   };
@@ -472,21 +474,21 @@ window.__MOCK_STATE__ = {
     var state = CC.state || {};
     var sections = [
       CC.buildLocalServerSection(state, { includePreferences: false }),
-      CC.renderSection('PREFERENCES', 'How the local service behaves', '' +
+      CC.renderSection('偏好设置', '本地服务行为', '' +
         '<div class="cc-surface">' +
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + ((state.desktopSettings || {}).keepLocalServerRunning ? ' checked' : '') + '><span><b>Keep server running</b><br>Leave Local rdCLI available after you quit the app.</span></label>' +
-        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + ((state.desktopSettings || {}).exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>Allow LAN access</b><br>Use the copied URL from another device on this network.</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="keepLocalServerRunning"' + ((state.desktopSettings || {}).keepLocalServerRunning ? ' checked' : '') + '><span><b>保持服务运行</b><br>退出应用后仍保持本地 rdCLI 可用。</span></label>' +
+        '<label class="cc-toggle"><input type="checkbox" data-cc-setting="exposeLocalServerOnNetwork"' + ((state.desktopSettings || {}).exposeLocalServerOnNetwork ? ' checked' : '') + '><span><b>允许局域网访问</b><br>允许同一网络下的其他设备通过复制的地址访问。</span></label>' +
         '</div>'
       ),
     ];
-    CC.renderSheet('Local Settings', 'Manage how Local rdCLI runs on this computer.', sections);
+    CC.renderSheet('本地设置', '管理本地 rdCLI 在本机上的运行方式。', sections);
   };
 
   CC.renderDesktopSettings = function () {
     var sections = [
       CC.buildThemeSection(CC.state || {}),
     ];
-    CC.renderSheet('Desktop Settings', 'Manage the desktop app appearance.', sections);
+    CC.renderSheet('桌面设置', '管理桌面应用的外观。', sections);
   };
 
   CC.render = function (state) {
@@ -511,12 +513,12 @@ window.__MOCK_STATE__ = {
       var closeTab = event.target.closest('[data-cc-close-tab]');
       if (closeTab) {
         event.stopPropagation();
-        CC.run('Closing tab...', function () { return bridge.closeTab(closeTab.getAttribute('data-cc-close-tab')); });
+        CC.run('正在关闭标签页...', function () { return bridge.closeTab(closeTab.getAttribute('data-cc-close-tab')); });
         return;
       }
       var tab = event.target.closest('[data-cc-tab]');
       if (tab) {
-        CC.run('Switching tab...', function () { return bridge.switchTab(tab.getAttribute('data-cc-tab')); });
+        CC.run('正在切换标签页...', function () { return bridge.switchTab(tab.getAttribute('data-cc-tab')); });
         return;
       }
       var action = event.target.closest('[data-cc-action]');
@@ -627,9 +629,9 @@ window.__MOCK_STATE__ = {
   }
 
   function localPane(state) {
-    return '<div class="pane-h"><div><h2 class="pane-title">Local servers</h2><p class="pane-sub">Manage Local rdCLI on this machine. No account required.</p></div></div>' +
-      '<div class="card"><div class="card-head"><div><div class="card-t">Local server</div><div class="card-sub mono">' + CC.esc(CC.localUrl(state) || 'Starts on demand') + '</div></div><div class="card-tools"><span class="dot" style="background:' + (state.localServerRunning ? 'var(--ok)' : 'var(--tx3)') + '"></span><button class="icon-btn" data-cc-action="local-settings-toggle" title="Local settings">' + CC.icon('gear', 16) + '</button></div></div>' +
-      '<div class="card-actions"><button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + 'Open Local rdCLI</button><button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + 'Open in browser</button><button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + 'Copy URL</button></div></div>';
+    return '<div class="pane-h"><div><h2 class="pane-title">本地服务</h2><p class="pane-sub">在本机运行本地 rdCLI，无需账号。</p></div></div>' +
+      '<div class="card"><div class="card-head"><div><div class="card-t">本地服务</div><div class="card-sub mono">' + CC.esc(CC.localUrl(state) || '按需启动') + '</div></div><div class="card-tools"><span class="dot" style="background:' + (state.localServerRunning ? 'var(--ok)' : 'var(--tx3)') + '"></span><button class="icon-btn" data-cc-action="local-settings-toggle" title="本地设置">' + CC.icon('gear', 16) + '</button></div></div>' +
+      '<div class="card-actions"><button class="btn pri" data-cc-action="local">' + CC.icon('play', 15) + '打开本地 rdCLI</button><button class="btn" data-cc-action="open-web">' + CC.icon('arrow', 14) + '在浏览器中打开</button><button class="btn" data-cc-action="copy-web">' + CC.icon('copy', 14) + '复制地址</button></div></div>';
   }
 
   function envRow(environment) {
@@ -639,33 +641,33 @@ window.__MOCK_STATE__ = {
       '<div class="env-i"><div class="env-n">' + CC.esc(environment.name || environment.subdomain) + '</div><div class="env-u mono">' + CC.esc(environment.access_url || '') + '</div></div>' +
       '<div class="env-tags">' + tags + '</div>' +
       '<span class="badge ' + meta.cls + '">' + meta.label + '</span>' +
-      '<button class="btn sm" data-cc-action="env-row-menu" data-cc-environment-id="' + environment.id + '">Open environment in...</button>' +
+      '<button class="btn sm" data-cc-action="env-row-menu" data-cc-environment-id="' + environment.id + '">在...中打开环境</button>' +
       '<button class="btn sm ' + (environment.status === 'running' ? 'pri' : '') + '">' + CC.icon(meta.busy ? 'refresh' : (environment.status === 'running' ? 'arrow' : 'play'), 14) + meta.open + '</button></div>';
   }
 
   function cloudPane(state) {
-    var header = '<div class="pane-h"><div><h2 class="pane-title">Environments</h2><p class="pane-sub">' + CC.esc(CC.envCount(state)) + '</p></div><button class="btn sm" data-cc-action="dashboard">' + CC.icon('arrow', 14) + 'Dashboard</button></div>';
+    var header = '<div class="pane-h"><div><h2 class="pane-title">环境</h2><p class="pane-sub">' + CC.esc(CC.envCount(state)) + '</p></div><button class="btn sm" data-cc-action="dashboard">' + CC.icon('arrow', 14) + '控制台</button></div>';
     if (CC.authState(state) === 'expired') {
-      return header + '<div class="empty">Your rdCLI session expired.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Reconnect account</button></div></div>';
+      return header + '<div class="empty">您的 rdCLI 会话已过期。<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + '重新连接账号</button></div></div>';
     }
     if (!CC.connected(state)) {
-      return header + '<div class="empty">Connect your rdCLI account to list hosted environments.<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + 'Connect account</button></div></div>';
+      return header + '<div class="empty">连接您的 rdCLI 账号以查看托管环境。<div style="margin-top:14px"><button class="btn pri" data-cc-action="connect">' + CC.icon('cloudPlus', 15) + '连接账号</button></div></div>';
     }
     if (state.cloudLoading && !(state.environments || []).length) {
-      return header + '<div class="empty">Loading your rdCLI environments...</div>';
+      return header + '<div class="empty">正在加载您的 rdCLI 环境...</div>';
     }
 
     var list = (state.environments || []).map(envRow).join('');
-    if (!list) list = '<div class="empty">No hosted environments yet.</div>';
+    if (!list) list = '<div class="empty">暂无托管环境。</div>';
     return header + list;
   }
 
   function renderBody(state) {
     var section = CC.ui.section || ((CC.connected(state) || CC.authState(state) === 'expired') ? 'cloud' : 'local');
     CC.ui.section = section;
-    var nav = '<div class="sb"><div class="sb-grp"><div class="lbl">Launcher</div>' +
-      navItem('local', 'terminal', 'Local servers', state.localServerRunning ? 'on' : 'idle', section) +
-      navItem('cloud', 'cloud', 'Cloud environments', (state.environments || []).length, section) +
+    var nav = '<div class="sb"><div class="sb-grp"><div class="lbl">启动器</div>' +
+      navItem('local', 'terminal', '本地服务', state.localServerRunning ? '运行' : '空闲', section) +
+      navItem('cloud', 'cloud', '云端环境', (state.environments || []).length, section) +
       '</div></div>';
     return nav + '<div class="sb-main">' + (section === 'local' ? localPane(state) : cloudPane(state)) + '</div>';
   }

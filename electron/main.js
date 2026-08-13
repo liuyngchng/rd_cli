@@ -165,7 +165,7 @@ function syncDesktopState() {
     void desktopWindow.showLocalStartupTarget(localServer.getPendingTarget(), localServer.getStartupLogs())
       .catch((error) => {
         if (isExpectedNavigationAbort(error)) return;
-        void showError('Could not update local startup log', error);
+        void showError('无法更新本地启动日志', error);
       });
   }
 }
@@ -246,8 +246,8 @@ async function copyDiagnostics() {
   clipboard.writeText(getDiagnosticsText());
   await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
-    title: 'Diagnostics copied',
-    message: 'rdCLI desktop diagnostics were copied to the clipboard.',
+    title: '已复制诊断信息',
+    message: 'rdCLI 桌面端诊断信息已复制到剪贴板。',
   });
 }
 
@@ -259,15 +259,15 @@ async function refreshCloudEnvironments({ showErrors = false } = {}) {
   } catch (error) {
     const authState = cloud.getAuthState();
     if (authState === 'expired') {
-      const expiredError = new Error('Your rdCLI session expired. Reconnect your account.');
+      const expiredError = new Error('您的 rdCLI 会话已过期，请重新连接账号。');
       if (showErrors) {
-        await showError('rdCLI login required', expiredError);
+        await showError('需要 rdCLI 登录', expiredError);
         return [];
       }
       throw expiredError;
     }
     if (showErrors) {
-      await showError('Could not load rdCLI environments', error);
+      await showError('无法加载 rdCLI 环境', error);
       return [];
     }
     throw error;
@@ -299,13 +299,13 @@ async function handleDeepLink(url) {
   }
 
   if (!pendingCloudConnectStartedAt || Date.now() - pendingCloudConnectStartedAt > AUTH_CALLBACK_TTL_MS) {
-    await showError('rdCLI account connection failed', new Error('No recent rdCLI account connection was started from this app.'));
+    await showError('rdCLI 账号连接失败', new Error('应用未发起过 rdCLI 账号连接。'));
     return;
   }
 
   const apiKey = parsed.searchParams.get('api_key');
   if (!apiKey) {
-    await showError('rdCLI account connection failed', new Error('The callback did not include an API key.'));
+    await showError('rdCLI 账号连接失败', new Error('回调中未包含 API 密钥。'));
     return;
   }
 
@@ -318,8 +318,8 @@ async function handleDeepLink(url) {
 
   dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
-    title: 'rdCLI account connected',
-    message: cloud.getAccount()?.email ? `Connected as ${cloud.getAccount().email}.` : 'rdCLI account connected.',
+    title: 'rdCLI 账号已连接',
+    message: cloud.getAccount()?.email ? `已以 ${cloud.getAccount().email} 身份连接。` : 'rdCLI 账号已连接。',
   }).catch(() => {});
 }
 
@@ -329,18 +329,18 @@ async function copyLocalWebUrl() {
   const localUrl = localServer.getLocalServerUrl();
 
   if (!shareableUrl) {
-    throw new Error('Local rdCLI URL is not available yet.');
+    throw new Error('本地 rdCLI 地址尚不可用。');
   }
 
   clipboard.writeText(shareableUrl);
   const isLanUrl = shareableUrl !== localUrl;
   await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
-    title: 'Web URL copied',
-    message: isLanUrl ? 'LAN web URL copied.' : 'Local web URL copied.',
+    title: '已复制 Web 地址',
+    message: isLanUrl ? '局域网地址已复制。' : '本地地址已复制。',
     detail: isLanUrl
-      ? `${shareableUrl}\n\nUse this URL from another device on the same network.`
-      : `${shareableUrl}\n\nThis URL works on this computer. Enable LAN access before starting Local rdCLI to copy a phone-accessible URL.`,
+      ? `${shareableUrl}\n\n可在同一网络下的其他设备上使用此地址。`
+      : `${shareableUrl}\n\n此地址仅在本机可用。如需手机可访问的地址，请先启用局域网访问再启动本地 rdCLI。`,
   });
 
   return getDesktopState();
@@ -350,7 +350,7 @@ async function openLocalWebUi() {
   await localServer.ensureLocalServer();
   const url = localServer.getShareableWebUrl() || localServer.getLocalServerUrl();
   if (!url) {
-    throw new Error('Local rdCLI URL is not available yet.');
+    throw new Error('本地 rdCLI 地址尚不可用。');
   }
 
   await openExternalUrl(url);
@@ -364,9 +364,9 @@ async function updateDesktopSetting(key, value) {
   if (result.requiresRestartNotice) {
     await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
       type: 'info',
-      title: 'Restart local server to apply',
-      message: 'LAN access changes apply the next time the local server starts.',
-      detail: 'Quit rdCLI and stop the local server, then open Local rdCLI again.',
+      title: '重启本地服务后生效',
+      message: '局域网访问的更改将在本地服务下次启动时生效。',
+      detail: '退出 rdCLI 并停止本地服务，然后重新打开本地 rdCLI。',
     });
   }
 
@@ -393,12 +393,12 @@ async function showEnvironmentPicker() {
 
   const response = await dialog.showMessageBox(desktopWindow?.getMainWindow(), {
     type: 'question',
-    buttons: [...choices, 'Cancel'],
+    buttons: [...choices, '取消'],
     defaultId: 0,
     cancelId: choices.length,
-    title: 'Switch rdCLI Environment',
-    message: 'Choose where this desktop window should connect.',
-    detail: refreshError ? `Cloud environments could not be refreshed. Showing cached environments.\n\n${refreshError.message || refreshError}` : undefined,
+    title: '切换 rdCLI 环境',
+    message: '选择此桌面窗口要连接的目标。',
+    detail: refreshError ? `云端环境刷新失败，当前显示缓存的环境。\n\n${refreshError.message || refreshError}` : undefined,
   });
 
   if (response.response === choices.length) return getDesktopState();
@@ -492,8 +492,8 @@ async function openEnvironmentInSsh(environment) {
     clipboard.writeText(sshCommand);
     await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
       type: 'info',
-      title: 'SSH command copied',
-      message: 'The SSH command was copied to the clipboard.',
+      title: '已复制 SSH 命令',
+      message: 'SSH 命令已复制到剪贴板。',
       detail: sshCommand,
     });
   }
@@ -506,8 +506,8 @@ async function copyEnvironmentMobileUrl(environment) {
   clipboard.writeText(url);
   await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
     type: 'info',
-    title: 'Environment URL copied',
-    message: 'Use this URL from your mobile browser.',
+    title: '已复制环境地址',
+    message: '可在手机浏览器中使用此地址。',
     detail: url,
   });
   return getDesktopState();
@@ -526,7 +526,7 @@ function getActiveRemoteEnvironment() {
 async function runActiveEnvironmentAction(action) {
   const environment = getActiveRemoteEnvironment();
   if (!environment) {
-    throw new Error('Open a cloud environment first.');
+    throw new Error('请先打开一个云端环境。');
   }
 
   switch (action) {
@@ -541,7 +541,7 @@ async function runActiveEnvironmentAction(action) {
     case 'mobile':
       return copyEnvironmentMobileUrl(environment);
     default:
-      throw new Error(`Unknown environment action: ${action}`);
+      throw new Error(`未知的环境操作：${action}`);
   }
 }
 
@@ -583,12 +583,12 @@ async function openEnvironmentInDesktop(environment) {
   if (environment.status !== 'running') {
     const response = await dialog.showMessageBox(desktopWindow?.getMainWindow(), {
       type: 'question',
-      buttons: ['Start Environment', 'Cancel'],
+      buttons: ['启动环境', '取消'],
       defaultId: 0,
       cancelId: 1,
-      title: 'Start environment?',
-      message: `${pendingTarget.name} is ${environment.status}.`,
-      detail: 'rdCLI can start it before opening the remote app.',
+      title: '启动环境？',
+      message: `${pendingTarget.name} 当前状态：${environment.status}。`,
+      detail: 'rdCLI 可在打开远程应用前先启动它。',
     });
 
     if (response.response !== 0) {
@@ -605,7 +605,7 @@ async function openEnvironmentInDesktop(environment) {
     }
 
     if (hadTab) {
-      await desktopWindow.showTabPlaceholder(pendingTarget, `Starting ${pendingTarget.name}...`);
+      await desktopWindow.showTabPlaceholder(pendingTarget, `正在启动 ${pendingTarget.name}...`);
       tabs.upsertTarget(pendingTarget);
       desktopWindow.emitDesktopState();
     }
@@ -696,17 +696,17 @@ function getRemoteEnvironmentMenuItems() {
   const environments = cloud.getEnvironments();
 
   if (!cloudAccount?.apiKey) {
-    return [{ label: 'Connect rdCLI Account...', click: () => void connectCloudAccount() }];
+    return [{ label: '连接 rdCLI 账号...', click: () => void connectCloudAccount() }];
   }
 
   if (!environments.length) {
-    return [{ label: 'No environments found', enabled: false }];
+    return [{ label: '未找到环境', enabled: false }];
   }
 
   return environments.map((environment) => ({
     label: `${environment.name || environment.subdomain}${environment.status === 'running' ? '' : ` (${environment.status})`}`,
     click: () => void openEnvironmentInDesktop(environment)
-      .catch((error) => showError('Could not open environment', error)),
+      .catch((error) => showError('无法打开环境', error)),
   }));
 }
 
@@ -737,7 +737,7 @@ function registerIpcHandlers() {
   ipcMain.handle('rdcli-desktop:open-environment', async (_event, environmentId) => {
     const environment = cloud.findEnvironment(environmentId);
     if (!environment) {
-      throw new Error('Environment not found. Refresh and try again.');
+      throw new Error('环境未找到，请刷新后重试。');
     }
     return openEnvironmentInDesktop(environment);
   });
@@ -934,11 +934,18 @@ async function bootstrap() {
   registerAppEvents();
   await createDesktopWindow();
   void refreshCloudEnvironments({ showErrors: false });
+
+  // 简化启动流程：跳过启动器选择页，直接启动本地 rdCLI 并打开登录界面。
+  // 启动失败时提示错误并退回启动器，方便用户查看日志或重试。
+  void openLocalInDesktop().catch(async (error) => {
+    await showError('本地 rdCLI 启动失败', error);
+    await desktopWindow?.showLauncher();
+  });
 }
 
 if (registerSingleInstance()) {
   bootstrap().catch(async (error) => {
-    await showError('rdCLI failed to start', error);
+    await showError('rdCLI 启动失败', error);
     app.quit();
   });
 }
