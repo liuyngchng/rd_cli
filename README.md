@@ -24,23 +24,53 @@ npm run dev
 
 打开 `http://localhost:5173` 即可使用。
 
-## 许可证
+## Windows 打包
 
-GNU 通用公共许可证 v3.0 - 详见 LICENSE 文件。
+在 Windows 机器上打包免安装版 rdCLI 桌面端：用户拿到 zip 解压后双击 `rdCLI.exe` 即可运行，无需安装、无需配置。
 
-该项目为开源软件，在 GPL v3 许可证下可自由使用、修改与分发。
-## Windows setup
+### 前置条件
 
-Windows 上打包便携版 exe
+- Windows 10 1803+ / Windows 11
+- 已安装 [Node.js](https://nodejs.org/)（建议 22 LTS 或更新）
 
-在项目目录下（PowerShell 或 CMD）执行：
+### 一键打包
+
+在项目根目录执行（PowerShell）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
+```
+
+脚本会自动完成：配置国内镜像（electron 等二进制从 npmmirror 下载并缓存，首次约 130MB）→ 安装依赖 → 打包 `win-unpacked` → 压缩为 zip。
+
+产物：`release/rdcli-desktop-<版本号>-win-x64.zip`
+
+> 脚本仅限 Windows 运行；在 Linux/WSL 上执行会直接报错退出，避免误打出 Linux 版。
+
+### 常见问题
+
+- **"此系统上禁止运行脚本"**：PowerShell 默认执行策略拦截 `.ps1` 脚本。执行
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 后即可直接运行
+  `.\scripts\release\build-win.ps1`（仅影响当前用户，无需管理员权限）。
+- **SmartScreen 提示"未知发布者"**：未做代码签名的正常现象，点「更多信息 → 仍要运行」即可。
+- **首次打包较慢**：需下载 Windows 版 Electron（约 130MB），之后走本地缓存，很快。
+
+### 手动打包（可选）
+
+需要单文件 exe 或手动控制流程时：
 
 ```
 npm install
 npm run build
 npm run desktop:stage
-# 一个exe，首次需解压，略慢  
-npx electron-builder --projectDir .desktop-build/desktop-app --win portable
-# 启动速度快
+# 文件夹版（启动快，推荐）：产物 release/desktop/win-unpacked/
 npx electron-builder --projectDir .desktop-build/desktop-app --win dir
+# 单文件便携版（首次启动需解压，略慢）：产物 release/desktop/
+npx electron-builder --projectDir .desktop-build/desktop-app --win portable
 ```
+
+## 许可证
+
+GNU 通用公共许可证 v3.0 - 详见 LICENSE 文件。
+
+该项目为开源软件，在 GPL v3 许可证下可自由使用、修改与分发。
