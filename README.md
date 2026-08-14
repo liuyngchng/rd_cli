@@ -45,9 +45,37 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
 
 产物：`release/rdcli-desktop-<版本号>-win-x64.zip`
 
-> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**，只需为 Claude 配置一次 API 密钥（写入 `C:\Users\<用户名>\.claude\settings.json` 的 `env` 块，或运行一次 `claude login`）。
+> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**。Claude 连接配置支持打包时注入（见下节「打包注入 Claude 配置」）；未注入时，用户需自行配置一次 API 密钥（写入 `C:\Users\<用户名>\.claude\settings.json` 的 `env` 块，或运行一次 `claude login`）。
 
 > 脚本仅限 Windows 运行；在 Linux/WSL 上执行会直接报错退出，避免误打出 Linux 版。
+
+### 打包注入 Claude 配置（可选）
+
+Claude Code 默认直连 claude.com，国内环境需要走中转网关。为了让用户拿到 zip 后**开箱即用**，打包时可以把一份 `.env` 注入 `resources\app\.env`——app 启动时自动加载，中转地址、密钥、默认模型均从此读取。
+
+构建机准备（二选一）：
+
+1. **本地文件（推荐）**：复制模板并填写：
+   ```powershell
+   Copy-Item scripts\release\desktop.env.template scripts\release\desktop.env
+   notepad scripts\release\desktop.env
+   ```
+   `desktop.env` 已加入 `.gitignore`，不会误提交。
+2. **环境变量**：在构建机设置 `RDCLI_DESKTOP_ENV`，值即 `.env` 文件内容（`desktop.env` 文件存在时优先）。
+
+模板中的配置项：
+
+| 键 | 说明 |
+|---|---|
+| `ANTHROPIC_BASE_URL` | 中转网关地址，国内环境必填 |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | 密钥，二选一 |
+| `ANTHROPIC_MODEL` | 可选，默认模型 |
+
+注意：
+
+- zip 内的 `.env` 是**明文**，拿到安装包的人都能看到密钥，请使用共享/有限额密钥；
+- 用户升级解压新 zip 会覆盖 `resources\app\.env`（若用户自行改过该文件）；
+- 用户自己设置的系统环境变量优先级高于 `.env` 中的同名项。
 
 ### 常见问题
 
