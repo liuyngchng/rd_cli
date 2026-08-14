@@ -69,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
 
 需要单文件 exe 或手动控制流程时：
 
-```
+```powershell
 npm install
 npm run build
 npm run desktop:stage
@@ -78,6 +78,71 @@ npx electron-builder --projectDir .desktop-build/desktop-app --win dir
 # 单文件便携版（首次启动需解压，略慢）：产物 release/desktop/
 npx electron-builder --projectDir .desktop-build/desktop-app --win portable
 ```
+
+## Linux 打包
+
+在 Linux 机器上打包 rdCLI 桌面端（以 Ubuntu 为主），产出 AppImage 与 deb 两种格式。
+
+### 前置条件
+
+- Ubuntu 20.04+（或其他主流 Linux 发行版）
+- 已安装 [Node.js](https://nodejs.org/)（建议 22 LTS 或更新）
+- 安装系统依赖（deb 打包需要 `fakeroot`）：
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y fakeroot dpkg
+  ```
+
+### 一键打包
+
+在项目根目录执行：
+
+```bash
+bash scripts/release/build-linux.sh
+```
+
+脚本会自动完成：配置国内镜像（electron 等二进制从 npmmirror 下载并缓存）→ 安装依赖 → 生成 desktop stage → 打包 AppImage + deb。
+
+产物：
+
+- `release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage`
+- `release/desktop/rdcli-desktop-<版本号>-linux-x64.deb`
+
+> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**，只需为 Claude 配置一次 API 密钥（写入 `~/.claude/settings.json` 的 `env` 块，或运行一次 `claude login`）。
+
+> 脚本仅限 Linux 运行；在 Windows/WSL 上执行会直接报错退出，避免误打出 Windows 版。
+
+### 使用方式
+
+- **AppImage**：给文件加执行权限后直接运行，免安装：
+
+  ```bash
+  chmod +x release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage
+  ./release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage
+  ```
+
+- **deb**：通过包管理器安装，可自动写入应用菜单与 `.desktop` 启动项：
+
+  ```bash
+  sudo apt install ./release/desktop/rdcli-desktop-<版本号>-linux-x64.deb
+  ```
+
+### 手动打包（可选）
+
+需要单独控制格式或流程时：
+
+```bash
+npm install
+npm run build
+npm run desktop:stage
+# 仅 AppImage（免安装）：产物 release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage
+npx electron-builder --projectDir .desktop-build/desktop-app --linux AppImage
+# 仅 deb（可安装）：产物 release/desktop/rdcli-desktop-<版本号>-linux-x64.deb
+npx electron-builder --projectDir .desktop-build/desktop-app --linux deb
+```
+
+> 也可用 npm 脚本一键完成 build + stage + 打包：`npm run desktop:dist:linux`
 
 ## 许可证
 
