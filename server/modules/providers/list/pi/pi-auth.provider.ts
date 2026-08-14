@@ -1,4 +1,5 @@
 import spawn from 'cross-spawn';
+import path from 'path';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
@@ -8,9 +9,20 @@ import type { ProviderAuthStatus } from '@/shared/types.js';
  * Checks Pi CLI installation and credential status via `pi auth check`.
  */
 export class PiProviderAuth implements IProviderAuth {
+  private resolvePiCommand(): string {
+    if (process.env.PI_CLI_PATH) {
+      // Resolve relative paths against cwd so spawn can find the binary.
+      if (!path.isAbsolute(process.env.PI_CLI_PATH)) {
+        return path.resolve(process.cwd(), process.env.PI_CLI_PATH);
+      }
+      return process.env.PI_CLI_PATH;
+    }
+    return 'pi';
+  }
+
   private checkInstalled(): boolean {
     try {
-      const result = spawn.sync('pi', ['--version'], {
+      const result = spawn.sync(this.resolvePiCommand(), ['--version'], {
         stdio: 'ignore',
         timeout: 5000,
       });
@@ -38,7 +50,7 @@ export class PiProviderAuth implements IProviderAuth {
     }
 
     try {
-      const result = spawn.sync('pi', ['auth', 'check', '--json'], {
+      const result = spawn.sync(this.resolvePiCommand(), ['auth', 'check', '--json'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         timeout: 10000,
       });

@@ -1,3 +1,5 @@
+import path from 'path';
+
 import crossSpawn from 'cross-spawn';
 
 import {
@@ -24,7 +26,12 @@ const activePiProcesses = new Map();
  */
 function resolvePiSpawnCommand() {
   if (process.env.PI_CLI_PATH) {
-    return { command: process.env.PI_CLI_PATH, argsPrefix: [] };
+    // Resolve relative paths against cwd so `PI_CLI_PATH=electron/pi/pi` works in dev.
+    let resolved = process.env.PI_CLI_PATH;
+    if (!path.isAbsolute(resolved)) {
+      resolved = path.resolve(process.cwd(), resolved);
+    }
+    return { command: resolved, argsPrefix: [] };
   }
   return { command: 'pi', argsPrefix: [] };
 }

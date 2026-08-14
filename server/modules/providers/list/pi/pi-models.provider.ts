@@ -1,4 +1,5 @@
 import crossSpawn from 'cross-spawn';
+import path from 'path';
 
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
@@ -8,6 +9,17 @@ import type {
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 
 const PI_MODELS_TIMEOUT_MS = 20_000;
+
+/** Resolve the Pi CLI command, honoring PI_CLI_PATH (relative paths resolved against cwd). */
+function resolvePiCommand(): string {
+  if (process.env.PI_CLI_PATH) {
+    if (!path.isAbsolute(process.env.PI_CLI_PATH)) {
+      return path.resolve(process.cwd(), process.env.PI_CLI_PATH);
+    }
+    return process.env.PI_CLI_PATH;
+  }
+  return 'pi';
+}
 
 export const PI_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
@@ -53,7 +65,8 @@ export const parsePiModelsStdout = (stdout: string): string[] => {
 };
 
 const runPiModelsCommand = (): Promise<string> => new Promise((resolve, reject) => {
-  const piProcess = crossSpawn('pi', ['--list-models'], {
+  const piCommand = resolvePiCommand();
+  const piProcess = crossSpawn(piCommand, ['--list-models'], {
     cwd: process.cwd(),
     env: { ...process.env },
   });
