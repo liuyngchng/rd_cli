@@ -1,5 +1,4 @@
 import crossSpawn from 'cross-spawn';
-import path from 'node:path';
 
 import {
   appendFilesInputTag,
@@ -17,24 +16,16 @@ const spawnFunction = crossSpawn;
 const activePiProcesses = new Map();
 
 /**
- * Resolve the Pi CLI command + entry to spawn.
+ * Resolve the Pi CLI command to spawn.
  *
  * Priority:
- * 1. PI_CLI_PATH env var (explicit override, e.g. a system Pi install)
- * 2. PI_PACKAGE_DIR env var → <dir>/dist/cli.js (bundled Pi in the desktop app)
- * 3. bundled wrapper script on PATH (set by electron/localServer.js)
- * 4. bare 'pi' (development / system install)
+ * 1. PI_CLI_PATH env var (explicit path to pi binary, dev or system install)
+ * 2. 'pi' on PATH (bundled binary put on PATH by electron/localServer.js)
  */
 function resolvePiSpawnCommand() {
   if (process.env.PI_CLI_PATH) {
-    return { command: process.execPath, argsPrefix: [process.env.PI_CLI_PATH] };
+    return { command: process.env.PI_CLI_PATH, argsPrefix: [] };
   }
-
-  if (process.env.PI_PACKAGE_DIR) {
-    const cliEntry = path.join(process.env.PI_PACKAGE_DIR, 'dist', 'cli.js');
-    return { command: process.execPath, argsPrefix: [cliEntry] };
-  }
-
   return { command: 'pi', argsPrefix: [] };
 }
 

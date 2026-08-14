@@ -23,6 +23,10 @@ out/
 # 打包注入的 Pi 连接配置（含真实密钥，勿提交）
 scripts/release/desktop.env
 
+# Pi 二进制（需在打包前手动生成，见 scripts/release/README.md）
+electron/pi/pi
+electron/pi/pi.exe
+
 # IDE and editor files
 .vscode/
 .idea/

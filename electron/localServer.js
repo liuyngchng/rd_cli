@@ -107,30 +107,14 @@ function getDesktopPath() {
 }
 
 /**
- * Path to the Pi CLI bundled inside the packaged app
- * (<appRoot>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js),
- * or null when it is not present (e.g. development machines).
+ * Path to the Pi CLI binary bundled inside the packaged app
+ * (<appRoot>/electron/pi/pi[.exe]), or null when it is not present
+ * (e.g. development machines).
  */
 function getBundledPiCliPath(appRoot) {
-  const cliEntry = path.join(
-    appRoot,
-    'node_modules',
-    '@earendil-works',
-    'pi-coding-agent',
-    'dist',
-    'cli.js',
-  );
-  return existsSync(cliEntry) ? cliEntry : null;
-}
-
-/**
- * Path to the Pi CLI wrapper script (<appRoot>/node_modules/.bin/pi), or null
- * when not present. The wrapper `exec`s node against the bundled cli.js.
- */
-function getBundledPiWrapperPath(appRoot) {
-  const wrapperName = process.platform === 'win32' ? 'pi.cmd' : 'pi';
-  const wrapperPath = path.join(appRoot, 'node_modules', '.bin', wrapperName);
-  return existsSync(wrapperPath) ? wrapperPath : null;
+  const binaryName = process.platform === 'win32' ? 'pi.exe' : 'pi';
+  const binaryPath = path.join(appRoot, 'electron', 'pi', binaryName);
+  return existsSync(binaryPath) ? binaryPath : null;
 }
 
 function getNodeRuntime(usePackagedElectronRuntime) {
@@ -433,14 +417,12 @@ export class LocalServerController {
     this.appendStartupLog(`cwd: ${serverCwd}`);
     this.appendStartupLog(`HOST=${bindHost} SERVER_PORT=${port}`);
 
-    // Point the server at the bundled Pi CLI (unless the user already set PI_CLI_PATH).
-    // The Pi runtime provider spawns 'pi' from PATH, so we prepend the bundled wrapper
-    // directory. We also set PI_PACKAGE_DIR so Pi's config.ts can locate its assets.
-    const bundledPiWrapper = getBundledPiWrapperPath(this.appRoot);
-    const bundledPiDir = bundledPiWrapper ? path.dirname(bundledPiWrapper) : null;
-    const piPackageDir = getBundledPiCliPath(this.appRoot)
-      ? path.dirname(path.dirname(getBundledPiCliPath(this.appRoot)))
-      : null;
+    // Point the server at the bundled Pi binary (unless the user already set PI_CLI_PATH).
+    // The Pi runtime provider spawns 'pi' from PATH, so we prepend the directory
+    // containing the bundled binary. We also set PI_PACKAGE_DIR so Pi's config.ts
+    // can locate its assets (theme, wasm, etc.) next to the binary.
+    const bundledPiBinary = getBundledPiCliPath(this.appRoot);
+    const bundledPiDir = bundledPiBinary ? path.dirname(bundledPiBinary) : null;
 
     this.ownedServerProcess = spawn(runtime.command, [serverEntry], {
       cwd: serverCwd,
@@ -453,7 +435,7 @@ export class LocalServerController {
         PATH: bundledPiDir
           ? `${bundledPiDir}${path.delimiter}${getDesktopPath()}`
           : getDesktopPath(),
-        ...(piPackageDir && !process.env.PI_PACKAGE_DIR ? { PI_PACKAGE_DIR: piPackageDir } : {}),
+        ...(bundledPiDir && !process.env.PI_PACKAGE_DIR ? { PI_PACKAGE_DIR: bundledPiDir } : {}),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

@@ -24,6 +24,35 @@ npm run dev
 
 打开 `http://localhost:5173` 即可使用。
 
+## 构建 Pi 二进制（打包前置步骤）
+
+桌面应用打包时会从 `electron/pi/` 目录复制 Pi 的独立二进制文件。该文件**不在 Git 仓库中**（`.gitignore` 已排除），需在打包前手动构建一次。
+
+### 前置条件
+
+- 已安装 [Bun](https://bun.sh/)（`curl -fsSL https://bun.sh/install | bash`）
+- Pi 源码已 clone 到本机，且已安装依赖并编译（`npm install && npm run build:offline`）
+
+### Linux
+
+```bash
+cd <pi-repo>/packages/coding-agent
+bun build --compile --no-compile-autoload-bunfig ./dist/bun/cli.js ./src/utils/image-resize-worker.ts --outfile dist/pi
+cp dist/pi dist/package.json dist/photon_rs_bg.wasm <rdcli-repo>/electron/pi/
+cp -r dist/theme dist/assets dist/export-html <rdcli-repo>/electron/pi/
+```
+
+### Windows（PowerShell）
+
+```powershell
+cd <pi-repo>\packages\coding-agent
+bun build --compile --no-compile-autoload-bunfig .\dist\bun\cli.js .\src\utils\image-resize-worker.ts --outfile dist\pi.exe
+Copy-Item dist\pi.exe,dist\package.json,dist\photon_rs_bg.wasm <rdcli-repo>\electron\pi\
+Copy-Item -Recurse dist\theme,dist\assets,dist\export-html <rdcli-repo>\electron\pi\
+```
+
+构建完成后，`electron/pi/` 目录应包含 `pi`（或 `pi.exe`）、`package.json`、`photon_rs_bg.wasm`、`theme/`、`assets/`、`export-html/`。
+
 ## Windows 打包
 
 在 Windows 机器上打包免安装版 rdCLI 桌面端：用户拿到 zip 解压后双击 `rdCLI.exe` 即可运行，无需安装、无需配置。
@@ -45,13 +74,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\build-win.ps1
 
 产物：`release/rdcli-desktop-<版本号>-win-x64.zip`
 
-> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**。Claude 连接配置支持打包时注入（见下节「打包注入 Claude 配置」）；未注入时，用户需自行配置一次 API 密钥（写入 `C:\Users\<用户名>\.claude\settings.json` 的 `env` 块，或运行一次 `claude login`）。
+> 桌面包已内置 Pi 编码代理（体积约增加 100MB）：目标机器**无需安装 pi**。Pi 的 API 密钥配置在 `~/.pi/agent/auth.json` 中，首次启动时需自行配置（或由打包者注入，见下节）。
 
 > 脚本仅限 Windows 运行；在 Linux/WSL 上执行会直接报错退出，避免误打出 Linux 版。
 
-### 打包注入 Claude 配置（可选）
+### 打包注入 Pi 配置（可选）
 
-Claude Code 默认直连 claude.com，国内环境需要走中转网关。为了让用户拿到 zip 后**开箱即用**，打包时可以把一份 `.env` 注入 `resources\app\.env`——app 启动时自动加载，中转地址、密钥、默认模型均从此读取。
+Pi 使用 `~/.pi/agent/auth.json` 存储 API 密钥（不同于 Claude Code 的环境变量方式）。为了让用户拿到 zip 后**开箱即用**，打包时可以把一份 `.env` 注入 `resources\app\.env`——app 启动时自动加载，中转地址、密钥、默认模型均从此读取。
 
 构建机准备（二选一）：
 
@@ -67,9 +96,10 @@ Claude Code 默认直连 claude.com，国内环境需要走中转网关。为了
 
 | 键 | 说明 |
 |---|---|
-| `ANTHROPIC_BASE_URL` | 中转网关地址，国内环境必填 |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | 密钥，二选一 |
-| `ANTHROPIC_MODEL` | 可选，默认模型 |
+| `PI_DEFAULT_PROVIDER` | 大模型 provider（如 `deepseek`、`qwen`、`openai`） |
+| `PI_API_KEY` | 对应 provider 的 API Key |
+| `PI_BASE_URL` | 可选，API 中转/代理网关地址 |
+| `PI_DEFAULT_MODEL` | 可选，默认模型 |
 
 注意：
 
@@ -137,7 +167,7 @@ bash scripts/release/build-linux.sh
 - `release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage`
 - `release/desktop/rdcli-desktop-<版本号>-linux-x64.deb`
 
-> 桌面包已内置 Claude Code CLI（体积约增加 290MB）：目标机器**无需安装 claude**，只需为 Claude 配置一次 API 密钥（写入 `~/.claude/settings.json` 的 `env` 块，或运行一次 `claude login`）。
+> 桌面包已内置 Pi 编码代理（体积约增加 100MB）：目标机器**无需安装 pi**，只需为 Pi 配置一次 API 密钥（写入 `~/.pi/agent/auth.json`，或运行 `pi auth` 交互式配置）。
 
 > 脚本仅限 Linux 运行；在 Windows/WSL 上执行会直接报错退出，避免误打出 Windows 版。
 
