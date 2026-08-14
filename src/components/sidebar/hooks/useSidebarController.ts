@@ -708,7 +708,7 @@ export function useSidebarController({
       projectId: string | null,
       sessionId: string,
       sessionTitle: string,
-      provider: SessionDeleteConfirmation['provider'] = 'claude',
+      provider: SessionDeleteConfirmation['provider'] = 'pi',
       options: {
         isArchived?: boolean;
       } = {},

@@ -33,7 +33,7 @@ test('providerMcpService handles claude MCP scopes/transports with file-backed p
 
   const restoreHomeDir = patchHomeDir(tempRoot);
   try {
-    await providerMcpService.upsertProviderMcpServer('claude', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'claude-user-stdio',
       scope: 'user',
       transport: 'stdio',
@@ -42,7 +42,7 @@ test('providerMcpService handles claude MCP scopes/transports with file-backed p
       env: { API_KEY: 'secret' },
     });
 
-    await providerMcpService.upsertProviderMcpServer('claude', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'claude-local-http',
       scope: 'local',
       transport: 'http',
@@ -51,7 +51,7 @@ test('providerMcpService handles claude MCP scopes/transports with file-backed p
       workspacePath,
     });
 
-    await providerMcpService.upsertProviderMcpServer('claude', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'claude-project-sse',
       scope: 'project',
       transport: 'sse',
@@ -60,13 +60,13 @@ test('providerMcpService handles claude MCP scopes/transports with file-backed p
       workspacePath,
     });
 
-    const grouped = await providerMcpService.listProviderMcpServers('claude', { workspacePath });
+    const grouped = await providerMcpService.listProviderMcpServers('pi', { workspacePath });
     assert.ok(grouped.user.some((server) => server.name === 'claude-user-stdio' && server.transport === 'stdio'));
     assert.ok(grouped.local.some((server) => server.name === 'claude-local-http' && server.transport === 'http'));
     assert.ok(grouped.project.some((server) => server.name === 'claude-project-sse' && server.transport === 'sse'));
 
     // update behavior is the same upsert route with same name
-    await providerMcpService.upsertProviderMcpServer('claude', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'claude-project-sse',
       scope: 'project',
       transport: 'sse',
@@ -80,7 +80,7 @@ test('providerMcpService handles claude MCP scopes/transports with file-backed p
     const projectServer = projectServers['claude-project-sse'] as Record<string, unknown>;
     assert.equal(projectServer.url, 'https://example.com/sse-updated');
 
-    const removeResult = await providerMcpService.removeProviderMcpServer('claude', {
+    const removeResult = await providerMcpService.removeProviderMcpServer('pi', {
       name: 'claude-local-http',
       scope: 'local',
       workspacePath,
@@ -103,7 +103,7 @@ test('providerMcpService handles codex MCP TOML config and capability validation
 
   const restoreHomeDir = patchHomeDir(tempRoot);
   try {
-    await providerMcpService.upsertProviderMcpServer('codex', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'codex-user-stdio',
       scope: 'user',
       transport: 'stdio',
@@ -114,7 +114,7 @@ test('providerMcpService handles codex MCP TOML config and capability validation
       cwd: '/tmp',
     });
 
-    await providerMcpService.upsertProviderMcpServer('codex', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'codex-project-http',
       scope: 'project',
       transport: 'http',
@@ -138,7 +138,7 @@ test('providerMcpService handles codex MCP TOML config and capability validation
     assert.equal(projectHttp.url, 'https://codex.example.com/mcp');
 
     await assert.rejects(
-      providerMcpService.upsertProviderMcpServer('codex', {
+      providerMcpService.upsertProviderMcpServer('pi', {
         name: 'codex-local',
         scope: 'local',
         transport: 'stdio',
@@ -151,7 +151,7 @@ test('providerMcpService handles codex MCP TOML config and capability validation
     );
 
     await assert.rejects(
-      providerMcpService.upsertProviderMcpServer('codex', {
+      providerMcpService.upsertProviderMcpServer('pi', {
         name: 'codex-sse',
         scope: 'project',
         transport: 'sse',
@@ -177,9 +177,9 @@ test('providerMcpService handles opencode MCP config and capability validation',
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-opencode-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   await fs.mkdir(workspacePath, { recursive: true });
-  await fs.mkdir(path.join(tempRoot, '.config', 'opencode'), { recursive: true });
+  await fs.mkdir(path.join(tempRoot, '.config', 'pi'), { recursive: true });
   await fs.writeFile(
-    path.join(tempRoot, '.config', 'opencode', 'opencode.jsonc'),
+    path.join(tempRoot, '.config', 'pi', 'opencode.jsonc'),
     `{
       // Existing comments should not block OpenCode MCP reads.
       "mcp": {}
@@ -189,7 +189,7 @@ test('providerMcpService handles opencode MCP config and capability validation',
 
   const restoreHomeDir = patchHomeDir(tempRoot);
   try {
-    await providerMcpService.upsertProviderMcpServer('opencode', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'opencode-user-stdio',
       scope: 'user',
       transport: 'stdio',
@@ -198,7 +198,7 @@ test('providerMcpService handles opencode MCP config and capability validation',
       env: { API_KEY: 'x' },
     });
 
-    await providerMcpService.upsertProviderMcpServer('opencode', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'opencode-project-http',
       scope: 'project',
       transport: 'http',
@@ -207,7 +207,7 @@ test('providerMcpService handles opencode MCP config and capability validation',
       workspacePath,
     });
 
-    const userConfig = await readJson(path.join(tempRoot, '.config', 'opencode', 'opencode.jsonc'));
+    const userConfig = await readJson(path.join(tempRoot, '.config', 'pi', 'opencode.jsonc'));
     const userServers = userConfig.mcp as Record<string, unknown>;
     const userStdio = userServers['opencode-user-stdio'] as Record<string, unknown>;
     assert.equal(userStdio.type, 'local');
@@ -220,12 +220,12 @@ test('providerMcpService handles opencode MCP config and capability validation',
     assert.equal(projectHttp.type, 'remote');
     assert.equal(projectHttp.url, 'https://opencode.example.com/mcp');
 
-    const grouped = await providerMcpService.listProviderMcpServers('opencode', { workspacePath });
+    const grouped = await providerMcpService.listProviderMcpServers('pi', { workspacePath });
     assert.ok(grouped.user.some((server) => server.name === 'opencode-user-stdio' && server.transport === 'stdio'));
     assert.ok(grouped.project.some((server) => server.name === 'opencode-project-http' && server.transport === 'http'));
 
     await assert.rejects(
-      providerMcpService.upsertProviderMcpServer('opencode', {
+      providerMcpService.upsertProviderMcpServer('pi', {
         name: 'opencode-local',
         scope: 'local',
         transport: 'stdio',
@@ -238,7 +238,7 @@ test('providerMcpService handles opencode MCP config and capability validation',
     );
 
     await assert.rejects(
-      providerMcpService.upsertProviderMcpServer('opencode', {
+      providerMcpService.upsertProviderMcpServer('pi', {
         name: 'opencode-sse',
         scope: 'project',
         transport: 'sse',
@@ -266,7 +266,7 @@ test('providerMcpService handles cursor MCP JSON config formats', { concurrency:
 
   const restoreHomeDir = patchHomeDir(tempRoot);
   try {
-    await providerMcpService.upsertProviderMcpServer('cursor', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'cursor-stdio',
       scope: 'project',
       transport: 'stdio',
@@ -276,7 +276,7 @@ test('providerMcpService handles cursor MCP JSON config formats', { concurrency:
       workspacePath,
     });
 
-    await providerMcpService.upsertProviderMcpServer('cursor', {
+    await providerMcpService.upsertProviderMcpServer('pi', {
       name: 'cursor-http',
       scope: 'user',
       transport: 'http',

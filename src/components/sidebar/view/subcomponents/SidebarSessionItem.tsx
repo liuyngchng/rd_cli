@@ -64,10 +64,7 @@ const formatCompactSessionAge = (dateString: string, currentTime: Date): string 
 };
 
 const PROVIDER_LABELS: Record<LLMProvider, string> = {
-  claude: 'Claude',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  opencode: 'OpenCode',
+  pi: 'Pi',
 };
 
 type CopyState = 'loading' | 'idle' | 'copying' | 'copied' | 'error';

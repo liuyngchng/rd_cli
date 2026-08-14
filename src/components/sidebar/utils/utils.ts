@@ -65,7 +65,7 @@ const getSessionProvider = (session: ProjectSession): LLMProvider => {
   const provider = session.__provider ?? session.provider;
   return typeof provider === 'string' && provider.trim()
     ? provider as LLMProvider
-    : 'claude';
+    : 'pi';
 };
 
 export const getSessionDate = (session: SessionWithProvider): Date => {

@@ -280,7 +280,7 @@ export default function SidebarContent({
                         // cross-reference with the loaded projects list.
                         projectResult.projectId,
                         session.sessionId,
-                        session.provider || session.matches[0]?.provider || 'claude',
+                        session.provider || session.matches[0]?.provider || 'pi',
                         session.matches[0]?.timestamp,
                         session.matches[0]?.snippet
                       )}
@@ -290,7 +290,7 @@ export default function SidebarContent({
                         <span className="truncate text-xs font-normal text-foreground">
                           {session.sessionSummary}
                         </span>
-                        {session.provider && session.provider !== 'claude' && (
+                        {session.provider && session.provider !== 'pi' && (
                           <span className="flex-shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] uppercase text-muted-foreground">
                             {session.provider}
                           </span>

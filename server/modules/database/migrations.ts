@@ -66,7 +66,7 @@ const migrateLegacySessionNames = (db: Database): void => {
       INSERT INTO sessions (session_id, provider, custom_name, created_at, updated_at)
       SELECT
         session_id,
-        COALESCE(provider, 'claude'),
+        COALESCE(provider, 'pi'),
         custom_name,
         COALESCE(created_at, CURRENT_TIMESTAMP),
         COALESCE(updated_at, CURRENT_TIMESTAMP)
@@ -281,8 +281,8 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
       : 'NULL';
 
   const providerExpression = columnNames.includes('provider')
-    ? "COALESCE(provider, 'claude')"
-    : "'claude'";
+    ? "COALESCE(provider, 'pi')"
+    : "'pi'";
 
   const customNameExpression = columnNames.includes('custom_name')
     ? 'custom_name'
@@ -311,7 +311,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
     db.exec(`
       CREATE TABLE sessions__new (
         session_id TEXT NOT NULL,
-        provider TEXT NOT NULL DEFAULT 'claude',
+        provider TEXT NOT NULL DEFAULT 'pi',
         custom_name TEXT,
         project_path TEXT,
         user_id INTEGER DEFAULT NULL,

@@ -18,10 +18,7 @@ export const sessionSynchronizerService = {
     const lastScanAt = scanStateDb.getLastScannedAt();
     const scanBoundary = new Date();
     const processedByProvider: Record<LLMProvider, number> = {
-      claude: 0,
-      codex: 0,
-      cursor: 0,
-      opencode: 0,
+      pi: 0,
     };
     const failures: string[] = [];
 

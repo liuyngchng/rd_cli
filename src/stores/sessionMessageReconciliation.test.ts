@@ -12,7 +12,7 @@ const createUserMessage = (
   id,
   sessionId: 'session-1',
   timestamp,
-  provider: 'claude',
+  provider: 'pi',
   kind: 'text',
   role: 'user',
   content: '',

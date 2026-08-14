@@ -103,6 +103,8 @@ temp/
 .netlify
 
 # AI specific
+.pi/
+.agents/
 .claude/
 .cursor/
 .roo/

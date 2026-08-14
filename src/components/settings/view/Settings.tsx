@@ -38,14 +38,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     setProjectSortOrder,
     codeEditorSettings,
     updateCodeEditorSetting,
-    claudePermissions,
-    setClaudePermissions,
     notificationPreferences,
     setNotificationPreferences,
-    cursorPermissions,
-    setCursorPermissions,
-    codexPermissionMode,
-    setCodexPermissionMode,
     providerAuthStatus,
     openLoginForProvider,
     showLoginModal,
@@ -174,12 +168,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
-                  claudePermissions={claudePermissions}
-                  onClaudePermissionsChange={setClaudePermissions}
-                  cursorPermissions={cursorPermissions}
-                  onCursorPermissionsChange={setCursorPermissions}
-                  codexPermissionMode={codexPermissionMode}
-                  onCodexPermissionModeChange={setCodexPermissionMode}
                   projects={projects}
                 />
               )}
@@ -207,10 +195,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
       </div>
 
       <ProviderLoginModal
-        key={loginProvider || 'claude'}
+        key={loginProvider || 'pi'}
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        provider={loginProvider || 'claude'}
+        provider={loginProvider || 'pi'}
         onComplete={handleLoginComplete}
         isAuthenticated={isAuthenticated}
       />

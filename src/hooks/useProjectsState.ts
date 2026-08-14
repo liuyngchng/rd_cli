@@ -76,7 +76,7 @@ type SessionDetailsApiPayload = {
 
 type ProjectSessionPage = Pick<Project, 'sessions' | 'sessionMeta'>;
 
-const DEFAULT_PROVIDER: LLMProvider = 'claude';
+const DEFAULT_PROVIDER: LLMProvider = 'pi';
 
 const serialize = (value: unknown) => JSON.stringify(value ?? null);
 

@@ -13,8 +13,7 @@ type GitRouterDependencies = {
   fileSystem: typeof import('node:fs/promises');
   spawnProcess: typeof import('cross-spawn').default;
   resolveProjectPathById(projectId: string): string | null;
-  queryClaude: ProviderRunFunction;
-  queryCursor: ProviderRunFunction;
+  queryPi: ProviderRunFunction;
 };
 
 /** Creates Git routes around explicit repository, filesystem, subprocess, and AI adapters. */
@@ -22,8 +21,7 @@ export function createGitRouter(dependencies: GitRouterDependencies): express.Ro
 const fs = dependencies.fileSystem;
 const spawn = dependencies.spawnProcess;
 const projectsDb = { getProjectPathById: dependencies.resolveProjectPathById };
-const queryClaudeSDK = dependencies.queryClaude;
-const spawnCursor = dependencies.queryCursor;
+const queryPi = dependencies.queryPi;
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
 
@@ -944,15 +942,10 @@ router.get('/commit-diff', async (req, res) => {
 
 // Generate commit message based on staged changes using AI
 router.post('/generate-commit-message', async (req, res) => {
-  const { project, files, provider = 'claude' } = req.body;
+  const { project, files } = req.body;
 
   if (!project || !files || files.length === 0) {
     return res.status(400).json({ error: 'Project id and files are required' });
-  }
-
-  // Validate provider
-  if (!['claude', 'cursor'].includes(provider)) {
-    return res.status(400).json({ error: 'provider must be "claude" or "cursor"' });
   }
 
   try {
@@ -1082,19 +1075,11 @@ Generate the commit message:`;
     console.log('🚀 Calling AI agent with provider:', provider);
     console.log('📝 Prompt length:', prompt.length);
 
-    // Call the appropriate agent
-    if (provider === 'claude') {
-      await queryClaudeSDK(prompt, {
-        cwd: projectPath,
-        permissionMode: 'bypassPermissions',
-        model: 'sonnet'
-      }, writer);
-    } else if (provider === 'cursor') {
-      await spawnCursor(prompt, {
-        cwd: projectPath,
-        skipPermissions: true
-      }, writer);
-    }
+    // Call pi agent
+    await queryPi(prompt, {
+      cwd: projectPath,
+      permissionMode: 'bypassPermissions',
+    }, writer);
 
     console.log('📊 Total response text collected:', responseText.length, 'characters');
     console.log('📄 Response preview:', responseText.substring(0, 200));

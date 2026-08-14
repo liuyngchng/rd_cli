@@ -628,14 +628,7 @@ export function useChatComposerState({
   const buildSendOptions = useCallback((currentInput: string): QueuedSendOptions => {
     const getToolsSettings = () => {
       try {
-        const settingsKey =
-          provider === 'cursor'
-            ? 'cursor-tools-settings'
-            : provider === 'codex'
-              ? 'codex-settings'
-              : provider === 'opencode'
-                  ? 'opencode-settings'
-                : 'claude-settings';
+        const settingsKey = 'pi-settings';
         const savedSettings = safeLocalStorage.getItem(settingsKey);
         if (savedSettings) {
           return JSON.parse(savedSettings);
@@ -1213,7 +1206,7 @@ export function useChatComposerState({
 
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {
-      if (!suggestion || provider !== 'claude') {
+      if (!suggestion || provider !== 'pi') {
         return { success: false };
       }
       return grantClaudeToolPermission(suggestion.entry);

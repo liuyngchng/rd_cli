@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS projects (
 export const SESSIONS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT NOT NULL,
-    provider TEXT NOT NULL DEFAULT 'claude',
+    provider TEXT NOT NULL DEFAULT 'pi',
     -- The session id used by the provider CLI/SDK on disk (JSONL file name,
     -- store.db folder, sqlite row id, ...). \`session_id\` is the stable
     -- app-facing id that the frontend uses for the whole session lifetime;

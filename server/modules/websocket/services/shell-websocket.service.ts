@@ -156,7 +156,7 @@ function resolveResumeSessionId(
 ): string {
   const hasSession = readBoolean(message.hasSession);
   const sessionId = readString(message.sessionId);
-  const provider = readString(message.provider, 'claude');
+  const provider = readString(message.provider, 'pi');
 
   if (!hasSession || !sessionId) {
     return '';
@@ -187,7 +187,7 @@ function buildShellCommand(
 ): string {
   const hasSession = readBoolean(message.hasSession);
   const initialCommand = readString(message.initialCommand);
-  const provider = readString(message.provider, 'claude');
+  const provider = readString(message.provider, 'pi');
   const resumeSessionId = resolveResumeSessionId(message, dependencies);
   const isPlainShell =
     readBoolean(message.isPlainShell) ||
@@ -198,36 +198,12 @@ function buildShellCommand(
     return initialCommand;
   }
 
-  if (provider === 'cursor') {
-    if (resumeSessionId) {
-      return `cursor-agent --resume="${resumeSessionId}"`;
-    }
-    return 'cursor-agent';
-  }
-
-  if (provider === 'codex') {
-    if (resumeSessionId) {
-      if (os.platform() === 'win32') {
-        return `codex resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { codex }`;
-      }
-      return `codex resume "${resumeSessionId}" || codex`;
-    }
-    return 'codex';
-  }
-
-  if (provider === 'opencode') {
-    if (resumeSessionId) {
-      return `opencode --session "${resumeSessionId}"`;
-    }
-    return initialCommand || 'opencode';
-  }
-
-  const command = initialCommand || 'claude';
+  const command = initialCommand || 'pi';
   if (resumeSessionId) {
     if (os.platform() === 'win32') {
-      return `claude --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { claude }`;
+      return `pi --session "${resumeSessionId}"`;
     }
-    return `claude --resume "${resumeSessionId}" || claude`;
+    return `pi --session "${resumeSessionId}"`;
   }
   return command;
 }
@@ -553,14 +529,7 @@ export function handleShellConnection(
 
         let welcomeMsg = `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`;
         if (!isPlainShell) {
-          const providerName =
-            provider === 'cursor'
-              ? 'Cursor'
-              : provider === 'codex'
-                ? 'Codex'
-                : provider === 'opencode'
-                    ? 'OpenCode'
-                  : 'Claude';
+          const providerName = 'Pi';
           welcomeMsg = hasSession && resumeSessionId
             ? `\x1b[36mResuming ${providerName} session ${resumeSessionId} in: ${projectPath}\x1b[0m\r\n`
             : `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;

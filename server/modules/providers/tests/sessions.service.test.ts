@@ -30,7 +30,7 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
 
 test('provider session id returns the mapped native id', { concurrency: false }, async () => {
   await withIsolatedDatabase(() => {
-    sessionsDb.createAppSession('app-session-id', 'codex', '/tmp/session-id-copy-project');
+    sessionsDb.createAppSession('app-session-id', 'pi', '/tmp/session-id-copy-project');
     sessionsDb.assignProviderSessionId('app-session-id', 'codex-native-session-id');
 
     assert.equal(sessionsService.getProviderSessionId('app-session-id'), 'codex-native-session-id');
@@ -39,7 +39,7 @@ test('provider session id returns the mapped native id', { concurrency: false },
 
 test('provider session id is unavailable until the provider assigns one', { concurrency: false }, async () => {
   await withIsolatedDatabase(() => {
-    sessionsDb.createAppSession('pending-app-session', 'claude', '/tmp/session-id-copy-project');
+    sessionsDb.createAppSession('pending-app-session', 'pi', '/tmp/session-id-copy-project');
 
     assert.throws(
       () => sessionsService.getProviderSessionId('pending-app-session'),

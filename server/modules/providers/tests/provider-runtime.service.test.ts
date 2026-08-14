@@ -76,10 +76,10 @@ test('providerRegistry owns one runtime for every registered provider', () => {
   const providers = providerRegistry.listProviders();
 
   assert.deepEqual(providers.map((provider) => provider.id), [
-    'claude',
-    'codex',
-    'cursor',
-    'opencode',
+    'pi',
+    'pi',
+    'pi',
+    'pi',
   ]);
   assert.equal(providers.every((provider) => typeof provider.runtime.run === 'function'), true);
   assert.equal(providers.every((provider) => typeof provider.runtime.abort === 'function'), true);
@@ -93,7 +93,7 @@ test('dispatches runs and aborts through the runtime owned by providerRegistry',
       assert.equal(context.resolveProviderSessionId('session-1'), 'native-session-1');
       assert.equal(await context.resolveResumeModel('session-1', 'sonnet'), 'sonnet');
       assert.deepEqual(await context.getProviderModels(), { OPTIONS: [], DEFAULT: 'default-model' });
-      assert.equal(context.normalizeMessage('hello', 'session-1')[0]?.provider, 'claude');
+      assert.equal(context.normalizeMessage('hello', 'session-1')[0]?.provider, 'pi');
       assert.equal(await context.isProviderInstalled(), true);
       return 'complete';
     },
@@ -102,13 +102,13 @@ test('dispatches runs and aborts through the runtime owned by providerRegistry',
       return true;
     },
   });
-  const service = createService([createProvider('claude', runtime)]);
+  const service = createService([createProvider('pi', runtime)]);
   const writer = { send() {} };
 
-  assert.equal(service.hasRuntime('claude'), true);
+  assert.equal(service.hasRuntime('pi'), true);
   assert.equal(service.hasRuntime('unknown'), false);
-  assert.equal(await service.getRunner('claude')('hello', { model: 'sonnet' }, writer), 'complete');
-  assert.equal(await service.abort('claude', 'session-1'), true);
+  assert.equal(await service.getRunner('pi')('hello', { model: 'sonnet' }, writer), 'complete');
+  assert.equal(await service.abort('pi', 'session-1'), true);
   assert.deepEqual(calls, [
     ['run', 'hello', { model: 'sonnet' }, writer],
     ['abort', 'session-1'],
@@ -128,8 +128,8 @@ test('routes permission decisions through provider-owned runtime capabilities', 
     },
   });
   const service = createService([
-    createProvider('claude', claudeRuntime),
-    createProvider('cursor', createRuntime()),
+    createProvider('pi', claudeRuntime),
+    createProvider('pi', createRuntime()),
   ]);
   const decision = { allow: true, message: 'approved' };
 

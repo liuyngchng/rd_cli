@@ -33,14 +33,14 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
 test('getSessionDetailsById resolves the owning project for a disk-indexed session', async () => {
   await withIsolatedDatabase(() => {
     const projectPath = '/home/user/example-project';
-    const sessionId = sessionsDb.createSession('provider-abc', 'claude', projectPath, 'My session');
+    const sessionId = sessionsDb.createSession('provider-abc', 'pi', projectPath, 'My session');
     const projectRow = projectsDb.getProjectPath(projectPath);
     assert.ok(projectRow, 'project row should exist after createSession');
 
     const details = sessionsService.getSessionDetailsById(sessionId);
 
     assert.equal(details.sessionId, sessionId);
-    assert.equal(details.provider, 'claude');
+    assert.equal(details.provider, 'pi');
     assert.equal(details.summary, 'My session');
     assert.equal(details.isArchived, false);
     assert.ok(details.project, 'project should be resolved');
@@ -53,7 +53,7 @@ test('getSessionDetailsById resolves the owning project for a disk-indexed sessi
 test('getSessionDetailsById falls back to the provider-native id and returns the canonical app id', async () => {
   await withIsolatedDatabase(() => {
     const projectPath = '/home/user/alias-project';
-    const appSessionId = sessionsDb.createAppSession('app-session-1', 'claude', projectPath);
+    const appSessionId = sessionsDb.createAppSession('app-session-1', 'pi', projectPath);
     sessionsDb.assignProviderSessionId(appSessionId, 'provider-native-1');
 
     const details = sessionsService.getSessionDetailsById('provider-native-1');

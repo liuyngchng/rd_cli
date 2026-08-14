@@ -25,8 +25,7 @@ test('git init does not run when repository validation fails for an execution er
     fileSystem: { access: async () => undefined } as unknown as Parameters<typeof createGitRouter>[0]['fileSystem'],
     spawnProcess,
     resolveProjectPathById: () => '/workspace/repo',
-    queryClaude: unexpectedProvider,
-    queryCursor: unexpectedProvider,
+    queryPi: unexpectedProvider,
   });
   const app = express();
   app.use(express.json());

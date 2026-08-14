@@ -30,10 +30,7 @@ function createDependencies(
     githubTokens: { getActiveGithubToken: () => null },
     projects: { createProjectPath: () => ({ outcome: 'created' }) },
     models: {} as AgentDependencies['models'],
-    queryClaude: unexpectedProviderCall as AgentDependencies['queryClaude'],
-    queryCursor: unexpectedProviderCall as AgentDependencies['queryCursor'],
-    queryCodex: unexpectedProviderCall as AgentDependencies['queryCodex'],
-    queryOpenCode: unexpectedProviderCall as AgentDependencies['queryOpenCode'],
+    queryPi: unexpectedProviderCall as AgentDependencies['queryPi'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
     ...overrides,
   };
@@ -184,7 +181,7 @@ test('Agent route reuses a matching checkout without cloning or deleting it', as
     models: {
       getProviderModels: async () => ({ models: { DEFAULT: 'default-model' } }),
     } as unknown as AgentDependencies['models'],
-    queryClaude: (async () => undefined) as AgentDependencies['queryClaude'],
+    queryPi: (async () => undefined) as AgentDependencies['queryPi'],
   }), async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/agent`, {
       method: 'POST',

@@ -12,7 +12,7 @@ import {
   readStringRecord,
 } from '@/shared/utils.js';
 
-type OpenCodeConfigPath = {
+type PiConfigPath = {
   filePath: string;
   exists: boolean;
 };
@@ -26,9 +26,6 @@ const fileExists = async (filePath: string): Promise<boolean> => {
   }
 };
 
-/**
- * Removes JSONC comments without touching comment-like text inside strings.
- */
 const stripJsonComments = (content: string): string => {
   let output = '';
   let inString = false;
@@ -41,14 +38,9 @@ const stripJsonComments = (content: string): string => {
 
     if (inString) {
       output += char;
-      if (escaped) {
-        escaped = false;
-      } else if (char === '\\') {
-        escaped = true;
-      } else if (char === quote) {
-        inString = false;
-        quote = '';
-      }
+      if (escaped) { escaped = false; }
+      else if (char === '\\') { escaped = true; }
+      else if (char === quote) { inString = false; quote = ''; }
       continue;
     }
 
@@ -60,9 +52,7 @@ const stripJsonComments = (content: string): string => {
     }
 
     if (char === '/' && next === '/') {
-      while (index < content.length && content[index] !== '\n') {
-        index += 1;
-      }
+      while (index < content.length && content[index] !== '\n') { index += 1; }
       output += '\n';
       continue;
     }
@@ -85,53 +75,41 @@ const stripJsonComments = (content: string): string => {
 const stripTrailingCommas = (content: string): string =>
   content.replace(/,\s*([}\]])/g, '$1');
 
-const readOpenCodeConfig = async (filePath: string): Promise<Record<string, unknown>> => {
+const readPiConfig = async (filePath: string): Promise<Record<string, unknown>> => {
   try {
     const content = await readFile(filePath, 'utf8');
     const parsed = JSON.parse(stripTrailingCommas(stripJsonComments(content))) as unknown;
     return readObjectRecord(parsed) ?? {};
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
-      return {};
-    }
-
+    if (code === 'ENOENT') return {};
     throw error;
   }
 };
 
-const writeOpenCodeConfig = async (filePath: string, data: Record<string, unknown>): Promise<void> => {
+const writePiConfig = async (filePath: string, data: Record<string, unknown>): Promise<void> => {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 };
 
-const resolveOpenCodeConfigPath = async (scope: McpScope, workspacePath: string): Promise<OpenCodeConfigPath> => {
+const resolvePiConfigPath = async (scope: McpScope, workspacePath: string): Promise<PiConfigPath> => {
   const root = scope === 'user'
-    ? path.join(os.homedir(), '.config', 'opencode')
+    ? path.join(os.homedir(), '.pi', 'agent')
     : workspacePath;
-  const jsonPath = path.join(root, 'opencode.json');
-  const jsoncPath = path.join(root, 'opencode.jsonc');
-
-  if (await fileExists(jsonPath)) {
-    return { filePath: jsonPath, exists: true };
-  }
-
-  if (await fileExists(jsoncPath)) {
-    return { filePath: jsoncPath, exists: true };
-  }
-
-  return { filePath: jsonPath, exists: false };
+  const jsonPath = path.join(root, 'settings.json');
+  const exists = await fileExists(jsonPath);
+  return { filePath: jsonPath, exists };
 };
 
-export class OpenCodeMcpProvider extends McpProvider {
+export class PiMcpProvider extends McpProvider {
   constructor() {
-    super('opencode', ['user', 'project'], ['stdio', 'http']);
+    super('pi', ['user', 'project'], ['stdio', 'http']);
   }
 
   protected async readScopedServers(scope: McpScope, workspacePath: string): Promise<Record<string, unknown>> {
-    const { filePath } = await resolveOpenCodeConfigPath(scope, workspacePath);
-    const config = await readOpenCodeConfig(filePath);
-    return readObjectRecord(config.mcp) ?? {};
+    const { filePath } = await resolvePiConfigPath(scope, workspacePath);
+    const config = await readPiConfig(filePath);
+    return readObjectRecord(config.mcpServers) ?? {};
   }
 
   protected async writeScopedServers(
@@ -139,10 +117,10 @@ export class OpenCodeMcpProvider extends McpProvider {
     workspacePath: string,
     servers: Record<string, unknown>,
   ): Promise<void> {
-    const { filePath } = await resolveOpenCodeConfigPath(scope, workspacePath);
-    const config = await readOpenCodeConfig(filePath);
-    config.mcp = servers;
-    await writeOpenCodeConfig(filePath, config);
+    const { filePath } = await resolvePiConfigPath(scope, workspacePath);
+    const config = await readPiConfig(filePath);
+    config.mcpServers = servers;
+    await writePiConfig(filePath, config);
   }
 
   protected buildServerConfig(input: UpsertProviderMcpServerInput): Record<string, unknown> {
@@ -153,12 +131,12 @@ export class OpenCodeMcpProvider extends McpProvider {
           statusCode: 400,
         });
       }
-
       return {
-        type: 'local',
-        command: [input.command, ...(input.args ?? [])],
+        type: 'stdio',
+        command: input.command,
+        args: input.args ?? [],
         enabled: true,
-        environment: input.env ?? {},
+        env: input.env ?? {},
       };
     }
 
@@ -170,7 +148,7 @@ export class OpenCodeMcpProvider extends McpProvider {
     }
 
     return {
-      type: 'remote',
+      type: 'http',
       url: input.url,
       enabled: true,
       headers: input.headers ?? {},
@@ -183,38 +161,29 @@ export class OpenCodeMcpProvider extends McpProvider {
     rawConfig: unknown,
   ): ProviderMcpServer | null {
     const config = readObjectRecord(rawConfig);
-    if (!config) {
-      return null;
-    }
+    if (!config) return null;
 
-    if (config.type === 'local' || config.command !== undefined) {
-      const commandParts = typeof config.command === 'string'
-        ? [config.command, ...(readStringArray(config.args) ?? [])]
-        : readStringArray(config.command);
-      const command = commandParts?.[0];
-      if (!command) {
-        return null;
-      }
+    if (config.type === 'stdio' || config.command !== undefined) {
+      const command = readOptionalString(config.command);
+      if (!command) return null;
 
       return {
-        provider: 'opencode',
+        provider: 'pi',
         name,
         scope,
         transport: 'stdio',
         command,
-        args: commandParts.slice(1),
-        env: readStringRecord(config.environment) ?? readStringRecord(config.env),
+        args: readStringArray(config.args),
+        env: readStringRecord(config.env),
       };
     }
 
-    if (config.type === 'remote' || typeof config.url === 'string') {
+    if (config.type === 'http' || typeof config.url === 'string') {
       const url = readOptionalString(config.url);
-      if (!url) {
-        return null;
-      }
+      if (!url) return null;
 
       return {
-        provider: 'opencode',
+        provider: 'pi',
         name,
         scope,
         transport: 'http',

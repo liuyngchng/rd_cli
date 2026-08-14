@@ -56,9 +56,9 @@ test('provider models service delegates to the resolved provider model adapter',
     },
   });
 
-  const models = await service.getProviderModels('codex', { bypassCache: true });
+  const models = await service.getProviderModels('pi', { bypassCache: true });
 
-  assert.deepEqual(calls, ['codex']);
+  assert.deepEqual(calls, ['pi']);
   assert.equal(models.models.DEFAULT, 'codex-models');
   assert.equal(models.cache.source, 'fresh');
 });
@@ -82,7 +82,7 @@ test('provider models service returns each provider adapter result without rewri
     }),
   });
 
-  const models = await service.getProviderModels('cursor', { bypassCache: true });
+  const models = await service.getProviderModels('pi', { bypassCache: true });
 
   assert.deepEqual(models.models, expectedModels);
 });
@@ -107,18 +107,18 @@ test('provider models are cached for the three-day ttl', async () => {
       }),
     });
 
-    const first = await service.getProviderModels('codex');
-    const cached = await service.getProviderModels('codex');
+    const first = await service.getProviderModels('pi');
+    const cached = await service.getProviderModels('pi');
     assert.equal(loadCount, 1);
     assert.equal(cached.models.DEFAULT, first.models.DEFAULT);
     assert.equal(cached.cache.source, 'memory');
 
     currentTime += PROVIDER_MODELS_CACHE_TTL_MS - 1;
-    await service.getProviderModels('codex');
+    await service.getProviderModels('pi');
     assert.equal(loadCount, 1);
 
     currentTime += 2;
-    const refreshed = await service.getProviderModels('codex');
+    const refreshed = await service.getProviderModels('pi');
     assert.equal(loadCount, 2);
     assert.equal(refreshed.models.DEFAULT, 'codex-2');
   } finally {
@@ -144,8 +144,8 @@ test('claude provider models are always loaded directly from the provider', asyn
       }),
     });
 
-    const first = await service.getProviderModels('claude');
-    const second = await service.getProviderModels('claude');
+    const first = await service.getProviderModels('pi');
+    const second = await service.getProviderModels('pi');
 
     assert.equal(loadCount, 2);
     assert.equal(first.models.DEFAULT, 'claude-1');
@@ -170,7 +170,7 @@ test('provider model cache is persisted across service instances', async () => {
         },
       }),
     });
-    await writer.getProviderModels('cursor');
+    await writer.getProviderModels('pi');
 
     const reader = createProviderModelsService({
       cachePath,
@@ -183,7 +183,7 @@ test('provider model cache is persisted across service instances', async () => {
         },
       }),
     });
-    const models = await reader.getProviderModels('cursor');
+    const models = await reader.getProviderModels('pi');
     assert.equal(models.models.DEFAULT, 'cursor-cached');
     assert.equal(models.cache.source, 'disk');
   } finally {
@@ -211,8 +211,8 @@ test('concurrent provider model requests share one load operation', async () => 
     });
 
     const [first, second] = await Promise.all([
-      service.getProviderModels('claude'),
-      service.getProviderModels('claude'),
+      service.getProviderModels('pi'),
+      service.getProviderModels('pi'),
     ]);
 
     assert.equal(loadCount, 1);
@@ -243,9 +243,9 @@ test('bypassCache forces a fresh provider fetch and updates cache metadata', asy
       }),
     });
 
-    const first = await service.getProviderModels('claude');
+    const first = await service.getProviderModels('pi');
     currentTime += 50;
-    const refreshed = await service.getProviderModels('claude', { bypassCache: true });
+    const refreshed = await service.getProviderModels('pi', { bypassCache: true });
 
     assert.equal(first.models.DEFAULT, 'claude-1');
     assert.equal(refreshed.models.DEFAULT, 'claude-2');
@@ -272,9 +272,9 @@ test('resolveSessionModel asks the provider adapter for the session it was given
     }),
   });
 
-  const resolved = await service.resolveSessionModel('opencode', { sessionId: 'session-123' });
+  const resolved = await service.resolveSessionModel('pi', { sessionId: 'session-123' });
 
-  assert.deepEqual(calls, [{ provider: 'opencode', sessionId: 'session-123' }]);
+  assert.deepEqual(calls, [{ provider: 'pi', sessionId: 'session-123' }]);
   assert.equal(resolved.model, 'opencode-session-123');
 });
 test('setSessionModel records the model on the session row', async () => {
@@ -289,10 +289,10 @@ test('resolveSessionModel asks the provider adapter for the session it was given
     }),
   });
 
-  const stored = service.setSessionModel('claude', 'session-1', 'opus');
+  const stored = service.setSessionModel('pi', 'session-1', 'opus');
 
   assert.deepEqual(stored, {
-    provider: 'claude',
+    provider: 'pi',
     sessionId: 'session-1',
     model: 'opus',
     source: 'session',
@@ -312,7 +312,7 @@ test('setSessionModel ignores sessions that have no row yet', async () => {
     }),
   });
 
-  assert.equal(service.setSessionModel('claude', 'missing-session', 'opus'), null);
+  assert.equal(service.setSessionModel('pi', 'missing-session', 'opus'), null);
   assert.equal(sessions.sessions.size, 0);
 });
 
@@ -327,7 +327,7 @@ test('resolveSessionModel prefers the recorded session model over everything els
     }),
   });
 
-  const resolved = await service.resolveSessionModel('claude', {
+  const resolved = await service.resolveSessionModel('pi', {
     sessionId: 'session-1',
     requestedModel: 'sonnet',
   });
@@ -347,7 +347,7 @@ test('resolveSessionModel falls back to provider session state for sessions the 
     }),
   });
 
-  const resolved = await service.resolveSessionModel('opencode', {
+  const resolved = await service.resolveSessionModel('pi', {
     sessionId: 'session-1',
     requestedModel: 'requested',
   });
@@ -368,7 +368,7 @@ test('resolveSessionModel uses the requested model when the provider only report
     }),
   });
 
-  const resolved = await service.resolveSessionModel('claude', {
+  const resolved = await service.resolveSessionModel('pi', {
     sessionId: 'session-1',
     requestedModel: 'haiku',
   });
@@ -388,7 +388,7 @@ test('resolveSessionModel answers with the requested model for a chat that has n
     }),
   });
 
-  const resolved = await service.resolveSessionModel('codex', { requestedModel: 'gpt-5.5' });
+  const resolved = await service.resolveSessionModel('pi', { requestedModel: 'gpt-5.5' });
 
   assert.equal(resolved.model, 'gpt-5.5');
   assert.equal(resolved.sessionId, null);
@@ -407,7 +407,7 @@ test('resolveSessionModel falls back to the catalog default with nothing else to
     }),
   });
 
-  const resolved = await service.resolveSessionModel('codex');
+  const resolved = await service.resolveSessionModel('pi');
 
   assert.equal(resolved.model, 'codex-models');
   assert.equal(resolved.source, 'default');
@@ -424,7 +424,7 @@ test('resolveResumeModel prefers the recorded session model over the requested o
     }),
   });
 
-  const model = await service.resolveResumeModel('cursor', 'session-456', 'composer-2-fast');
+  const model = await service.resolveResumeModel('pi', 'session-456', 'composer-2-fast');
   assert.equal(model, 'composer-2');
 });
 
@@ -443,7 +443,7 @@ test('resolveResumeModel never lets provider session state override the requeste
     }),
   });
 
-  const model = await service.resolveResumeModel('codex', 'session-456', 'gpt-5.5');
+  const model = await service.resolveResumeModel('pi', 'session-456', 'gpt-5.5');
 
   assert.equal(model, 'gpt-5.5');
   assert.equal(providerLookups, 0);

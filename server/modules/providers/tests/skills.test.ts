@@ -265,7 +265,7 @@ test('providerSkillsService lists claude user, project, and enabled plugin skill
       'utf8',
     );
 
-    const skills = await providerSkillsService.listProviderSkills('claude', { workspacePath });
+    const skills = await providerSkillsService.listProviderSkills('pi', { workspacePath });
     const byName = new Map(skills.map((skill) => [skill.name, skill]));
 
     assert.equal(byName.get('claude-user')?.scope, 'user');
@@ -368,7 +368,7 @@ test('providerSkillsService lists codex repository, user, and system skills', { 
       'Codex system skill',
     );
 
-    const skills = await providerSkillsService.listProviderSkills('codex', { workspacePath });
+    const skills = await providerSkillsService.listProviderSkills('pi', { workspacePath });
     const byName = new Map(skills.map((skill) => [skill.name, skill]));
 
     assert.equal(byName.get('codex-cwd')?.scope, 'repo');
@@ -416,7 +416,7 @@ test('providerSkillsService lists opencode project and user compatibility skills
       'OpenCode Agents root skill',
     );
     await writeSkill(
-      path.join(tempRoot, '.config', 'opencode', 'skills'),
+      path.join(tempRoot, '.config', 'pi', 'skills'),
       'opencode-user-dir',
       'opencode-user',
       'OpenCode user skill',
@@ -434,7 +434,7 @@ test('providerSkillsService lists opencode project and user compatibility skills
       'OpenCode Agents user skill',
     );
 
-    const skills = await providerSkillsService.listProviderSkills('opencode', { workspacePath });
+    const skills = await providerSkillsService.listProviderSkills('pi', { workspacePath });
     const byName = new Map(skills.map((skill) => [skill.name, skill]));
 
     assert.equal(byName.get('opencode-cwd')?.scope, 'project');
@@ -486,7 +486,7 @@ test('providerSkillsService lists cursor skills from its configured directories'
       'Cursor user skill',
     );
 
-    const cursorSkills = await providerSkillsService.listProviderSkills('cursor', { workspacePath });
+    const cursorSkills = await providerSkillsService.listProviderSkills('pi', { workspacePath });
     const cursorByName = new Map(cursorSkills.map((skill) => [skill.name, skill]));
     assert.equal(cursorByName.get('agents-project')?.scope, 'project');
     assert.equal(cursorByName.get('cursor-project')?.scope, 'project');
@@ -507,7 +507,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
   const restoreHomeDir = patchHomeDir(tempRoot);
 
   try {
-    const createdClaudeSkills = await providerSkillsService.addProviderSkills('claude', {
+    const createdClaudeSkills = await providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           directoryName: 'claude-global-dir',
@@ -527,7 +527,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
       /Claude body\./,
     );
 
-    const createdCodexSkills = await providerSkillsService.addProviderSkills('codex', {
+    const createdCodexSkills = await providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           directoryName: 'uploaded-codex-folder',
@@ -555,7 +555,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
       'console.log("codex skill");\n',
     );
 
-    const fallbackNamedSkills = await providerSkillsService.addProviderSkills('codex', {
+    const fallbackNamedSkills = await providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           fileName: 'fallback / skill.md',
@@ -572,7 +572,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
       true,
     );
 
-    const replacedCodexSkills = await providerSkillsService.addProviderSkills('codex', {
+    const replacedCodexSkills = await providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           directoryName: 'uploaded-codex-folder',
@@ -589,7 +589,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
 
     const pendingBatchSkillPath = path.join(tempRoot, '.agents', 'skills', 'pending-batch', 'SKILL.md');
     await assert.rejects(
-      providerSkillsService.addProviderSkills('codex', {
+      providerSkillsService.addProviderSkills('pi', {
         entries: [
           {
             directoryName: 'pending-batch',
@@ -605,7 +605,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
     );
     await assert.rejects(fs.stat(pendingBatchSkillPath), { code: 'ENOENT' });
 
-    const createdCursorSkills = await providerSkillsService.addProviderSkills('cursor', {
+    const createdCursorSkills = await providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           directoryName: 'cursor-global-dir',
@@ -621,30 +621,30 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
       true,
     );
 
-    const listedClaudeSkills = await providerSkillsService.listProviderSkills('claude');
+    const listedClaudeSkills = await providerSkillsService.listProviderSkills('pi');
     assert.equal(listedClaudeSkills.some((skill) => skill.name === 'claude-global'), true);
 
-    const listedCodexSkills = await providerSkillsService.listProviderSkills('codex');
+    const listedCodexSkills = await providerSkillsService.listProviderSkills('pi');
     assert.equal(listedCodexSkills.some((skill) => skill.name === 'replacement'), true);
 
-    const listedCursorSkills = await providerSkillsService.listProviderSkills('cursor');
+    const listedCursorSkills = await providerSkillsService.listProviderSkills('pi');
     assert.equal(listedCursorSkills.some((skill) => skill.name === 'cursor-global'), true);
 
-    const removedCodexSkill = await providerSkillsService.removeProviderSkill('codex', {
+    const removedCodexSkill = await providerSkillsService.removeProviderSkill('pi', {
       directoryName: 'uploaded-codex-folder',
     });
     assert.equal(removedCodexSkill.removed, true);
-    assert.equal(removedCodexSkill.provider, 'codex');
+    assert.equal(removedCodexSkill.provider, 'pi');
     assert.equal(removedCodexSkill.directoryName, 'uploaded-codex-folder');
     await assert.rejects(fs.stat(path.dirname(createdCodexSkill.sourcePath)), { code: 'ENOENT' });
 
-    const removedMissingSkill = await providerSkillsService.removeProviderSkill('codex', {
+    const removedMissingSkill = await providerSkillsService.removeProviderSkill('pi', {
       directoryName: 'uploaded-codex-folder',
     });
     assert.equal(removedMissingSkill.removed, false);
 
     await assert.rejects(
-      providerSkillsService.addProviderSkills('codex', {
+      providerSkillsService.addProviderSkills('pi', {
         entries: [
           {
             content: '---\nname: unsafe-skill\n---\n',
@@ -672,7 +672,7 @@ test('providerSkillsService adds global skills for claude, codex, and cursor', {
  */
 test('providerSkillsService rejects managed skill creation for opencode', { concurrency: false }, async () => {
   await assert.rejects(
-    providerSkillsService.addProviderSkills('opencode', {
+    providerSkillsService.addProviderSkills('pi', {
       entries: [
         {
           directoryName: 'opencode-global-dir',
@@ -684,7 +684,7 @@ test('providerSkillsService rejects managed skill creation for opencode', { conc
   );
 
   await assert.rejects(
-    providerSkillsService.removeProviderSkill('opencode', {
+    providerSkillsService.removeProviderSkill('pi', {
       directoryName: 'opencode-global-dir',
     }),
     /does not support managed global skills/i,

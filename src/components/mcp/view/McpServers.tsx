@@ -272,15 +272,6 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
         )}
       </div>
 
-      {selectedProvider === 'codex' && (
-        <div className="rounded-lg border border-border bg-muted/50 p-4">
-          <h4 className="mb-2 font-medium text-foreground">{t('mcpServers.help.title')}</h4>
-          <p className="text-sm text-muted-foreground">{t('mcpServers.help.description')}</p>
-        </div>
-      )}
-
-      {selectedProvider === 'claude' && !IS_PLATFORM && <TeamMcpFeatureCard />}
-
       <McpServerFormModal
         provider={selectedProvider}
         isOpen={isFormOpen}

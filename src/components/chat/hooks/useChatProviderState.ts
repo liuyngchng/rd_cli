@@ -17,20 +17,12 @@ import {
 } from '../constants/providerEffort';
 
 const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
-  claude: 'default',
-  cursor: 'gpt-5.3-codex',
-  codex: 'gpt-5.4',
-  opencode: 'anthropic/claude-sonnet-4-5',
+  pi: 'anthropic/claude-sonnet-4-5',
 };
 
-const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
+const PROVIDERS: LLMProvider[] = ['pi'];
 
-const readStoredProvider = (): LLMProvider => {
-  const storedProvider = localStorage.getItem('selected-provider');
-  return PROVIDERS.includes(storedProvider as LLMProvider)
-    ? storedProvider as LLMProvider
-    : 'claude';
-};
+const readStoredProvider = (): LLMProvider => 'pi';
 
 /**
  * Fallback permission-mode matrix used only until the backend capability
@@ -39,10 +31,7 @@ const readStoredProvider = (): LLMProvider => {
  * first paint and when the capabilities request fails.
  */
 const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
-  claude: ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'],
-  cursor: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
-  codex: ['default', 'acceptEdits', 'bypassPermissions'],
-  opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+  pi: ['default', 'acceptEdits', 'bypassPermissions'],
 };
 
 type ProviderCapabilities = {
@@ -96,23 +85,14 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [provider, setProvider] = useState<LLMProvider>(readStoredProvider);
-  const [cursorModel, setCursorModel] = useState<string>(() => {
-    return localStorage.getItem('cursor-model') || FALLBACK_DEFAULT_MODEL.cursor;
-  });
-  const [claudeModel, setClaudeModel] = useState<string>(() => {
-    return localStorage.getItem('claude-model') || FALLBACK_DEFAULT_MODEL.claude;
-  });
-  const [codexModel, setCodexModel] = useState<string>(() => {
-    return localStorage.getItem('codex-model') || FALLBACK_DEFAULT_MODEL.codex;
+  const [piModel, setPiModel] = useState<string>(() => {
+    return localStorage.getItem('pi-model') || FALLBACK_DEFAULT_MODEL.pi;
   });
   const [providerEfforts, setProviderEfforts] = useState<Partial<Record<LLMProvider, string>>>(() => {
     return PROVIDERS.reduce<Partial<Record<LLMProvider, string>>>((acc, targetProvider) => {
       acc[targetProvider] = localStorage.getItem(`${targetProvider}-effort`) || DEFAULT_EFFORT_VALUE;
       return acc;
     }, {});
-  });
-  const [opencodeModel, setOpenCodeModel] = useState<string>(() => {
-    return localStorage.getItem('opencode-model') || FALLBACK_DEFAULT_MODEL.opencode;
   });
 
   /**
@@ -138,26 +118,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const providerModelsRequestIdRef = useRef(0);
 
   const setStoredProviderModel = useCallback((targetProvider: LLMProvider, model: string) => {
-    if (targetProvider === 'claude') {
-      setClaudeModel(model);
-      localStorage.setItem('claude-model', model);
-      return;
-    }
-
-    if (targetProvider === 'cursor') {
-      setCursorModel(model);
-      localStorage.setItem('cursor-model', model);
-      return;
-    }
-
-    if (targetProvider === 'codex') {
-      setCodexModel(model);
-      localStorage.setItem('codex-model', model);
-      return;
-    }
-
-    setOpenCodeModel(model);
-    localStorage.setItem('opencode-model', model);
+    setPiModel(model);
+    localStorage.setItem('pi-model', model);
   }, []);
 
   const setStoredProviderEffort = useCallback((targetProvider: LLMProvider, effort: string) => {
@@ -356,63 +318,21 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [getAllowedEffortValues]);
 
   const providerModels = useMemo<Record<LLMProvider, string>>(() => ({
-    claude: claudeModel,
-    cursor: cursorModel,
-    codex: codexModel,
-    opencode: opencodeModel,
-  }), [claudeModel, cursorModel, codexModel, opencodeModel]);
+    pi: piModel,
+  }), [piModel]);
 
   useEffect(() => {
-    const claude = providerModelCatalog.claude;
-    if (claude) {
-      const next = pickStoredOrCurrent('claude-model', claudeModel, claude);
-      if (next !== claudeModel) {
-        setClaudeModel(next);
+    const pi = providerModelCatalog.pi;
+    if (pi) {
+      const next = pickStoredOrCurrent('pi-model', piModel, pi);
+      if (next !== piModel) {
+        setPiModel(next);
       }
-      if (localStorage.getItem('claude-model') !== next) {
-        localStorage.setItem('claude-model', next);
-      }
-    }
-  }, [providerModelCatalog.claude, claudeModel]);
-
-  useEffect(() => {
-    const cursor = providerModelCatalog.cursor;
-    if (cursor) {
-      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor);
-      if (next !== cursorModel) {
-        setCursorModel(next);
-      }
-      if (localStorage.getItem('cursor-model') !== next) {
-        localStorage.setItem('cursor-model', next);
+      if (localStorage.getItem('pi-model') !== next) {
+        localStorage.setItem('pi-model', next);
       }
     }
-  }, [providerModelCatalog.cursor, cursorModel]);
-
-  useEffect(() => {
-    const codex = providerModelCatalog.codex;
-    if (codex) {
-      const next = pickStoredOrCurrent('codex-model', codexModel, codex);
-      if (next !== codexModel) {
-        setCodexModel(next);
-      }
-      if (localStorage.getItem('codex-model') !== next) {
-        localStorage.setItem('codex-model', next);
-      }
-    }
-  }, [providerModelCatalog.codex, codexModel]);
-
-  useEffect(() => {
-    const opencode = providerModelCatalog.opencode;
-    if (opencode) {
-      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode);
-      if (next !== opencodeModel) {
-        setOpenCodeModel(next);
-      }
-      if (localStorage.getItem('opencode-model') !== next) {
-        localStorage.setItem('opencode-model', next);
-      }
-    }
-  }, [providerModelCatalog.opencode, opencodeModel]);
+  }, [providerModelCatalog.pi, piModel]);
 
   useEffect(() => {
     const nextEfforts: Partial<Record<LLMProvider, string>> = {};
@@ -606,18 +526,12 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   return {
     provider,
     setProvider,
-    cursorModel,
-    setCursorModel,
-    claudeModel,
-    setClaudeModel,
-    codexModel,
-    setCodexModel,
+    piModel,
+    setPiModel,
     currentProviderEffort,
     currentProviderEffortOptions,
     currentProviderModel,
     currentProviderModelOptions,
-    opencodeModel,
-    setOpenCodeModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,

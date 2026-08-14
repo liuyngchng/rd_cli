@@ -24,10 +24,7 @@ import {
 } from "../../../../shared/view/ui";
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
-  { id: "claude", name: "Anthropic" },
-  { id: "codex", name: "OpenAI" },
-  { id: "cursor", name: "Cursor" },
-  { id: "opencode", name: "OpenCode" },
+  { id: "pi", name: "Pi" },
 ];
 
 const MOD_KEY =
@@ -50,14 +47,8 @@ type ProviderSelectionEmptyStateProps = {
   provider: LLMProvider;
   setProvider: (next: LLMProvider) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
-  claudeModel: string;
-  setClaudeModel: (model: string) => void;
-  cursorModel: string;
-  setCursorModel: (model: string) => void;
-  codexModel: string;
-  setCodexModel: (model: string) => void;
-  opencodeModel: string;
-  setOpenCodeModel: (model: string) => void;
+  piModel: string;
+  setPiModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   tasksEnabled: boolean;
@@ -83,22 +74,13 @@ function getModelConfig(
 function getCurrentModel(
   p: LLMProvider,
   c: string,
-  cu: string,
-  co: string,
-  o: string,
 ) {
-  if (p === "claude") return c;
-  if (p === "codex") return co;
-  if (p === "opencode") return o;
-  return cu;
+  return c;
 }
 
 function getProviderDisplayName(p: LLMProvider) {
-  if (p === "claude") return "Claude";
-  if (p === "cursor") return "Cursor";
-  if (p === "codex") return "Codex";
-  if (p === "opencode") return "OpenCode";
-  return "Claude";
+  if (p === "pi") return "Pi";
+  return "Pi";
 }
 
 export default function ProviderSelectionEmptyState({
@@ -107,14 +89,8 @@ export default function ProviderSelectionEmptyState({
   provider,
   setProvider,
   textareaRef,
-  claudeModel,
-  setClaudeModel,
-  cursorModel,
-  setCursorModel,
-  codexModel,
-  setCodexModel,
-  opencodeModel,
-  setOpenCodeModel,
+  piModel,
+  setPiModel,
   providerModelCatalog,
   providerModelsLoading,
   tasksEnabled,
@@ -137,13 +113,7 @@ export default function ProviderSelectionEmptyState({
     defaultValue: "Start the next task",
   });
 
-  const currentModel = getCurrentModel(
-    provider,
-    claudeModel,
-    cursorModel,
-    codexModel,
-    opencodeModel,
-  );
+  const currentModel = getCurrentModel(provider, piModel);
 
   const currentModelLabel = useMemo(() => {
     const config = getModelConfig(provider, providerModelCatalog);
@@ -155,21 +125,10 @@ export default function ProviderSelectionEmptyState({
 
   const setModelForProvider = useCallback(
     (providerId: LLMProvider, modelValue: string) => {
-      if (providerId === "claude") {
-        setClaudeModel(modelValue);
-        localStorage.setItem("claude-model", modelValue);
-      } else if (providerId === "codex") {
-        setCodexModel(modelValue);
-        localStorage.setItem("codex-model", modelValue);
-      } else if (providerId === "opencode") {
-        setOpenCodeModel(modelValue);
-        localStorage.setItem("opencode-model", modelValue);
-      } else {
-        setCursorModel(modelValue);
-        localStorage.setItem("cursor-model", modelValue);
-      }
+      setPiModel(modelValue);
+      localStorage.setItem("pi-model", modelValue);
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel],
+    [setPiModel],
   );
 
   const handleModelSelect = useCallback(
@@ -301,23 +260,10 @@ export default function ProviderSelectionEmptyState({
           </Dialog>
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
-            {
-              {
-                claude: t("providerSelection.readyPrompt.claude", {
-                  model: claudeModel,
-                }),
-                cursor: t("providerSelection.readyPrompt.cursor", {
-                  model: cursorModel,
-                }),
-                codex: t("providerSelection.readyPrompt.codex", {
-                  model: codexModel,
-                }),
-                opencode: t("providerSelection.readyPrompt.opencode", {
-                  model: opencodeModel,
-                  defaultValue: "Ready with OpenCode {{model}}",
-                }),
-              }[provider]
-            }
+            {t("providerSelection.readyPrompt.pi", {
+              model: piModel,
+              defaultValue: "Ready with Pi {{model}}",
+            })}
           </p>
 
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground/60">

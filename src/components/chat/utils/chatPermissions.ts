@@ -33,7 +33,7 @@ export function getClaudePermissionSuggestion(
   message: ChatMessage | null | undefined,
   provider: string,
 ): ClaudePermissionSuggestion | null {
-  if (provider !== 'claude') return null;
+  if (provider !== 'pi') return null;
   if (!message?.toolResult?.isError) return null;
 
   const toolName = message?.toolName;

@@ -340,17 +340,8 @@
       "authenticatedUser": "authenticated user"
     },
     "account": {
-      "claude": {
-        "description": "Anthropic Claude AI assistant"
-      },
-      "cursor": {
-        "description": "Cursor AI-powered code editor"
-      },
-      "codex": {
-        "description": "OpenAI Codex AI assistant"
-      },
-      "opencode": {
-        "description": "OpenCode CLI assistant"
+      "pi": {
+        "description": "Pi Coding Agent"
       }
     },
     "connectionStatus": "Connection Status",
@@ -367,9 +358,7 @@
   "permissions": {
     "title": "Permission Settings",
     "skipPermissions": {
-      "label": "Skip permission prompts (use with caution)",
-      "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
-      "cursorDescription": "Equivalent to -f flag in Cursor CLI"
+      "label": "Skip permission prompts (use with caution)"
     },
     "allowedTools": {
       "title": "Allowed Tools",
@@ -411,29 +400,22 @@
       "npmInstall": "- Allow npm install",
       "rmRf": "- Block recursive delete"
     },
-    "codex": {
+    "pi": {
       "permissionMode": "Permission Mode",
-      "description": "Controls how Codex handles file modifications and command execution",
+      "description": "Controls how Pi handles file modifications and command execution",
       "modes": {
         "default": {
           "title": "Default",
-          "description": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace."
+          "description": "Run with Pi's default behavior."
         },
         "acceptEdits": {
           "title": "Accept Edits",
-          "description": "All commands run automatically within the workspace. Full auto mode with sandboxed execution."
+          "description": "Auto-approve project trust for this run."
         },
         "bypassPermissions": {
           "title": "Bypass Permissions",
-          "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
+          "description": "Auto-approve project trust for this run."
         }
-      },
-      "technicalDetails": "Technical details",
-      "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
-        "overrideNote": "You can override this per-session using the mode button in the chat interface."
       }
     },
     "actions": {
@@ -443,10 +425,7 @@
   "mcpServers": {
     "title": "MCP Servers",
     "description": {
-      "claude": "Model Context Protocol servers provide additional tools and data sources to Claude",
-      "cursor": "Model Context Protocol servers provide additional tools and data sources to Cursor",
-      "codex": "Model Context Protocol servers provide additional tools and data sources to Codex",
-      "opencode": "Model Context Protocol servers provide additional tools and data sources to OpenCode"
+      "pi": "Model Context Protocol servers provide additional tools and data sources to Pi"
     },
     "addButton": "Add MCP Server",
     "empty": "No MCP servers configured",

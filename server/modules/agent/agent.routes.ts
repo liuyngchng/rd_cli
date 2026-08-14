@@ -18,10 +18,7 @@ type AgentRouterDependencies = {
   githubTokens: { getActiveGithubToken(userId: number): string | null };
   projects: { createProjectPath(projectPath: string, customName: string | null): unknown };
   models: typeof import('../providers/index.js').providerModelsService;
-  queryClaude: ProviderRunFunction;
-  queryCursor: ProviderRunFunction;
-  queryCodex: ProviderRunFunction;
-  queryOpenCode: ProviderRunFunction;
+  queryPi: ProviderRunFunction;
   GithubClient: typeof import('@octokit/rest').Octokit;
 };
 
@@ -40,10 +37,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const githubTokensDb = dependencies.githubTokens;
   const projectsDb = dependencies.projects;
   const providerModelsService = dependencies.models;
-  const queryClaudeSDK = dependencies.queryClaude;
-  const spawnCursor = dependencies.queryCursor;
-  const queryCodex = dependencies.queryCodex;
-  const spawnOpenCode = dependencies.queryOpenCode;
+  const queryPi = dependencies.queryPi;
   const Octokit = dependencies.GithubClient;
   const router = express.Router();
 
@@ -874,7 +868,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *   }
    */
   router.post('/', validateExternalApiKey, async (req, res) => {
-    const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
+    const { githubUrl, projectPath, message, model, githubToken, branchName, sessionId } = req.body;
     const effort = typeof req.body.effort === 'string' && req.body.effort.trim()
       ? req.body.effort.trim()
       : undefined;
@@ -894,10 +888,6 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'message is required' });
-    }
-
-    if (!['claude', 'cursor', 'codex', 'opencode'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", or "opencode"' });
     }
 
     // Validate GitHub branch/PR creation requirements
@@ -978,55 +968,19 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
         });
       }
 
-      const codexModels = (await providerModelsService.getProviderModels('codex')).models;
-      const opencodeModels = (await providerModelsService.getProviderModels('opencode')).models;
+      const piModels = (await providerModelsService.getProviderModels('pi')).models;
 
-      // Start the appropriate session
-      if (provider === 'claude') {
-        console.log('🤖 Starting Claude SDK session');
+      // Start the Pi session
+      console.log('Starting Pi CLI session');
 
-        await queryClaudeSDK(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model,
-          effort,
-          permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
-        }, writer);
-
-      } else if (provider === 'cursor') {
-        console.log('🖱️ Starting Cursor CLI session');
-
-        await spawnCursor(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || undefined,
-          skipPermissions: true // Bypass permissions for Cursor
-        }, writer);
-      } else if (provider === 'codex') {
-        console.log('🤖 Starting Codex SDK session');
-
-        await queryCodex(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || codexModels.DEFAULT,
-          effort,
-          permissionMode: 'bypassPermissions'
-        }, writer);
-      } else if (provider === 'opencode') {
-        console.log('Starting OpenCode CLI session');
-
-        await spawnOpenCode(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || opencodeModels.DEFAULT,
-          effort,
-          permissionMode: 'bypassPermissions' // Agent runs are non-interactive, like the other providers above
-        }, writer);
-      }
+      await queryPi(message.trim(), {
+        projectPath: finalProjectPath,
+        cwd: finalProjectPath,
+        sessionId: sessionId || null,
+        model: model || piModels.DEFAULT,
+        effort,
+        permissionMode: 'bypassPermissions',
+      }, writer);
 
       // Handle GitHub branch and PR creation after successful agent completion
       let branchInfo = null;
