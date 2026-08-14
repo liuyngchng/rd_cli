@@ -122,6 +122,12 @@ bash scripts/release/build-linux.sh
   ./release/desktop/rdcli-desktop-<版本号>-linux-x64.AppImage
   ```
 
+  > **Ubuntu 22.04+ 注意**：系统默认不带 `libfuse2`，首次运行前需安装：
+  > ```bash
+  > sudo apt install libfuse2
+  > ```
+  > 不想安装 libfuse2 的话，也可以用 `--appimage-extract-and-run` 直接运行（每次都要加这个参数）。
+
 - **deb**：通过包管理器安装，可自动写入应用菜单与 `.desktop` 启动项：
 
   ```bash
