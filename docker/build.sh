@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Build script for my_claude_code Docker image
+# Build script for rdCLI Docker image
 #
 # Includes:
-#   - Node.js v22.23.2 + Claude Code CLI + rdCLI web UI
+#   - Node.js v22.23.2 + Pi Coding Agent + rdCLI web UI
 #   - Python virtualenv /opt/llm_py_env (Office doc processing: Word, PDF, Excel, PPT)
 #   - LibreOffice (doc → docx conversion)
 #
@@ -56,25 +56,15 @@ echo ""
 echo "  docker run -dit \\"
 echo "    --name my_rd_cli \\"
 echo "    --rm \\"
-echo "    --add-host api.anthropic.com:127.0.0.1 \\"
-echo "    --add-host \"api.anthropic.com:::1\" \\"
-echo "    --add-host anthropic.com:127.0.0.1 \\"
-echo "    --add-host \"anthropic.com:::1\" \\"
-echo "    --add-host claude.ai:127.0.0.1 \\"
-echo "    --add-host \"claude.ai:::1\" \\"
 echo "    -v /data/remote/workspace:/opt/workspace \\"
 echo "    -w /opt/workspace \\"
-echo "    -e ANTHROPIC_BASE_URL=http://127.0.0.1:16001 \\"
-echo "    -e ANTHROPIC_AUTH_TOKEN=sk-xxx \\"
-echo "    -e API_TIMEOUT_MS=600000 \\"
-echo "    -e ANTHROPIC_MODEL=deepseek-chat \\"
-echo "    -e ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \\"
-echo "    -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\"
-echo "    -e CLAUDE_CODE_ATTRIBUTION_HEADER=0 \\"
 echo "    -p 19004:3001 \\"
 echo "    ${FULL_TAG}"
 echo ""
-echo "NOTE: If your API proxy listens on the host's 127.0.0.1:16001,"
-echo "      add --network=host (simplest) or use host.docker.internal."
-echo "      From inside a container, 127.0.0.1 is the container itself,"
-echo "      NOT the host."
+echo "Pi uses ~/.pi/agent/auth.json for API keys. Set up keys inside the"
+echo "container or mount a pre-configured auth.json:"
+echo ""
+echo "  docker run -dit \\"
+echo "    ..."
+echo "    -v /path/to/auth.json:/root/.pi/agent/auth.json \\"
+echo "    ${FULL_TAG}"

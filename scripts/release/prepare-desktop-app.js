@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -7,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');
 const stageDir = path.join(rootDir, '.desktop-build', 'desktop-app');
+const PI_REPO_DIR = process.env.PI_REPO_DIR
+  || path.resolve(rootDir, '..', 'pi');
+const PI_PACKAGES_DIR = path.join(PI_REPO_DIR, 'packages');
+const PI_STAGE_DIR = path.join(stageDir, 'node_modules', '@earendil-works');
 
 const packageJson = JSON.parse(
   await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'),
@@ -55,6 +60,24 @@ async function copyIfExists(relativePath) {
 
 async function copyNodeModule(packageName) {
   return copyModuleFromRoot(path.join('node_modules', ...packageName.split('/')));
+}
+
+/**
+ * Copy a module from Pi's node_modules into the stage dir.
+ * Pi's external deps (e.g. chalk, typebox) live in Pi's own node_modules
+ * and are not necessarily installed in rd_cli's node_modules.
+ */
+async function copyPiNodeModule(packageName) {
+  const piRelPath = path.join('node_modules', ...packageName.split('/'));
+  const from = path.join(PI_REPO_DIR, piRelPath);
+  if (!(await pathExists(from))) return false;
+  // Use the same path inside the stage so Node resolution works identically.
+  const to = path.join(stageDir, piRelPath);
+  if (copiedModulePaths.has(piRelPath)) return true;
+  await fs.mkdir(path.dirname(to), { recursive: true });
+  await fs.cp(from, to, { recursive: true });
+  copiedModulePaths.add(piRelPath);
+  return true;
 }
 
 function buildDesktopPackageJson(copiedOptionalDependencies) {
@@ -111,11 +134,11 @@ await copyRequired('dist');
 await copyRequired('dist-server');
 await copyRequired('public');
 
-// Copy every runtime dependency and its full transitive closure (server +
-// Claude Code SDK). The build machine's node_modules already holds the
-// correct platform binaries and resolved versions for each module; the staged
-// tree mirrors the root layout, so Node's runtime module resolution finds
-// hoisted and nested transitive dependencies exactly as it does in dev.
+// Copy every runtime dependency and its full transitive closure. The build
+// machine's node_modules already holds the correct platform binaries and
+// resolved versions for each module; the staged tree mirrors the root layout,
+// so Node's runtime module resolution finds hoisted and nested transitive
+// dependencies exactly as it does in dev.
 const copiedModulePaths = new Set();
 
 /**
@@ -180,12 +203,145 @@ async function stripNodePtySpectreMitigation() {
 
 await stripNodePtySpectreMitigation();
 
-// The Claude Code CLI platform binary (e.g. claude.exe on Windows) ships as an
-// optional dependency of @anthropic-ai/claude-agent-sdk; copy it explicitly.
-const claudeSdkPlatformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
-if (!(await copyNodeModule(claudeSdkPlatformPackage))) {
-  console.warn(`Warning: ${claudeSdkPlatformPackage} not found in node_modules — Claude Code CLI will not be bundled.`);
+// ── Pi agent bundling ──────────────────────────────────────────────────────
+// Pi is a Node.js CLI (bin: { pi: dist/cli.js }) from the @earendil-works
+// monorepo. We build Pi from source, copy the compiled dist/ of each workspace
+// package into the stage, and copy its external dependencies into node_modules
+// so the bundled app can spawn `node <bundled-pi>/dist/cli.js` without a
+// system-level Pi installation.
+
+/**
+ * Pi workspace packages whose compiled dist/ output is copied into the stage.
+ * Order matters for internal dependency resolution (leaf-first).
+ */
+const PI_WORKSPACE_PACKAGES = [
+  { name: 'telemetry', pkgName: '@earendil-works/pi-telemetry' },
+  { name: 'tui', pkgName: '@earendil-works/pi-tui' },
+  { name: 'protocol', pkgName: '@earendil-works/pi-protocol' },
+  { name: 'ai', pkgName: '@earendil-works/pi-ai' },
+  { name: 'agent', pkgName: '@earendil-works/pi-agent-core' },
+  { name: 'client', pkgName: '@earendil-works/pi-client' },
+  { name: 'coding-agent', pkgName: '@earendil-works/pi-coding-agent' },
+];
+
+/**
+ * External npm dependencies that Pi's compiled code needs at runtime.
+ * These are the bare-specifier imports from Pi's dist/ that are not
+ * node: builtins and not @earendil-works workspace packages.
+ */
+const PI_EXTERNAL_DEPENDENCIES = [
+  '@anthropic-ai/sdk',
+  '@aws-sdk/client-bedrock-runtime',
+  '@google/genai',
+  '@mariozechner/clipboard',
+  '@opentelemetry/api',
+  '@silvia-odwyer/photon-node',
+  '@smithy/node-http-handler',
+  'chalk',
+  'cross-spawn',
+  'diff',
+  'get-east-asian-width',
+  'glob',
+  'grok-mermaid',
+  'highlight.js',
+  'hosted-git-info',
+  'http-proxy-agent',
+  'https-proxy-agent',
+  'ignore',
+  'jiti',
+  'marked',
+  'minimatch',
+  'openai',
+  'partial-json',
+  'proper-lockfile',
+  'semver',
+  'typebox',
+  'undici',
+  'yaml',
+];
+
+/**
+ * Build Pi from source (if not already built).
+ */
+async function buildPi() {
+  const cliEntry = path.join(PI_PACKAGES_DIR, 'coding-agent', 'dist', 'cli.js');
+  if (await pathExists(cliEntry)) {
+    console.log('[stage] Pi already built, skipping build.');
+    return;
+  }
+
+  console.log('[stage] Building Pi from source...');
+  await new Promise((resolve, reject) => {
+    const child = spawn('npm', ['run', 'build:offline'], {
+      cwd: PI_REPO_DIR,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+      env: { ...process.env },
+    });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Pi build failed with code ${code}`));
+    });
+  });
+  console.log('[stage] Pi build complete.');
 }
+
+/**
+ * Copy a Pi workspace package's dist/ and package.json into the stage.
+ */
+async function copyPiWorkspacePackage(pkgName, pkgDirName) {
+  const srcDir = path.join(PI_PACKAGES_DIR, pkgDirName);
+  const destDir = path.join(PI_STAGE_DIR, pkgName.replace('@earendil-works/', ''));
+  const srcDist = path.join(srcDir, 'dist');
+  const srcPkgJson = path.join(srcDir, 'package.json');
+
+  if (!(await pathExists(srcDist))) {
+    throw new Error(`Pi workspace package ${pkgName} has no dist/ directory. Run 'npm run build' in pi repo first.`);
+  }
+
+  await fs.mkdir(destDir, { recursive: true });
+  await fs.cp(srcDist, path.join(destDir, 'dist'), { recursive: true });
+  await fs.cp(srcPkgJson, path.join(destDir, 'package.json'));
+  console.log(`[stage] Copied Pi package: ${pkgName}`);
+}
+
+async function ensurePiBundled() {
+  await buildPi();
+  await fs.mkdir(PI_STAGE_DIR, { recursive: true });
+
+  for (const { name, pkgName } of PI_WORKSPACE_PACKAGES) {
+    await copyPiWorkspacePackage(pkgName, name);
+  }
+
+  // Copy external dependencies of Pi into the stage node_modules.
+  // These come from Pi's own node_modules, not rd_cli's.
+  for (const dep of PI_EXTERNAL_DEPENDENCIES) {
+    await copyPiNodeModule(dep);
+  }
+
+  // Create a 'pi' wrapper script alongside the bundled node_modules/.bin
+  // so the runtime can spawn 'pi' and find the bundled CLI.
+  const binDir = path.join(stageDir, 'node_modules', '.bin');
+  await fs.mkdir(binDir, { recursive: true });
+
+  const piCliRelPath = path.join(
+    '@earendil-works', 'pi-coding-agent', 'dist', 'cli.js',
+  );
+  const piCliAbsPath = path.join(stageDir, 'node_modules', piCliRelPath);
+
+  if (process.platform === 'win32') {
+    const batContent = `@echo off\r\nnode "${piCliAbsPath}" %*`;
+    await fs.writeFile(path.join(binDir, 'pi.cmd'), batContent, 'utf8');
+  } else {
+    const shContent = `#!/bin/sh\nexec node "${piCliAbsPath}" "$@"\n`;
+    const shPath = path.join(binDir, 'pi');
+    await fs.writeFile(shPath, shContent, { mode: 0o755, encoding: 'utf8' });
+  }
+  console.log('[stage] Created Pi CLI wrapper script.');
+}
+
+await ensurePiBundled();
 
 const copiedOptionalDependencies = {};
 for (const [name, version] of Object.entries(packageJson.optionalDependencies || {})) {
@@ -260,7 +416,7 @@ async function copyDependencyClosure(seedNames) {
 await copyDependencyClosure([
   ...copiedRuntimeDependencies,
   ...Object.keys(copiedOptionalDependencies),
-  claudeSdkPlatformPackage,
+  ...PI_EXTERNAL_DEPENDENCIES,
   ...extraRuntimeModules,
 ]);
 

@@ -2,7 +2,7 @@
   "name": "@rdcli-ai/rdcli",
   "version": "1.37.0",
   "productName": "rdCLI",
-  "description": "A web-based UI for Claude Code CLI",
+  "description": "A web-based UI for the Pi coding agent",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
@@ -118,15 +118,9 @@
     }
   },
   "keywords": [
-    "claude code",
-    "claude-code",
+    "pi",
+    "pi-agent",
     "rdcli",
-    "codex",
-    "cursor",
-    "cursor-cli",
-    "anthropic",
-    "openai",
-    "google",
     "coding-agent",
     "web-ui",
     "ui",
@@ -135,7 +129,6 @@
   "author": "rdCLI UI Contributors",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.165",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.9",
     "@codemirror/lang-javascript": "^6.2.4",
@@ -146,7 +139,6 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@iarna/toml": "^2.2.5",
     "@octokit/rest": "^22.0.0",
-    "@openai/codex-sdk": "^0.144.0",
     "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/typography": "^0.5.16",
     "@uiw/react-codemirror": "^4.23.13",

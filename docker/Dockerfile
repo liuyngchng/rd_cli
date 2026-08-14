@@ -1,5 +1,5 @@
 # ============================================================================
-# Stage 1 – build rdcli from local source
+# Stage 1 – build rdcli + Pi from local source
 # ============================================================================
 FROM ubuntu:24.04 AS rdcli-builder
 
@@ -16,11 +16,17 @@ RUN tar -xJf /tmp/node-v22.23.2-linux-x64.tar.xz -C /usr/local --strip-component
 # Skip Electron binary download (not needed for server build)
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 
-# Install all dependencies + build
+# Install all dependencies + build rdCLI
 WORKDIR /build
 COPY . .
 RUN npm ci --no-audit --no-fund \
     && npm run build
+
+# Build Pi from source (monorepo at ../pi relative to rdCLI)
+COPY ../pi /opt/pi
+WORKDIR /opt/pi
+RUN npm ci --no-audit --no-fund \
+    && npm run build:offline
 
 # ============================================================================
 # Stage 2 – final runtime image
@@ -91,16 +97,28 @@ ENV NODE_HOME=/root/.nvm/versions/node/v22.23.2
 ENV PATH=/opt/llm_py_env/bin:${NODE_HOME}/bin:${PATH}
 
 # ---------------------------------------------------------------------------
-# Claude Code CLI
+# Pi Coding Agent – built from local source (Stage 1)
 # ---------------------------------------------------------------------------
-RUN npm install -g @anthropic-ai/claude-code \
-    --fetch-retries=5 \
-    --fetch-retry-mintimeout=20000 \
-    --fetch-retry-maxtimeout=120000 \
-    --fetch-timeout=600000 \
-    --no-audit \
-    --no-fund \
-    && npm cache clean --force
+# Copy Pi workspace packages (built dist/ + package.json) and external deps
+WORKDIR /opt/pi
+COPY --from=rdcli-builder /opt/pi/node_modules /opt/pi/node_modules
+COPY --from=rdcli-builder /opt/pi/packages /opt/pi/packages
+
+# Create symlinks so @earendil-works/* resolve to the built packages
+RUN ln -s /opt/pi/packages/agent /opt/pi/node_modules/@earendil-works/pi-agent-core \
+    && ln -s /opt/pi/packages/ai /opt/pi/node_modules/@earendil-works/pi-ai \
+    && ln -s /opt/pi/packages/client /opt/pi/node_modules/@earendil-works/pi-client \
+    && ln -s /opt/pi/packages/coding-agent /opt/pi/node_modules/@earendil-works/pi-coding-agent \
+    && ln -s /opt/pi/packages/protocol /opt/pi/node_modules/@earendil-works/pi-protocol \
+    && ln -s /opt/pi/packages/tui /opt/pi/node_modules/@earendil-works/pi-tui \
+    && ln -s /opt/pi/packages/telemetry /opt/pi/node_modules/@earendil-works/pi-telemetry
+
+# Wire up 'pi' command
+RUN printf '#!/bin/sh\nexec node /opt/pi/packages/coding-agent/dist/cli.js "$@"\n' > ${NODE_HOME}/bin/pi \
+    && chmod +x ${NODE_HOME}/bin/pi
+
+# Set PI_PACKAGE_DIR so Pi's config.ts can locate its assets
+ENV PI_PACKAGE_DIR=/opt/pi/packages/coding-agent
 
 # ---------------------------------------------------------------------------
 # rdCLI – built from local source (Stage 1), never published to npm
@@ -126,10 +144,9 @@ RUN chmod +x /opt/rdcli/dist-server/server/modules/cli/cli.js \
     && ln -s /opt/rdcli/dist-server/server/modules/cli/cli.js ${NODE_HOME}/bin/rdcli
 
 # ---------------------------------------------------------------------------
-# Claude Code global memory – office document assistant role
+# Pi agent config – default settings
 # ---------------------------------------------------------------------------
-RUN mkdir -p /root/.claude
-COPY docker/CLAUDE.md /root/.claude/CLAUDE.md
+RUN mkdir -p /root/.pi/agent
 
 # ---------------------------------------------------------------------------
 # Runtime

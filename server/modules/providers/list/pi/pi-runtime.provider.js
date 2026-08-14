@@ -1,4 +1,5 @@
 import crossSpawn from 'cross-spawn';
+import path from 'node:path';
 
 import {
   appendFilesInputTag,
@@ -14,6 +15,28 @@ import {
 
 const spawnFunction = crossSpawn;
 const activePiProcesses = new Map();
+
+/**
+ * Resolve the Pi CLI command + entry to spawn.
+ *
+ * Priority:
+ * 1. PI_CLI_PATH env var (explicit override, e.g. a system Pi install)
+ * 2. PI_PACKAGE_DIR env var → <dir>/dist/cli.js (bundled Pi in the desktop app)
+ * 3. bundled wrapper script on PATH (set by electron/localServer.js)
+ * 4. bare 'pi' (development / system install)
+ */
+function resolvePiSpawnCommand() {
+  if (process.env.PI_CLI_PATH) {
+    return { command: process.execPath, argsPrefix: [process.env.PI_CLI_PATH] };
+  }
+
+  if (process.env.PI_PACKAGE_DIR) {
+    const cliEntry = path.join(process.env.PI_PACKAGE_DIR, 'dist', 'cli.js');
+    return { command: process.execPath, argsPrefix: [cliEntry] };
+  }
+
+  return { command: 'pi', argsPrefix: [] };
+}
 
 /**
  * Maps the UI permission mode onto Pi's non-interactive controls.
@@ -167,7 +190,8 @@ async function spawnPi(command, options = {}, ws, context) {
       );
       args.push(flattenPromptForWindowsShell(promptWithAttachments));
 
-      piProcess = spawnFunction('pi', args, {
+      const { command, argsPrefix } = resolvePiSpawnCommand();
+      piProcess = spawnFunction(command, [...argsPrefix, ...args], {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...permissionOptions.env },

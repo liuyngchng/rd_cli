@@ -107,15 +107,30 @@ function getDesktopPath() {
 }
 
 /**
- * Path to the Claude Code CLI bundled inside the packaged app
- * (<appRoot>/node_modules/@anthropic-ai/claude-agent-sdk-<platform>-<arch>/claude[.exe]),
- * or null when it is not present (e.g. development machines or musl builds).
+ * Path to the Pi CLI bundled inside the packaged app
+ * (<appRoot>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js),
+ * or null when it is not present (e.g. development machines).
  */
-function getBundledClaudeCliPath(appRoot) {
-  const binaryName = process.platform === 'win32' ? 'claude.exe' : 'claude';
-  const platformPackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
-  const candidate = path.join(appRoot, 'node_modules', platformPackage, binaryName);
-  return existsSync(candidate) ? candidate : null;
+function getBundledPiCliPath(appRoot) {
+  const cliEntry = path.join(
+    appRoot,
+    'node_modules',
+    '@earendil-works',
+    'pi-coding-agent',
+    'dist',
+    'cli.js',
+  );
+  return existsSync(cliEntry) ? cliEntry : null;
+}
+
+/**
+ * Path to the Pi CLI wrapper script (<appRoot>/node_modules/.bin/pi), or null
+ * when not present. The wrapper `exec`s node against the bundled cli.js.
+ */
+function getBundledPiWrapperPath(appRoot) {
+  const wrapperName = process.platform === 'win32' ? 'pi.cmd' : 'pi';
+  const wrapperPath = path.join(appRoot, 'node_modules', '.bin', wrapperName);
+  return existsSync(wrapperPath) ? wrapperPath : null;
 }
 
 function getNodeRuntime(usePackagedElectronRuntime) {
@@ -418,8 +433,14 @@ export class LocalServerController {
     this.appendStartupLog(`cwd: ${serverCwd}`);
     this.appendStartupLog(`HOST=${bindHost} SERVER_PORT=${port}`);
 
-    // Point the server at the bundled Claude Code CLI (unless the user already set CLAUDE_CLI_PATH).
-    const bundledClaudeCliPath = process.env.CLAUDE_CLI_PATH ? null : getBundledClaudeCliPath(this.appRoot);
+    // Point the server at the bundled Pi CLI (unless the user already set PI_CLI_PATH).
+    // The Pi runtime provider spawns 'pi' from PATH, so we prepend the bundled wrapper
+    // directory. We also set PI_PACKAGE_DIR so Pi's config.ts can locate its assets.
+    const bundledPiWrapper = getBundledPiWrapperPath(this.appRoot);
+    const bundledPiDir = bundledPiWrapper ? path.dirname(bundledPiWrapper) : null;
+    const piPackageDir = getBundledPiCliPath(this.appRoot)
+      ? path.dirname(path.dirname(getBundledPiCliPath(this.appRoot)))
+      : null;
 
     this.ownedServerProcess = spawn(runtime.command, [serverEntry], {
       cwd: serverCwd,
@@ -429,8 +450,10 @@ export class LocalServerController {
         ...runtime.env,
         HOST: bindHost,
         SERVER_PORT: String(port),
-        PATH: getDesktopPath(),
-        ...(bundledClaudeCliPath ? { CLAUDE_CLI_PATH: bundledClaudeCliPath } : {}),
+        PATH: bundledPiDir
+          ? `${bundledPiDir}${path.delimiter}${getDesktopPath()}`
+          : getDesktopPath(),
+        ...(piPackageDir && !process.env.PI_PACKAGE_DIR ? { PI_PACKAGE_DIR: piPackageDir } : {}),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

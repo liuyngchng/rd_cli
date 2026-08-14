@@ -8,7 +8,7 @@
 #   1. 配置国内镜像（electron zip 等自动从 npmmirror 下载并缓存）
 #   2. npm install 安装依赖
 #   3. npm run desktop:pack（build + stage + electron-builder --dir）
-#   3.5 注入 Claude 连接配置（scripts\release\desktop.env → resources\app\.env，可选）
+#   3.5 注入 Pi 连接配置（scripts\release\desktop.env → resources\app\.env，可选）
 #   4. 将 release\desktop\win-unpacked 压缩为 zip
 #
 # 产物：release\rdcli-desktop-<version>-win-x64.zip
@@ -37,10 +37,10 @@ Write-Host '==> 开始打包 win-unpacked（首次会下载 Windows 版 electron
 npm run desktop:pack
 if ($LASTEXITCODE -ne 0) { throw '打包失败' }
 
-# ---- 3.5 注入 Claude 连接配置（可选）---------------------------------------
+# ---- 3.5 注入 Pi 连接配置（可选）-------------------------------------------
 # 把构建机本地的密钥文件写入 app 根目录（resources\app\.env），用户解压后
-# Claude 开箱即用。优先级：desktop.env 文件 > RDCLI_DESKTOP_ENV 环境变量；
-# 两者都没有则跳过（.env 为可选配置，详见 README「打包注入 Claude 配置」）。
+# Pi 开箱即用。优先级：desktop.env 文件 > RDCLI_DESKTOP_ENV 环境变量；
+# 两者都没有则跳过（.env 为可选配置，详见 README「打包注入 Pi 配置」）。
 $envSourceFile = 'scripts\release\desktop.env'
 $envTargetFile = 'release\desktop\win-unpacked\resources\app\.env'
 
@@ -55,7 +55,7 @@ if (Test-Path $envSourceFile) {
   )
   Write-Host '==> 已注入 RDCLI_DESKTOP_ENV 到 resources\app\.env' -ForegroundColor Cyan
 } else {
-  Write-Host '==> 未找到 desktop.env / RDCLI_DESKTOP_ENV，跳过 Claude 配置注入（用户需自行配置）' -ForegroundColor Yellow
+  Write-Host '==> 未找到 desktop.env / RDCLI_DESKTOP_ENV，跳过 Pi 配置注入（用户需自行配置）' -ForegroundColor Yellow
 }
 
 # ---- 4. 压缩为 zip ---------------------------------------------------------
