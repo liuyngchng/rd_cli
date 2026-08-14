@@ -81,7 +81,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
    * Checks Claude credentials in the same priority order used by Claude Code.
    */
   private async checkCredentials(): Promise<ClaudeCredentialsStatus> {
-    const missingCredentialsError = 'Claude CLI is not authenticated. Run claude /login or configure ANTHROPIC_API_KEY.';
+    const missingCredentialsError = 'Claude CLI 无法连接大模型，请在环境变量中配置 ANTHROPIC_API_KEY 等必须的参数，重新启动app';
 
     if (process.env.ANTHROPIC_AUTH_TOKEN?.trim()) {
       return { authenticated: true, email: 'Auth Token', method: 'api_key' };

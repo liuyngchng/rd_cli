@@ -711,8 +711,8 @@ export class DesktopWindowManager {
     this.mainWindow = new BrowserWindow({
       width: 1440,
       height: 960,
-      minWidth: 1024,
-      minHeight: 720,
+      minWidth: 800,
+      minHeight: 600,
       show: false,
       backgroundColor: '#0f172a',
       title: this.appName,

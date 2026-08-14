@@ -35,7 +35,10 @@ try {
     }
   });
 } catch (e: any) {
-  console.error('No .env file found or error reading it:', e.message);
+  // .env is optional; a missing file (ENOENT) is the normal case and stays silent.
+  if (e?.code !== 'ENOENT') {
+    console.error('Failed to read .env:', e.message);
+  }
 }
 
 // Keep the default database in a stable user-level location so rebuilding dist-server
