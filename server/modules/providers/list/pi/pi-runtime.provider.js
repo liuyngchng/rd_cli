@@ -1,5 +1,3 @@
-import path from 'path';
-
 import crossSpawn from 'cross-spawn';
 
 import {
@@ -13,6 +11,7 @@ import {
   createNormalizedMessage,
   flattenPromptForWindowsShell,
 } from '@/shared/utils.js';
+import { resolvePiCliPath } from '@/shared/pi-cli-path.js';
 
 const spawnFunction = crossSpawn;
 const activePiProcesses = new Map();
@@ -20,20 +19,13 @@ const activePiProcesses = new Map();
 /**
  * Resolve the Pi CLI command to spawn.
  *
- * Priority:
- * 1. PI_CLI_PATH env var (explicit path to pi binary, dev or system install)
- * 2. 'pi' on PATH (bundled binary put on PATH by electron/localServer.js)
+ * Uses the shared pi-cli-path resolver:
+ * 1. PI_CLI_PATH env var (explicit path, relative paths resolved against cwd)
+ * 2. 'pi' on PATH (npm global install, or bundled binary prepended
+ *    to PATH by the Electron desktop launcher)
  */
 function resolvePiSpawnCommand() {
-  if (process.env.PI_CLI_PATH) {
-    // Resolve relative paths against cwd so `PI_CLI_PATH=electron/pi/pi` works in dev.
-    let resolved = process.env.PI_CLI_PATH;
-    if (!path.isAbsolute(resolved)) {
-      resolved = path.resolve(process.cwd(), resolved);
-    }
-    return { command: resolved, argsPrefix: [] };
-  }
-  return { command: 'pi', argsPrefix: [] };
+  return { command: resolvePiCliPath(), argsPrefix: [] };
 }
 
 /**
