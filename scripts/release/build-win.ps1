@@ -58,7 +58,16 @@ if (Test-Path $envSourceFile) {
   Write-Host '==> 未找到 desktop.env / RDCLI_DESKTOP_ENV，跳过 Claude 配置注入（用户需自行配置）' -ForegroundColor Yellow
 }
 
-# ---- 4. 压缩为 zip ---------------------------------------------------------
+# ---- 4. 复制用户手册 --------------------------------------------------------
+# Copy user manual (user_manual.md → 用户手册.md) to the zip root so users
+# can find it alongside rdCLI.exe after unzipping.
+$manualSrc = 'user_manual.md'
+if (Test-Path $manualSrc) {
+  Copy-Item $manualSrc "$srcDir\用户手册.md" -Force
+  Write-Host '==> 已复制用户手册到 zip 根目录' -ForegroundColor Cyan
+}
+
+# ---- 5. 压缩为 zip ---------------------------------------------------------
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
 $srcDir = 'release\desktop\win-unpacked'
 $outZip = "release\rdcli-desktop-$version-win-x64.zip"

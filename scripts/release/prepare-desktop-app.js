@@ -93,6 +93,7 @@ function buildDesktopPackageJson(copiedOptionalDependencies) {
         'dist-server/**',
         'node_modules/**',
         'package.json',
+        '.env.template',
       ],
       protocols: packageJson.build.protocols,
       linux: packageJson.build.linux,
@@ -110,6 +111,10 @@ await copyRequired('electron');
 await copyRequired('dist');
 await copyRequired('dist-server');
 await copyRequired('public');
+
+// Ship a user-facing .env template at the packaged app root (resources\app\.env.template),
+// so end users can copy it to .env and edit their Claude connection settings.
+await copyIfExists('resources/app/.env.template');
 
 // Copy every runtime dependency and its full transitive closure (server +
 // Claude Code SDK). The build machine's node_modules already holds the

@@ -48,6 +48,12 @@ else
   npx electron-builder --projectDir .desktop-build/desktop-app --linux
 fi
 
+# 复制用户手册到产物目录（与 AppImage/deb 并列，供用户查阅）
+if [ -f user_manual.md ]; then
+  cp user_manual.md "release/desktop/用户手册.md"
+  echo '==> 已复制用户手册到 release/desktop/'
+fi
+
 version=$(node -p "require('./package.json').version")
 echo "✅ 完成：release/desktop/rdcli-desktop-${version}-linux-x64.AppImage"
 echo "        release/desktop/rdcli-desktop-${version}-linux-x64.deb"
