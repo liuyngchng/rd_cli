@@ -1,6 +1,6 @@
 {
   "name": "@rdcli-ai/rdcli",
-  "version": "1.37.0",
+  "version": "1.0.0",
   "productName": "rdCLI",
   "description": "A web-based UI for Claude Code CLI",
   "type": "module",
