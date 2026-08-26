@@ -32,6 +32,7 @@ npm run dev
 
 - Windows 10 1803+ / Windows 11
 - 已安装 [Node.js](https://nodejs.org/)（建议 22 LTS 或更新）
+- **用户机器**需安装 [Microsoft Visual C++ 2015-2022 Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)（约 14MB，Windows 上绝大多数软件都依赖此组件，通常已预装；若启动失败，安装后重启即可）
 
 ### 一键打包
 
@@ -103,6 +104,7 @@ RDCLI_LOG_LEVEL=debug
 
 ### 常见问题
 
+- **启动后提示「内置后端未就绪」或一直停留在「正在启动本地 rdCLI…」**：最常见的原因是缺少 VC++ 运行库。安装 [Microsoft Visual C++ 2015-2022 Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)（约 14MB），重启 rdCLI 即可。若问题依旧，可按上文「调试日志」章节开启 `RDCLI_LOG_LEVEL=debug` 获取详细诊断信息。
 - **"此系统上禁止运行脚本"**：PowerShell 默认执行策略拦截 `.ps1` 脚本。执行
   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` 后即可直接运行
   `.\scripts\release\build-win.ps1`（仅影响当前用户，无需管理员权限）。
