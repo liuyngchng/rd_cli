@@ -16,6 +16,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { APP_CONFIG_TABLE_SCHEMA_SQL } from '@/modules/database/schema.js';
+import { debug } from '@/shared/debug.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,15 +110,19 @@ export function getConnection(): Database.Database {
   if (instance) return instance;
 
   const dbPath = resolveDatabasePath();
+  debug('getConnection: opening database at', dbPath);
 
   ensureDatabaseDirectory(dbPath);
   migrateLegacyDatabase(dbPath);
 
+  debug('getConnection: creating Database instance (loading better-sqlite3 native binding)');
   instance = new Database(dbPath);
+  debug('getConnection: Database instance created');
 
   // app_config must exist immediately — the auth middleware reads
   // the JWT secret at module-load time, before initializeDatabase() runs.
   instance.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
+  debug('getConnection: app_config table ensured');
 
   return instance;
 }

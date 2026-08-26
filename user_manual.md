@@ -118,6 +118,30 @@ CLAUDE_CODE_ATTRIBUTION_HEADER=0
 
 在 rdCLI 桌面端菜单栏中选择「帮助 → 复制诊断信息」，可将诊断信息复制到剪贴板，方便排查问题。
 
+### 3.5 启动失败 / 内置后端无法就绪（开启调试日志）
+
+如果启动时提示「内置后端未在 http://localhost:3001 就绪」或一直停留在「正在启动本地 rdCLI…」，可以开启调试日志定位卡在哪个步骤。
+
+**开启方法**：
+
+1. 打开 `resources\app\.env` 文件（若不存在，先复制 `resources\app\.env.template` 为 `.env`）
+2. 在文件末尾添加一行：
+
+   ```ini
+   RDCLI_LOG_LEVEL=debug
+   ```
+
+3. 保存后重启 `rdCLI.exe`，启动日志中会出现以 `[DEBUG]` 开头的详细输出。
+
+**如何把日志交给技术支持**：
+
+启动失败后，日志会显示在启动界面，或通过菜单栏「帮助 → 复制诊断信息」复制。日志中 `[DEBUG]` 行会精确指出卡在哪一步，例如：
+
+- 卡在 `creating Database instance (loading better-sqlite3 native binding)` 之后没有出现 `Database instance created` → 数据库原生模块加载失败（常见于缺少 VC++ 运行库）。
+- 卡在 `calling initializeDatabase()` → 数据库初始化阶段出错。
+
+> 排查完成后，把 `.env` 里的 `RDCLI_LOG_LEVEL=debug` 删掉或注释（行首加 `#`），即可恢复正常日志输出。
+
 ## 4. 目录结构
 
 解压后的目录结构：

@@ -505,6 +505,7 @@ export class LocalServerController {
       throw new Error([
         `内置后端未在 ${displayUrl} 就绪。`,
         recentLogs ? `最近的启动输出：\n${recentLogs}` : '未捕获到启动输出。',
+        '提示：在 app 目录下创建 .env 文件，添加 RDCLI_LOG_LEVEL=debug 可获取详细诊断日志。',
       ].join('\n\n'));
     }
 

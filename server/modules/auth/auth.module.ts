@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
 import { getConnection, userDb } from '@/modules/database/index.js';
+import { debug } from '@/shared/debug.js';
 import { userWorkspaceService } from '@/modules/user/user.module.js';
 
 import { authenticateToken, generateToken, revokeToken } from './auth.middleware.js';
@@ -16,7 +17,14 @@ type BcryptAdapter = {
 // composition root narrows its CommonJS runtime surface before injecting it.
 const require = createRequire(import.meta.url);
 const bcrypt = require('bcrypt') as BcryptAdapter;
-const databaseConnection = getConnection();
+let databaseConnection: ReturnType<typeof getConnection> | null = null;
+function getDatabaseConnection() {
+  if (!databaseConnection) {
+    debug('auth.module: lazy-initializing database connection');
+    databaseConnection = getConnection();
+  }
+  return databaseConnection;
+}
 
 const authService = createAuthService({
   users: {
@@ -28,9 +36,9 @@ const authService = createAuthService({
     setUserActive: (userId, isActive) => userDb.setUserActive(userId, isActive),
   },
   transaction: {
-    begin: () => databaseConnection.prepare('BEGIN').run(),
-    commit: () => databaseConnection.prepare('COMMIT').run(),
-    rollback: () => databaseConnection.prepare('ROLLBACK').run(),
+    begin: () => getDatabaseConnection().prepare('BEGIN').run(),
+    commit: () => getDatabaseConnection().prepare('COMMIT').run(),
+    rollback: () => getDatabaseConnection().prepare('ROLLBACK').run(),
   },
   hashPassword: (password) => bcrypt.hash(password, 12),
   comparePassword: (password, passwordHash) => bcrypt.compare(password, passwordHash),

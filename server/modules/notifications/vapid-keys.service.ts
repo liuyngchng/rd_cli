@@ -2,13 +2,22 @@
 import webPush from 'web-push';
 
 import { getConnection } from '../database/index.js';
+import { debug } from '@/shared/debug.js';
 
 let cachedKeys = null;
-const db = getConnection();
+let db: ReturnType<typeof getConnection> | null = null;
+function getDb() {
+  if (!db) {
+    debug('vapid-keys.service: lazy-initializing database connection');
+    db = getConnection();
+  }
+  return db;
+}
 
 function ensureVapidKeys() {
   if (cachedKeys) return cachedKeys;
 
+  const db = getDb();
   const row = db.prepare('SELECT public_key, private_key FROM vapid_keys ORDER BY id DESC LIMIT 1').get();
   if (row) {
     cachedKeys = { publicKey: row.public_key, privateKey: row.private_key };

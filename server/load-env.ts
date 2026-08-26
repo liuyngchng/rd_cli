@@ -48,3 +48,7 @@ const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.rdcli', 'auth.db');
 if (!process.env.DATABASE_PATH) {
   process.env.DATABASE_PATH = DEFAULT_DATABASE_PATH;
 }
+
+if (process.env.RDCLI_LOG_LEVEL === 'debug') {
+  console.log('[DEBUG] load-env: DATABASE_PATH =', process.env.DATABASE_PATH);
+}
