@@ -250,20 +250,6 @@ export class ViewHost {
     view.__rdcliLoadedUrl = null;
   }
 
-  async showLocalStartupTarget(tabId, target, logs) {
-    const view = this.getOrCreateTabView(tabId);
-    if (view.__rdcliLoadingUrl) return;
-    this.attach(view);
-    const html = buildPlaceholderHtml(target.name || this.appName, '正在启动本地 rdCLI...', logs);
-    if (view.__rdcliStartupHtml === html) return;
-    // Mark before awaiting so a concurrent call (e.g. the state sync in
-    // syncDesktopState) does not start a second load that aborts this one
-    // with ERR_ABORTED (-3).
-    view.__rdcliStartupHtml = html;
-    await view.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    view.__rdcliLoadedUrl = null;
-  }
-
   async showContentTarget(tabId, target) {
     const loadUrl = target.loadUrl || target.url;
     if (!isHttpUrl(loadUrl)) {

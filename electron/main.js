@@ -152,22 +152,10 @@ async function showError(title, error) {
   });
 }
 
-function isExpectedNavigationAbort(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  return error?.code === 'ERR_ABORTED' || message.includes('ERR_ABORTED') || message.includes('(-3)');
-}
-
 function syncDesktopState() {
   if (!desktopWindow) return;
   desktopWindow.buildAppMenu();
   desktopWindow.emitDesktopState();
-  if (activeTarget?.kind === 'local' && !localServer?.getLocalServerUrl()) {
-    void desktopWindow.showLocalStartupTarget(localServer.getPendingTarget(), localServer.getStartupLogs())
-      .catch((error) => {
-        if (isExpectedNavigationAbort(error)) return;
-        void showError('无法更新本地启动日志', error);
-      });
-  }
 }
 
 function setActiveTarget(target) {
@@ -555,12 +543,6 @@ async function openLocalInDesktop() {
   const pendingTarget = localServer.getPendingTarget();
   tabs.upsertTarget(pendingTarget);
   setActiveTarget(pendingTarget);
-  await desktopWindow.showLocalStartupTarget(pendingTarget, localServer.getStartupLogs())
-    .catch((error) => {
-      // A concurrent state sync may start its own load of this view; the aborted
-      // first load surfaces as ERR_ABORTED (-3) and is expected here.
-      if (!isExpectedNavigationAbort(error)) throw error;
-    });
   desktopWindow.emitDesktopState();
 
   const target = await localServer.getResolvedTarget();
