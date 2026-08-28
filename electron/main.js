@@ -153,7 +153,7 @@ async function showAboutDialog() {
     title: `关于 ${APP_NAME}`,
     message: `${APP_NAME} v${app.getVersion()}`,
     detail: [
-      '一个基于 Web 的 Claude Code CLI 界面。',
+      '桌面智能助手',
       '',
       `开发者：richard`,
       `邮箱：liuyngchng@hotmail.com`,
