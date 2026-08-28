@@ -1,45 +1,24 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from 'electron';
-import { spawn } from 'node:child_process';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CloudController } from './cloud.js';
-import { DesktopWindowManager } from './desktopWindow.js';
-import { DesktopNotificationsController } from './desktopNotifications.js';
 import { LocalServerController } from './localServer.js';
-import { TabsController } from './tabs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = 'rdCLI';
 const APP_USER_MODEL_ID = 'ai.rdcli.desktop';
-const CALLBACK_PROTOCOL = 'rdcli';
-const CALLBACK_URL = `${CALLBACK_PROTOCOL}://auth/callback`;
-const RDCLI_CONTROL_PLANE_URL = process.env.RDCLI_CONTROL_PLANE_URL || 'https://rdcli.ai';
-const REMOTE_START_TIMEOUT_MS = 30000;
-const AUTH_CALLBACK_TTL_MS = 10 * 60 * 1000;
-
-const tabs = new TabsController();
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID);
 }
 
-let activeTarget = { kind: 'launcher', name: APP_NAME, url: null };
-let desktopWindow = null;
+let mainWindow = null;
 let localServer = null;
-let cloud = null;
-let desktopNotifications = null;
 let isQuitting = false;
-let isRefreshingCloud = false;
-let pendingCloudConnectStartedAt = 0;
 
 function getAppRoot() {
   return app.isPackaged ? app.getAppPath() : path.resolve(__dirname, '..');
-}
-
-function getLauncherPath() {
-  return path.join(__dirname, 'launcher', 'index.html');
 }
 
 function getPreloadPath() {
@@ -53,158 +32,105 @@ function getWindowIconPath() {
   return path.join(getAppRoot(), 'public', 'logo-512.png');
 }
 
-function getStorePath() {
-  return path.join(app.getPath('userData'), 'cloud-account.json');
-}
-
 function getSettingsPath() {
   return path.join(app.getPath('userData'), 'desktop-settings.json');
 }
 
-function getDesktopNotificationsSettingsPath() {
-  return path.join(app.getPath('userData'), 'desktop-notifications-settings.json');
-}
-
-function getRunningEnvironmentUrls() {
-  return cloud.getEnvironments()
-    .filter((environment) => environment.status === 'running')
-    .map((environment) => cloud.getEnvironmentUrl(environment))
-    .filter(Boolean);
-}
-
-function getDisplayTargetName() {
-  return activeTarget?.name || APP_NAME;
-}
-
-function getCloudState() {
+function getDesktopState() {
+  const settings = localServer.getSettings();
   return {
-    account: cloud.getAccount(),
-    environments: cloud.getEnvironments(),
-    controlPlaneUrl: RDCLI_CONTROL_PLANE_URL,
-  };
-}
-
-function getLocalState() {
-  return {
-    desktopSettings: localServer.getSettings(),
-    localServerRunning: Boolean(localServer.getLocalServerUrl()),
     localWebUrl: localServer.getLocalServerUrl(),
     shareableWebUrl: localServer.getShareableWebUrl(),
-  };
-}
-
-function serializeEnvironment(environment) {
-  return {
-    id: environment.id,
-    name: environment.name,
-    subdomain: environment.subdomain,
-    access_url: cloud.getEnvironmentUrl(environment),
-    status: environment.status,
-    created_at: environment.created_at,
-    github_url: environment.github_url || null,
-    region: environment.region || null,
-    agent: environment.agent || null,
-  };
-}
-
-function getDesktopState() {
-  const cloudAccount = cloud.getAccount();
-  const localState = getLocalState();
-  const authState = cloud.getAuthState();
-  return {
-    account: {
-      connected: authState === 'connected',
-      email: cloudAccount?.email || null,
-      authState,
-      requiresReconnect: authState === 'expired',
-    },
-    activeTarget,
-    desktopSettings: localState.desktopSettings,
-    localWebUrl: localState.localWebUrl,
-    shareableWebUrl: localState.shareableWebUrl,
-    localServerRunning: localState.localServerRunning,
+    localServerRunning: Boolean(localServer.getLocalServerUrl()),
     localStartupLogs: localServer.getStartupLogs(),
-    cloudLoading: isRefreshingCloud,
-    tabs: tabs.getSerializableTabs(),
-    activeTabId: tabs.activeTabId,
-    environments: cloud.getEnvironments().map(serializeEnvironment),
-    desktopNotifications: desktopNotifications?.getState() || { enabled: false, supported: false, connectedCount: 0, targetCount: 0 },
+    desktopSettings: settings,
+    desktopNotifications: { enabled: false, supported: false, connectedCount: 0, targetCount: 0 },
   };
 }
 
-async function openExternalUrl(url) {
-  if (String(url).startsWith(CALLBACK_PROTOCOL + "://")) {
-    await handleDeepLink(url);
-    return;
+function buildLoadingHtml() {
+  return [
+    '<!doctype html><meta charset="utf-8">',
+    '<style>',
+    'html,body{margin:0;height:100%;background:#0f172a;color:#e2e8f0;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}',
+    '.spinner{width:32px;height:32px;border:3px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}',
+    '@keyframes spin{to{transform:rotate(360deg)}}',
+    '.logo{width:48px;height:48px;opacity:.6}',
+    '</style>',
+    '<div class="spinner"></div>',
+    '<div>正在启动 rdCLI...</div>',
+  ].join('');
+}
+
+async function loadLocalServerUrl() {
+  const url = await localServer.ensureLocalServer();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.loadURL(url);
   }
-
-  await shell.openExternal(url);
+  return url;
 }
 
-async function showError(title, error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`${title}: ${message}`);
-  await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-    type: 'error',
-    title,
-    message: title,
-    detail: message,
-  });
-}
-
-function syncDesktopState() {
-  if (!desktopWindow) return;
-  desktopWindow.buildAppMenu();
-  desktopWindow.emitDesktopState();
-}
-
-function setActiveTarget(target) {
-  activeTarget = target;
-}
-
-function getEnvironmentTarget(environment) {
-  return {
-    kind: 'remote',
-    id: environment.id,
-    name: environment.name || environment.subdomain,
-    url: cloud.getEnvironmentUrl(environment),
-  };
-}
-
-async function getEnvironmentLaunchTarget(environment) {
-  const environmentUrl = cloud.getEnvironmentUrl(environment);
-  return {
-    ...getEnvironmentTarget(environment),
-    url: environmentUrl,
-    loadUrl: await cloud.getEnvironmentLaunchUrl(environment),
-  };
-}
-
-async function hasCloudWebSession() {
-  const cookies = await session.defaultSession.cookies.get({});
-  return cookies.some((cookie) => {
-    const cookieDomain = String(cookie.domain || '');
-    return cookieDomain.includes('rdcli.ai')
-      && /-auth-token(?:\.\d+)?$/.test(cookie.name)
-      && Boolean(cookie.value);
-  });
-}
-
-function isCloudAuthRedirect(url) {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    const controlPlane = new URL(RDCLI_CONTROL_PLANE_URL);
-    return parsed.origin === controlPlane.origin
-      && (parsed.pathname === '/login' || parsed.pathname.startsWith('/auth/'));
-  } catch {
-    return false;
-  }
+function buildAppMenu() {
+  const template = [
+    {
+      label: APP_NAME,
+      submenu: [
+        { label: `关于 ${APP_NAME}`, click: () => void showAboutDialog() },
+        { type: 'separator' },
+        { label: '复制诊断信息', click: () => copyDiagnostics() },
+        { type: 'separator' },
+        { label: process.platform === 'darwin' ? `隐藏 ${APP_NAME}` : '隐藏', role: 'hide', visible: process.platform === 'darwin' },
+        { label: '隐藏其他', role: 'hideOthers', visible: process.platform === 'darwin' },
+        { label: '全部显示', role: 'unhide', visible: process.platform === 'darwin' },
+        { type: 'separator', visible: process.platform === 'darwin' },
+        { label: `退出 ${APP_NAME}`, accelerator: 'CmdOrCtrl+Q', role: 'quit' },
+      ],
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { label: '撤销', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
+        { label: '重做', accelerator: 'Shift+CmdOrCtrl+Z', role: 'redo' },
+        { type: 'separator' },
+        { label: '剪切', accelerator: 'CmdOrCtrl+X', role: 'cut' },
+        { label: '复制', accelerator: 'CmdOrCtrl+C', role: 'copy' },
+        { label: '粘贴', accelerator: 'CmdOrCtrl+V', role: 'paste' },
+        { label: '全选', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
+      ],
+    },
+    {
+      label: '视图',
+      submenu: [
+        { label: '重新加载', accelerator: 'CmdOrCtrl+R', role: 'reload' },
+        { label: '强制重新加载', accelerator: 'CmdOrCtrl+Shift+R', role: 'forceReload' },
+        { label: '开发者工具', accelerator: 'F12', role: 'toggleDevTools' },
+        { type: 'separator' },
+        { label: '实际大小', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
+        { label: '放大', accelerator: 'CmdOrCtrl+=', role: 'zoomIn' },
+        { label: '缩小', accelerator: 'CmdOrCtrl+-', role: 'zoomOut' },
+        { type: 'separator' },
+        { label: '全屏', accelerator: 'F11', role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { label: '最小化', accelerator: 'CmdOrCtrl+M', role: 'minimize' },
+        { label: '缩放', role: 'zoom' },
+        ...(process.platform === 'darwin' ? [{ type: 'separator' }, { label: '前置全部窗口', role: 'front' }] : []),
+      ],
+    },
+    {
+      label: '帮助',
+      submenu: [
+        { label: '复制诊断信息', click: () => copyDiagnostics() },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function getDiagnosticsText() {
-  const cloudAccount = cloud.getAccount();
-  const localState = getLocalState();
   return JSON.stringify({
     app: APP_NAME,
     version: app.getVersion(),
@@ -214,575 +140,112 @@ function getDiagnosticsText() {
     arch: process.arch,
     appPath: getAppRoot(),
     userDataPath: app.getPath('userData'),
-    activeTarget,
-    localServerUrl: localState.localWebUrl,
+    localServerUrl: localServer.getLocalServerUrl(),
     localServerPort: localServer.localServerPort,
-    localWebUrl: localState.localWebUrl,
-    shareableWebUrl: localState.shareableWebUrl,
-    desktopSettings: localState.desktopSettings,
-    cloudConnected: Boolean(cloudAccount?.apiKey),
-    cloudEmail: cloudAccount?.email || null,
-    cloudEnvironmentCount: cloud.getEnvironments().length,
-    cloudRunningEnvironmentCount: getRunningEnvironmentUrls().length,
-    cloudAuthState: cloud.getAuthState(),
-    cloudAccountPath: getStorePath(),
-    controlPlaneUrl: RDCLI_CONTROL_PLANE_URL,
+    shareableWebUrl: localServer.getShareableWebUrl(),
+    desktopSettings: localServer.getSettings(),
   }, null, 2);
+}
+
+async function showAboutDialog() {
+  await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: `关于 ${APP_NAME}`,
+    message: `${APP_NAME} v${app.getVersion()}`,
+    detail: [
+      '一个基于 Web 的 Claude Code CLI 界面。',
+      '',
+      `开发者：richard`,
+      `邮箱：liuyngchng@hotmail.com`,
+      '',
+      `版本：${app.getVersion()}`,
+    ].join('\n'),
+  });
 }
 
 async function copyDiagnostics() {
   clipboard.writeText(getDiagnosticsText());
-  await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
+  await dialog.showMessageBox(mainWindow, {
     type: 'info',
     title: '已复制诊断信息',
     message: 'rdCLI 桌面端诊断信息已复制到剪贴板。',
   });
 }
 
-async function refreshCloudEnvironments({ showErrors = false } = {}) {
-  isRefreshingCloud = true;
-  syncDesktopState();
-  try {
-    return await cloud.refreshCloudEnvironments();
-  } catch (error) {
-    const authState = cloud.getAuthState();
-    if (authState === 'expired') {
-      const expiredError = new Error('您的 rdCLI 会话已过期，请重新连接账号。');
-      if (showErrors) {
-        await showError('需要 rdCLI 登录', expiredError);
-        return [];
-      }
-      throw expiredError;
-    }
-    if (showErrors) {
-      await showError('无法加载 rdCLI 环境', error);
-      return [];
-    }
-    throw error;
-  } finally {
-    isRefreshingCloud = false;
-    void desktopNotifications?.sync().catch((error) => console.error('[DesktopNotifications] sync failed:', error?.message || error));
-    syncDesktopState();
-  }
-}
-
-async function connectCloudAccount() {
-  const connectUrl = cloud.buildConnectUrl();
-  pendingCloudConnectStartedAt = Date.now();
-  clipboard.writeText(connectUrl);
-  await openExternalUrl(connectUrl);
-  return connectUrl;
-}
-
-async function handleDeepLink(url) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return;
-  }
-
-  if (parsed.protocol !== `${CALLBACK_PROTOCOL}:` || parsed.hostname !== 'auth') {
-    return;
-  }
-
-  if (!pendingCloudConnectStartedAt || Date.now() - pendingCloudConnectStartedAt > AUTH_CALLBACK_TTL_MS) {
-    await showError('rdCLI 账号连接失败', new Error('应用未发起过 rdCLI 账号连接。'));
-    return;
-  }
-
-  const apiKey = parsed.searchParams.get('api_key');
-  if (!apiKey) {
-    await showError('rdCLI 账号连接失败', new Error('回调中未包含 API 密钥。'));
-    return;
-  }
-
-  await cloud.saveFromCallback({
-    apiKey,
-    email: parsed.searchParams.get('email'),
-  });
-  pendingCloudConnectStartedAt = 0;
-  await refreshCloudEnvironments({ showErrors: true });
-
-  dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-    type: 'info',
-    title: 'rdCLI 账号已连接',
-    message: cloud.getAccount()?.email ? `已以 ${cloud.getAccount().email} 身份连接。` : 'rdCLI 账号已连接。',
-  }).catch(() => {});
-}
-
-async function copyLocalWebUrl() {
-  await localServer.ensureLocalServer();
-  const shareableUrl = localServer.getShareableWebUrl();
-  const localUrl = localServer.getLocalServerUrl();
-
-  if (!shareableUrl) {
-    throw new Error('本地 rdCLI 地址尚不可用。');
-  }
-
-  clipboard.writeText(shareableUrl);
-  const isLanUrl = shareableUrl !== localUrl;
-  await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-    type: 'info',
-    title: '已复制 Web 地址',
-    message: isLanUrl ? '局域网地址已复制。' : '本地地址已复制。',
-    detail: isLanUrl
-      ? `${shareableUrl}\n\n可在同一网络下的其他设备上使用此地址。`
-      : `${shareableUrl}\n\n此地址仅在本机可用。如需手机可访问的地址，请先启用局域网访问再启动本地 rdCLI。`,
-  });
-
-  return getDesktopState();
-}
-
-async function openLocalWebUi() {
-  await localServer.ensureLocalServer();
-  const url = localServer.getShareableWebUrl() || localServer.getLocalServerUrl();
-  if (!url) {
-    throw new Error('本地 rdCLI 地址尚不可用。');
-  }
-
-  await openExternalUrl(url);
-  return getDesktopState();
-}
-
-async function updateDesktopSetting(key, value) {
-  const result = await localServer.updateDesktopSetting(key, value);
-  syncDesktopState();
-
-  if (result.requiresRestartNotice) {
-    await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-      type: 'info',
-      title: '重启本地服务后生效',
-      message: '局域网访问的更改将在本地服务下次启动时生效。',
-      detail: '退出 rdCLI 并停止本地服务，然后重新打开本地 rdCLI。',
-    });
-  }
-
-  return getDesktopState();
-}
-
-async function showEnvironmentPicker() {
-  let environments = cloud.getEnvironments();
-  let refreshError = null;
-
-  if (cloud.getAccount()?.apiKey) {
-    try {
-      environments = await refreshCloudEnvironments({ showErrors: false });
-    } catch (error) {
-      refreshError = error;
-      console.warn('[Cloud] Could not refresh environments before showing picker:', error?.message || error);
-    }
-  }
-
-  const choices = ['Local rdCLI', ...environments.map((environment) => {
-    const status = environment.status === 'running' ? '' : ` (${environment.status})`;
-    return `${environment.name || environment.subdomain}${status}`;
-  })];
-
-  const response = await dialog.showMessageBox(desktopWindow?.getMainWindow(), {
-    type: 'question',
-    buttons: [...choices, '取消'],
-    defaultId: 0,
-    cancelId: choices.length,
-    title: '切换 rdCLI 环境',
-    message: '选择此桌面窗口要连接的目标。',
-    detail: refreshError ? `云端环境刷新失败，当前显示缓存的环境。\n\n${refreshError.message || refreshError}` : undefined,
-  });
-
-  if (response.response === choices.length) return getDesktopState();
-  if (response.response === 0) return openLocalInDesktop();
-  return openEnvironmentInDesktop(environments[response.response - 1]);
-}
-
-async function startEnvironment(environment) {
-  await cloud.startEnvironmentAndWait(environment, REMOTE_START_TIMEOUT_MS);
-  await refreshCloudEnvironments({ showErrors: true });
-  return getDesktopState();
-}
-
-async function stopEnvironment(environment) {
-  await cloud.stopEnvironment(environment);
-  await refreshCloudEnvironments({ showErrors: true });
-  return getDesktopState();
-}
-
-async function openEnvironmentInBrowser(environment) {
-  await openExternalUrl(await cloud.getEnvironmentLaunchUrl(environment));
-  return getDesktopState();
-}
-
-function getProjectFolder(environment) {
-  return String(environment.name || environment.subdomain || 'workspace').replace(/[^a-zA-Z0-9-]/g, '');
-}
-
-function getSshTarget(credentials) {
-  if (credentials.ssh_command) {
-    const parts = String(credentials.ssh_command).split(/\s+/);
-    if (parts.length >= 2) return parts[1];
-  }
-  return `${credentials.username}@ssh.rdcli.ai`;
-}
-
-function getSshHost(credentials) {
-  const target = getSshTarget(credentials);
-  const atIndex = target.indexOf('@');
-  return atIndex >= 0 ? target.slice(atIndex + 1) : 'ssh.rdcli.ai';
-}
-
-function getSafeSshUsername(credentials) {
-  const username = String(credentials.username || '');
-  if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
-    throw new Error('Cloud environment returned an invalid SSH username.');
-  }
-  return username;
-}
-
-function getSafeSshHost(credentials) {
-  const host = getSshHost(credentials);
-  if (!/^[a-zA-Z0-9.-]+$/.test(host)) {
-    throw new Error('Cloud environment returned an invalid SSH host.');
-  }
-  return host;
-}
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-async function getEnvironmentCredentials(environment) {
-  const credentials = await cloud.getEnvironmentCredentials(environment);
-  if (credentials.password) {
-    clipboard.writeText(credentials.password);
-  }
-  return credentials;
-}
-
-async function openEnvironmentInIde(environment, ide) {
-  const credentials = await getEnvironmentCredentials(environment);
-  const scheme = ide === 'cursor' ? 'cursor' : 'vscode';
-  const remoteUri = `${scheme}://vscode-remote/ssh-remote+${getSafeSshUsername(credentials)}@${getSafeSshHost(credentials)}/workspace/${getProjectFolder(environment)}?windowId=_blank`;
-  await shell.openExternal(remoteUri);
-  return getDesktopState();
-}
-
-async function openEnvironmentInSsh(environment) {
-  const credentials = await getEnvironmentCredentials(environment);
-  const remoteCommand = `cd /workspace/${getProjectFolder(environment)} && exec $SHELL -l`;
-  const sshCommand = `ssh -t ${shellQuote(getSshTarget(credentials))} ${shellQuote(remoteCommand)}`;
-
-  if (process.platform === 'darwin') {
-    const escaped = sshCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    spawn('osascript', ['-e', `tell application "Terminal" to do script "${escaped}"`], {
-      detached: true,
-      stdio: 'ignore',
-    }).unref();
-  } else {
-    clipboard.writeText(sshCommand);
-    await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-      type: 'info',
-      title: '已复制 SSH 命令',
-      message: 'SSH 命令已复制到剪贴板。',
-      detail: sshCommand,
-    });
-  }
-
-  return getDesktopState();
-}
-
-async function copyEnvironmentMobileUrl(environment) {
-  const url = cloud.getEnvironmentUrl(environment);
-  clipboard.writeText(url);
-  await dialog.showMessageBox(desktopWindow?.getMainWindow() || undefined, {
-    type: 'info',
-    title: '已复制环境地址',
-    message: '可在手机浏览器中使用此地址。',
-    detail: url,
-  });
-  return getDesktopState();
-}
-
-async function openCloudDashboard() {
-  await openExternalUrl(RDCLI_CONTROL_PLANE_URL);
-  return getDesktopState();
-}
-
-function getActiveRemoteEnvironment() {
-  if (activeTarget?.kind !== 'remote') return null;
-  return cloud.findEnvironment(activeTarget.id);
-}
-
-async function runActiveEnvironmentAction(action) {
-  const environment = getActiveRemoteEnvironment();
-  if (!environment) {
-    throw new Error('请先打开一个云端环境。');
-  }
-
-  switch (action) {
-    case 'web':
-      return openEnvironmentInBrowser(environment);
-    case 'vscode':
-      return openEnvironmentInIde(environment, 'vscode');
-    case 'cursor':
-      return openEnvironmentInIde(environment, 'cursor');
-    case 'ssh':
-      return openEnvironmentInSsh(environment);
-    case 'mobile':
-      return copyEnvironmentMobileUrl(environment);
-    default:
-      throw new Error(`未知的环境操作：${action}`);
-  }
-}
-
-async function openLocalInDesktop() {
-  const existingTab = tabs.getTab('local');
-  if (existingTab && localServer.getLocalServerUrl()) {
-    await desktopWindow.showTarget(await localServer.getResolvedTarget());
-    return getDesktopState();
-  }
-
-  const pendingTarget = localServer.getPendingTarget();
-  tabs.upsertTarget(pendingTarget);
-  setActiveTarget(pendingTarget);
-  desktopWindow.emitDesktopState();
-
-  const target = await localServer.getResolvedTarget();
-  await desktopWindow.showTarget(target);
-  return getDesktopState();
-}
-
-async function openEnvironmentInDesktop(environment) {
-  const pendingTarget = getEnvironmentTarget(environment);
-  const tabId = tabs.getTabIdForTarget(pendingTarget);
-  const hadTab = Boolean(tabs.getTab(tabId));
-  const previousTabId = tabs.activeTabId;
-
-  if (!hadTab) {
-    await desktopWindow.showTabPlaceholder(
-      pendingTarget,
-      `${environment.status === 'running' ? 'Opening' : 'Starting'} ${pendingTarget.name}...`,
-    );
-    tabs.upsertTarget(pendingTarget);
-    desktopWindow.emitDesktopState();
-  }
-
-  let nextEnvironment = environment;
-
-  if (environment.status !== 'running') {
-    const response = await dialog.showMessageBox(desktopWindow?.getMainWindow(), {
-      type: 'question',
-      buttons: ['启动环境', '取消'],
-      defaultId: 0,
-      cancelId: 1,
-      title: '启动环境？',
-      message: `${pendingTarget.name} 当前状态：${environment.status}。`,
-      detail: 'rdCLI 可在打开远程应用前先启动它。',
-    });
-
-    if (response.response !== 0) {
-      if (!hadTab) {
-        tabs.remove(tabId);
-        desktopWindow.destroyTabView(tabId);
-        if (previousTabId && previousTabId !== tabId) {
-          await desktopWindow.switchDesktopTab(previousTabId);
-        } else {
-          await desktopWindow.showLauncher();
-        }
-      }
-      return getDesktopState();
-    }
-
-    if (hadTab) {
-      await desktopWindow.showTabPlaceholder(pendingTarget, `正在启动 ${pendingTarget.name}...`);
-      tabs.upsertTarget(pendingTarget);
-      desktopWindow.emitDesktopState();
-    }
-
-    nextEnvironment = await cloud.startEnvironmentAndWait(environment, REMOTE_START_TIMEOUT_MS);
-  }
-
-  let target = getEnvironmentTarget(nextEnvironment);
-  if (!(await hasCloudWebSession())) {
-    target = await getEnvironmentLaunchTarget(nextEnvironment);
-  }
-
-  const usedBootstrap = Boolean(target.loadUrl);
-  const finalUrl = await desktopWindow.showTarget(target);
-  if (!usedBootstrap && isCloudAuthRedirect(finalUrl)) {
-    const bootstrapTarget = await getEnvironmentLaunchTarget(nextEnvironment);
-    bootstrapTarget.forceLoad = true;
-    await desktopWindow.showTarget(bootstrapTarget);
-  }
-  return getDesktopState();
-}
-
-function findEnvironmentByUrl(environmentUrl) {
-  const targetOrigin = (() => {
-    try {
-      return new URL(environmentUrl).origin;
-    } catch {
-      return null;
-    }
-  })();
-  if (!targetOrigin) return null;
-
-  return cloud.getEnvironments().find((environment) => {
-    try {
-      return new URL(cloud.getEnvironmentUrl(environment)).origin === targetOrigin;
-    } catch {
-      return false;
-    }
-  }) || null;
-}
-
-async function openNotificationTarget({ environmentUrl, sessionId = null }) {
-  const window = desktopWindow?.getMainWindow();
-  if (window) {
-    if (window.isMinimized()) window.restore();
-    window.show();
-    window.focus();
-  }
-
-  const environment = findEnvironmentByUrl(environmentUrl);
-  if (environment) {
-    await openEnvironmentInDesktop(environment);
-  } else {
-    const parsed = new URL(environmentUrl);
-    await desktopWindow.showTarget({
-      kind: 'remote',
-      name: parsed.hostname,
-      url: parsed.origin,
-    });
-  }
-
-  const targetUrl = new URL(sessionId ? `/session/${encodeURIComponent(sessionId)}` : '/', environmentUrl).toString();
-  await desktopWindow.navigateActiveView(targetUrl);
-  return getDesktopState();
-}
-
-async function getEnvironmentAuthToken(environmentUrl) {
-  return (await desktopWindow?.readAuthTokenForTarget(environmentUrl)) || null;
-}
-
-async function clearCloudAccount() {
-  await cloud.clearCloudAccount();
-  desktopNotifications?.stop();
-  const removedTabs = tabs.removeByKind('remote');
-  for (const tab of removedTabs) {
-    desktopWindow?.destroyTabView(tab.id);
-  }
-  if (activeTarget?.kind === 'remote') {
-    await desktopWindow?.showLauncher();
-  } else {
-    syncDesktopState();
-  }
-  return getDesktopState();
-}
-
-function getRemoteEnvironmentMenuItems() {
-  const cloudAccount = cloud.getAccount();
-  const environments = cloud.getEnvironments();
-
-  if (!cloudAccount?.apiKey) {
-    return [{ label: '连接 rdCLI 账号...', click: () => void connectCloudAccount() }];
-  }
-
-  if (!environments.length) {
-    return [{ label: '未找到环境', enabled: false }];
-  }
-
-  return environments.map((environment) => ({
-    label: `${environment.name || environment.subdomain}${environment.status === 'running' ? '' : ` (${environment.status})`}`,
-    click: () => void openEnvironmentInDesktop(environment)
-      .catch((error) => showError('无法打开环境', error)),
-  }));
-}
-
-function registerProtocolHandler() {
-  const appEntry = path.join(getAppRoot(), 'electron', 'main.js');
-  if (process.defaultApp && process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL, process.execPath, [appEntry]);
-  } else {
-    app.setAsDefaultProtocolClient(CALLBACK_PROTOCOL);
-  }
-}
-
 function registerIpcHandlers() {
-  ipcMain.handle('rdcli-desktop:connect-cloud', async () => ({
-    ...getDesktopState(),
-    connectUrl: await connectCloudAccount(),
-  }));
-
-  ipcMain.handle('rdcli-desktop:copy-diagnostics', async () => {
-    await copyDiagnostics();
-    return getDesktopState();
-  });
-
-  ipcMain.handle('rdcli-desktop:copy-local-web-url', async () => copyLocalWebUrl());
   ipcMain.handle('rdcli-desktop:get-state', () => getDesktopState());
-  ipcMain.handle('rdcli-desktop:open-cloud-dashboard', async () => openCloudDashboard());
-  ipcMain.handle('rdcli-desktop:run-active-environment-action', async (_event, action) => runActiveEnvironmentAction(action));
-  ipcMain.handle('rdcli-desktop:open-environment', async (_event, environmentId) => {
-    const environment = cloud.findEnvironment(environmentId);
-    if (!environment) {
-      throw new Error('环境未找到，请刷新后重试。');
-    }
-    return openEnvironmentInDesktop(environment);
-  });
-  ipcMain.handle('rdcli-desktop:open-local', async () => openLocalInDesktop());
-  ipcMain.handle('rdcli-desktop:open-local-web-ui', async () => openLocalWebUi());
-  ipcMain.handle('rdcli-desktop:refresh-environments', async () => {
-    await refreshCloudEnvironments({ showErrors: true });
+  ipcMain.handle('rdcli-desktop:copy-diagnostics', async () => { await copyDiagnostics(); return getDesktopState(); });
+  ipcMain.handle('rdcli-desktop:copy-local-web-url', async () => {
+    const url = localServer.getShareableWebUrl() || localServer.getLocalServerUrl();
+    if (url) clipboard.writeText(url);
     return getDesktopState();
   });
-  ipcMain.handle('rdcli-desktop:disconnect-cloud', async () => clearCloudAccount());
-  ipcMain.handle('rdcli-desktop:reload-active-tab', async () => desktopWindow.reloadActiveTab());
-  ipcMain.handle('rdcli-desktop:show-environment-picker', async () => showEnvironmentPicker());
-  ipcMain.handle('rdcli-desktop:show-launcher', async () => {
-    await desktopWindow.showLauncher();
+  ipcMain.handle('rdcli-desktop:update-desktop-notifications', async () => getDesktopState());
+  ipcMain.handle('rdcli-desktop:update-setting', async (_event, key, value) => {
+    await localServer.updateDesktopSetting(key, value);
     return getDesktopState();
   });
-  ipcMain.handle('rdcli-desktop:update-desktop-notifications', async (_event, settings) => {
-    await desktopNotifications?.saveSettings(settings);
-    return getDesktopState();
+}
+
+async function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 960,
+    minWidth: 800,
+    minHeight: 600,
+    show: false,
+    backgroundColor: '#0f172a',
+    title: APP_NAME,
+    icon: getWindowIconPath(),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: getPreloadPath(),
+    },
   });
-  ipcMain.handle('rdcli-desktop:show-desktop-settings', async () => desktopWindow.showDesktopSettings());
-  ipcMain.handle('rdcli-desktop:show-local-settings', async () => desktopWindow.showLocalSettings());
-  ipcMain.handle('rdcli-desktop:close-settings-window', async () => {
-    desktopWindow.closeSettingsWindow();
-    return getDesktopState();
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
   });
-  ipcMain.handle('rdcli-desktop:show-active-environment-actions-menu', async () => desktopWindow.showActiveEnvironmentActionsMenu());
-  ipcMain.handle('rdcli-desktop:show-environment-actions-menu', async (_event, environmentId) => desktopWindow.showEnvironmentActionsMenu(environmentId));
-  ipcMain.handle('rdcli-desktop:switch-tab', async (_event, tabId) => desktopWindow.switchDesktopTab(tabId));
-  ipcMain.handle('rdcli-desktop:close-tab', async (_event, tabId) => desktopWindow.closeDesktopTab(tabId));
-  ipcMain.handle('rdcli-desktop:update-setting', async (_event, key, value) => updateDesktopSetting(key, value));
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  buildAppMenu();
+
+  // Show loading spinner while server starts
+  await mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildLoadingHtml())}`);
+
+  // Start local server and navigate to it
+  try {
+    const url = await loadLocalServerUrl();
+    mainWindow.setTitle(`${APP_NAME} - ${url}`);
+  } catch (error) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'rdCLI 启动失败',
+      message: '本地 rdCLI 服务启动失败。',
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    app.quit();
+  }
 }
 
 function registerAppEvents() {
-  app.on('open-url', (event, url) => {
-    event.preventDefault();
-    void handleDeepLink(url);
-  });
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      if (desktopWindow) {
-        void desktopWindow.createWindow();
-      } else {
-        void createDesktopWindow();
-      }
-      return;
+      void createWindow();
+    } else if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
     }
-
-    const window = desktopWindow?.getMainWindow();
-    if (window) {
-      window.show();
-      window.focus();
-    }
-  });
-
-  app.on('before-quit', () => {
-    desktopNotifications?.stop();
   });
 
   app.on('before-quit', (event) => {
@@ -804,50 +267,6 @@ function registerAppEvents() {
   });
 }
 
-async function createDesktopWindow() {
-  desktopWindow = new DesktopWindowManager({
-    appName: APP_NAME,
-    getWindowIconPath,
-    getLauncherPath,
-    getPreloadPath,
-    openExternalUrl,
-    getDesktopState,
-    getDisplayTargetName,
-    getRemoteEnvironmentMenuItems,
-    getCloudState,
-    getLocalState,
-    tabs,
-    actions: {
-      copyDiagnostics,
-      copyText: (text) => clipboard.writeText(text),
-      clearCloudAccount,
-      connectCloudAccount,
-      getActiveTarget: () => activeTarget,
-      getEnvironmentUrl: (environment) => cloud.getEnvironmentUrl(environment),
-      openEnvironmentInBrowser,
-      openEnvironmentInDesktop,
-      openEnvironmentInIde,
-      openEnvironmentInSsh,
-      openLocalInDesktop,
-      openLocalWebUi,
-      openCloudDashboard,
-      refreshCloudEnvironments: () => refreshCloudEnvironments({ showErrors: true }),
-      setActiveTarget,
-      showEnvironmentPicker,
-      showError,
-      startEnvironment,
-      stopEnvironment,
-      updateDesktopSetting,
-      copyLocalWebUrl,
-      openNotificationTarget,
-    },
-  });
-
-  desktopWindow.createTray();
-  desktopWindow.configurePermissions();
-  await desktopWindow.createWindow();
-}
-
 function registerSingleInstance() {
   const gotSingleInstanceLock = app.requestSingleInstanceLock();
   if (!gotSingleInstanceLock) {
@@ -855,17 +274,11 @@ function registerSingleInstance() {
     return false;
   }
 
-  app.on('second-instance', (_event, argv) => {
-    const deepLink = argv.find((arg) => arg.startsWith(`${CALLBACK_PROTOCOL}://`));
-    if (deepLink) {
-      void handleDeepLink(deepLink);
-    }
-
-    const window = desktopWindow?.getMainWindow();
-    if (window) {
-      if (window.isMinimized()) window.restore();
-      window.show();
-      window.focus();
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
 
@@ -890,49 +303,24 @@ async function bootstrap() {
     settingsPath: getSettingsPath(),
     isPackaged: app.isPackaged,
     appVersion: app.getVersion(),
-    onChange: syncDesktopState,
-  });
-  cloud = new CloudController({
-    storePath: getStorePath(),
-    controlPlaneUrl: RDCLI_CONTROL_PLANE_URL,
-    callbackUrl: CALLBACK_URL,
-    onChange: syncDesktopState,
-  });
-  desktopNotifications = new DesktopNotificationsController({
-    settingsPath: getDesktopNotificationsSettingsPath(),
-    appVersion: app.getVersion(),
-    appName: APP_NAME,
-    getDeviceId: () => cloud.getAccount()?.deviceId || '',
-    getAccountEmail: () => cloud.getAccount()?.email || null,
-    getRunningEnvironmentUrls,
-    getApiKey: () => cloud.getAccount()?.apiKey || '',
-    getAuthToken: getEnvironmentAuthToken,
-    getIconPath: getWindowIconPath,
-    openNotificationTarget,
-    onChange: syncDesktopState,
+    onChange: () => {},
   });
 
   await localServer.loadDesktopSettings();
-  await cloud.loadCloudAccount();
-  await desktopNotifications.loadSettings();
 
-  registerProtocolHandler();
   registerIpcHandlers();
   registerAppEvents();
-  await createDesktopWindow();
-  void refreshCloudEnvironments({ showErrors: false });
-
-  // 简化启动流程：跳过启动器选择页，直接启动本地 rdCLI 并打开登录界面。
-  // 启动失败时提示错误并退回启动器，方便用户查看日志或重试。
-  void openLocalInDesktop().catch(async (error) => {
-    await showError('本地 rdCLI 启动失败', error);
-    await desktopWindow?.showLauncher();
-  });
+  await createWindow();
 }
 
 if (registerSingleInstance()) {
   bootstrap().catch(async (error) => {
-    await showError('rdCLI 启动失败', error);
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'rdCLI 启动失败',
+      message: 'rdCLI 启动失败。',
+      detail: error instanceof Error ? error.message : String(error),
+    });
     app.quit();
   });
 }

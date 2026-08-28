@@ -55,5 +55,4 @@ if [ -f user_manual.md ]; then
 fi
 
 version=$(node -p "require('./package.json').version")
-echo "✅ 完成：release/desktop/rdcli-desktop-${version}-linux-x64.AppImage"
-echo "        release/desktop/rdcli-desktop-${version}-linux-x64.deb"
+echo "✅ 完成：release/desktop/rdcli-desktop-${version}-linux-x86_64.AppImage"
