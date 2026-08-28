@@ -34,11 +34,15 @@ export ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-
 echo '==> 安装依赖（首次较慢，之后基本秒过）'
 npm install --registry=https://registry.npmmirror.com
 
-# ---- 3. 生成 desktop stage -------------------------------------------------
+# ---- 3. 构建前端 + 后端 ----------------------------------------------------
+echo '==> 构建前端 (dist/) 与后端 (dist-server/)'
+npm run build
+
+# ---- 4. 生成 desktop stage -------------------------------------------------
 echo '==> 生成 desktop stage'
 npm run desktop:stage
 
-# ---- 4. 打包 ---------------------------------------------------------------
+# ---- 5. 打包 ---------------------------------------------------------------
 echo '==> 开始打包 Linux 版（首次会下载 Linux 版 electron）'
 if [[ "${1:-}" == "appimage" ]]; then
   npx electron-builder --projectDir .desktop-build/desktop-app --linux AppImage
