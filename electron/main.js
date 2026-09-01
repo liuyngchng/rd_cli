@@ -59,6 +59,9 @@ function createSplashWindow() {
     height: 300,
     frame: false,
     transparent: true,
+    // Windows 上不显式声明透明背景时，即使 transparent:true 也可能回退为白底，
+    // 这里与 settings 窗口保持一致，强制使用全透明背景。
+    backgroundColor: '#00000000',
     resizable: false,
     movable: true,
     alwaysOnTop: true,
@@ -229,11 +232,15 @@ async function createWindow() {
     backgroundColor: '#0f172a',
     title: APP_NAME,
     icon: getWindowIconPath(),
+    // 隐藏窗口时仍持续绘制帧，确保 show() 时第一帧就是已渲染好的登录界面，
+    // 而不是先闪一帧深色背景再合成内容。
+    paintWhenInitiallyHidden: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       preload: getPreloadPath(),
+      backgroundThrottling: false,
     },
   });
 
@@ -243,21 +250,52 @@ async function createWindow() {
   });
 
   let revealed = false;
-  const reveal = () => {
+  let revealFallbackTimer = null;
+  let mainWindowLoadFinished = false;
+  let reactAppReady = false;
+
+  function tryReveal() {
     if (revealed || !mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindowLoadFinished || !reactAppReady) return;
     revealed = true;
+    if (revealFallbackTimer) {
+      clearTimeout(revealFallbackTimer);
+      revealFallbackTimer = null;
+    }
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
     }
+    // paintWhenInitiallyHidden + backgroundThrottling:false 确保隐藏期间
+    // 渲染器持续绘制帧，show() 的第一帧就是已渲染好的登录界面。
     mainWindow.show();
     mainWindow.focus();
-  };
+  }
 
-  // 等到页面真正加载完成（React 挂载、资源就绪）后再显示主窗口，
-  // 避免 splash 消失后出现一段空白深色窗口。
-  mainWindow.webContents.once('did-finish-load', reveal);
+  // 两个信号缺一不可，同时满足才切换窗口：
+  // 1. did-finish-load — HTML/CSS/JS 已加载
+  // 2. rdcli-desktop:ready — React 已渲染出登录/设置界面，关闭 splash 完成切换
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindowLoadFinished = true;
+    tryReveal();
+  });
+
+  ipcMain.once('rdcli-desktop:ready', () => {
+    reactAppReady = true;
+    tryReveal();
+  });
+
+  // 兜底：即使某一路信号丢失（渲染崩溃等），也确保主窗口最终能显示
+  revealFallbackTimer = setTimeout(() => {
+    mainWindowLoadFinished = true;
+    reactAppReady = true;
+    tryReveal();
+  }, 15000);
 
   mainWindow.on('closed', () => {
+    if (revealFallbackTimer) {
+      clearTimeout(revealFallbackTimer);
+      revealFallbackTimer = null;
+    }
     mainWindow = null;
   });
 

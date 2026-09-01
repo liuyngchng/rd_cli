@@ -25,5 +25,6 @@ if (isrdCLIAppOrigin(window.location)) {
     getState: () => ipcRenderer.invoke('rdcli-desktop:get-state'),
     update: (settings) => ipcRenderer.invoke('rdcli-desktop:update-desktop-notifications', settings),
     onStateUpdated: onDesktopStateUpdated,
+    notifyReady: () => ipcRenderer.send('rdcli-desktop:ready'),
   });
 }

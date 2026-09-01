@@ -61,6 +61,7 @@ if (Test-Path $envSourceFile) {
 # ---- 4. 复制用户手册 --------------------------------------------------------
 # Copy user manual (user_manual.md → 用户手册.md) to the zip root so users
 # can find it alongside rdCLI.exe after unzipping.
+$srcDir = 'release\desktop\win-unpacked'
 $manualSrc = 'user_manual.md'
 if (Test-Path $manualSrc) {
   Copy-Item $manualSrc "$srcDir\用户手册.md" -Force
@@ -69,7 +70,6 @@ if (Test-Path $manualSrc) {
 
 # ---- 5. 压缩为 zip ---------------------------------------------------------
 $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-$srcDir = 'release\desktop\win-unpacked'
 $outZip = "release\rdcli-desktop-$version-win-x64.zip"
 
 if (-not (Test-Path $srcDir)) { throw "打包产物缺失: $srcDir" }
