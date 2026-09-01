@@ -14,6 +14,7 @@ if (process.platform === 'win32') {
 }
 
 let mainWindow = null;
+let splashWindow = null;
 let localServer = null;
 let isQuitting = false;
 
@@ -48,18 +49,49 @@ function getDesktopState() {
   };
 }
 
-function buildLoadingHtml() {
-  return [
-    '<!doctype html><meta charset="utf-8">',
-    '<style>',
-    'html,body{margin:0;height:100%;background:#0f172a;color:#e2e8f0;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}',
-    '.spinner{width:32px;height:32px;border:3px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}',
-    '@keyframes spin{to{transform:rotate(360deg)}}',
-    '.logo{width:48px;height:48px;opacity:.6}',
-    '</style>',
-    '<div class="spinner"></div>',
-    '<div>正在启动 rdCLI...</div>',
-  ].join('');
+function getSplashHtmlPath() {
+  return path.join(__dirname, 'splash.html');
+}
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 380,
+    height: 300,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    icon: getWindowIconPath(),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+
+  splashWindow.once('ready-to-show', () => {
+    splashWindow?.show();
+  });
+
+  void splashWindow.loadFile(getSplashHtmlPath());
+}
+
+function sendSplashProgress(message) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.executeJavaScript(`
+      (function() {
+        var el = document.getElementById('progress-text');
+        if (el) el.textContent = ${JSON.stringify(message)};
+      })();
+    `).catch(() => {});
+  }
 }
 
 async function loadLocalServerUrl() {
@@ -210,9 +242,20 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-  });
+  let revealed = false;
+  const reveal = () => {
+    if (revealed || !mainWindow || mainWindow.isDestroyed()) return;
+    revealed = true;
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  };
+
+  // 等到页面真正加载完成（React 挂载、资源就绪）后再显示主窗口，
+  // 避免 splash 消失后出现一段空白深色窗口。
+  mainWindow.webContents.once('did-finish-load', reveal);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -220,15 +263,15 @@ async function createWindow() {
 
   buildAppMenu();
 
-  // Show loading spinner while server starts
-  await mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildLoadingHtml())}`);
-
   // Start local server and navigate to it
   try {
     const url = await loadLocalServerUrl();
     mainWindow.setTitle(`${APP_NAME} - ${url}`);
   } catch (error) {
-    await dialog.showMessageBox(mainWindow, {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    await dialog.showMessageBox({
       type: 'error',
       title: 'rdCLI 启动失败',
       message: '本地 rdCLI 服务启动失败。',
@@ -298,12 +341,15 @@ async function bootstrap() {
     copyright: 'rdCLI',
   });
 
+  createSplashWindow();
+
   localServer = new LocalServerController({
     appRoot: getAppRoot(),
     settingsPath: getSettingsPath(),
     isPackaged: app.isPackaged,
     appVersion: app.getVersion(),
     onChange: () => {},
+    onProgress: (message) => sendSplashProgress(message),
   });
 
   await localServer.loadDesktopSettings();

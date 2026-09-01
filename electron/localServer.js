@@ -259,12 +259,13 @@ async function waitForrdCLIServer(baseUrl, timeoutMs) {
 }
 
 export class LocalServerController {
-  constructor({ appRoot, settingsPath, isPackaged = false, appVersion, onChange }) {
+  constructor({ appRoot, settingsPath, isPackaged = false, appVersion, onChange, onProgress }) {
     this.appRoot = appRoot;
     this.settingsPath = settingsPath;
     this.isPackaged = isPackaged;
     this.appVersion = appVersion;
     this.onChange = onChange;
+    this.onProgress = onProgress || (() => {});
     this.localServerUrl = null;
     this.localServerPort = null;
     this.ownedServerProcess = null;
@@ -399,6 +400,7 @@ export class LocalServerController {
       throw new Error('无法安装本地服务：应用版本未知。');
     }
     const bundleConfig = await readServerBundleConfig(this.appRoot);
+    this.onProgress('正在准备服务运行环境…');
     const installer = new ServerInstaller({
       version: this.appVersion,
       bundleReleaseTag: bundleConfig.releaseTag,
@@ -469,6 +471,7 @@ export class LocalServerController {
     const forceOwnServer = process.env.ELECTRON_FORCE_OWN_SERVER === '1';
 
     if (devUrl) {
+      this.onProgress('正在等待开发后端就绪…');
       const ready = await waitForrdCLIServer(defaultUrl, SERVER_START_TIMEOUT_MS);
       if (!ready) {
         throw new Error(`开发后端未在 ${defaultDisplayUrl} 就绪`);
@@ -478,6 +481,7 @@ export class LocalServerController {
     }
 
     if (!forceOwnServer) {
+      this.onProgress('正在检查现有本地服务…');
       const candidateUrls = await getExistingServerCandidateUrls(defaultUrl);
       for (const candidateUrl of candidateUrls) {
         if (await isrdCLIServer(candidateUrl)) {
@@ -495,8 +499,10 @@ export class LocalServerController {
     const serverUrl = `http://${HOST}:${port}`;
     const displayUrl = `http://${DISPLAY_HOST}:${port}`;
     this.localServerPort = port;
+    this.onProgress('正在启动本地服务进程…');
     this.startBundledServer(port, serverEntry);
 
+    this.onProgress('正在等待服务就绪…');
     const ready = await waitForrdCLIServer(serverUrl, SERVER_START_TIMEOUT_MS);
     if (!ready) {
       const recentLogs = this.getStartupLogs().slice(-20).join('\n');
@@ -517,6 +523,7 @@ export class LocalServerController {
   async ensureLocalServer() {
     if (!this.localServerUrl) {
       this.localServerUrl = await this.resolveLocalServerUrl();
+      this.onProgress('服务已就绪，正在加载界面…');
     }
     return this.localServerUrl;
   }
