@@ -30,6 +30,9 @@ function getWindowIconPath() {
   if (process.platform === 'darwin') {
     return path.join(getAppRoot(), 'electron', 'assets', 'logo-macos.png');
   }
+  if (process.platform === 'win32') {
+    return path.join(getAppRoot(), 'electron', 'assets', 'logo-windows.ico');
+  }
   return path.join(getAppRoot(), 'public', 'logo-512.png');
 }
 
