@@ -1,5 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { LocalServerController } from './localServer.js';
@@ -159,6 +161,13 @@ function buildAppMenu() {
       ],
     },
     {
+      label: '工具',
+      submenu: [
+        { label: '安装桌面快捷方式', click: () => void installDesktopShortcut() },
+        { label: '移除桌面快捷方式', click: () => void removeDesktopShortcut() },
+      ],
+    },
+    {
       label: '帮助',
       submenu: [
         { label: '复制诊断信息', click: () => copyDiagnostics() },
@@ -208,6 +217,182 @@ async function copyDiagnostics() {
     title: '已复制诊断信息',
     message: 'rdCLI 桌面端诊断信息已复制到剪贴板。',
   });
+}
+
+// ---- 安装桌面快捷方式 ----
+
+function getDesktopEntryPath() {
+  return path.join(app.getPath('home'), '.local', 'share', 'applications', 'ai.rdcli.desktop');
+}
+
+function isDesktopEntryInstalled() {
+  return fs.existsSync(getDesktopEntryPath());
+}
+
+async function installDesktopShortcut() {
+  if (process.platform === 'linux') {
+    await installLinuxDesktopEntry();
+  } else if (process.platform === 'win32') {
+    await installWindowsShortcut();
+  }
+}
+
+async function installLinuxDesktopEntry() {
+  const desktopEntryPath = getDesktopEntryPath();
+  const appsDir = path.dirname(desktopEntryPath);
+  const iconDir = path.join(app.getPath('home'), '.local', 'share', 'icons', 'hicolor');
+
+  // 获取当前 AppImage 或可执行文件的路径
+  const execPath = app.isPackaged
+    ? process.env.APPIMAGE || process.execPath
+    : process.execPath;
+
+  // 获取源图标
+  let sourceIcon = path.join(getAppRoot(), 'electron', 'assets', 'logo-linux.png');
+  if (!fs.existsSync(sourceIcon)) {
+    sourceIcon = path.join(getAppRoot(), 'public', 'logo-512.png');
+  }
+
+  try {
+    // 1. 安装多尺寸图标
+    const sizes = [256, 128, 64, 48, 32];
+    for (const size of sizes) {
+      const destDir = path.join(iconDir, `${size}x${size}`, 'apps');
+      fs.mkdirSync(destDir, { recursive: true });
+      const destIcon = path.join(destDir, 'rdcli.png');
+
+      try {
+        // 优先用 ImageMagick resize，否则直接复制
+        execSync(`convert "${sourceIcon}" -resize "${size}x${size}" "${destIcon}"`, { stdio: 'ignore' });
+      } catch {
+        fs.copyFileSync(sourceIcon, destIcon);
+      }
+    }
+
+    // 2. 更新图标缓存
+    try { execSync('gtk-update-icon-cache -f -t "' + iconDir + '"', { stdio: 'ignore' }); } catch {}
+
+    // 3. 写入 .desktop 文件
+    fs.mkdirSync(appsDir, { recursive: true });
+    const desktopEntry = [
+      '[Desktop Entry]',
+      'Name=rdCLI',
+      'Comment=rdCLI Desktop Shell',
+      'GenericName=AI Coding Assistant',
+      `Exec=${execPath} --no-sandbox %U`,
+      'Terminal=false',
+      'Type=Application',
+      'Icon=rdcli',
+      'StartupWMClass=rdCLI',
+      'Categories=Development;Utility;',
+      'MimeType=x-scheme-handler/rdcli;',
+      'Keywords=AI;Claude;Code;Assistant;Terminal;',
+      '',
+    ].join('\n');
+    fs.writeFileSync(desktopEntryPath, desktopEntry, { mode: 0o755 });
+
+    // 4. 更新桌面数据库
+    try { execSync(`update-desktop-database "${appsDir}"`, { stdio: 'ignore' }); } catch {}
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '安装成功',
+      message: '桌面快捷方式已安装',
+      detail: '你可以按 Super 键搜索 "rdCLI" 来启动应用，或在应用菜单中找到它。',
+    });
+  } catch (err) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: '安装失败',
+      message: '无法安装桌面快捷方式',
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function installWindowsShortcut() {
+  try {
+    const execPath = app.isPackaged ? process.execPath : process.execPath;
+    const desktopDir = path.join(app.getPath('home'), 'Desktop');
+    const shortcutPath = path.join(desktopDir, 'rdCLI.lnk');
+    const iconPath = path.join(getAppRoot(), 'electron', 'assets', 'logo-windows.ico');
+
+    // 用 PowerShell 创建快捷方式
+    const psScript = [
+      `$WshShell = New-Object -ComObject WScript.Shell`,
+      `$Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")`,
+      `$Shortcut.TargetPath = "${execPath.replace(/\\/g, '\\\\')}"`,
+      `$Shortcut.Arguments = "--no-sandbox"`,
+      `$Shortcut.IconLocation = "${iconPath.replace(/\\/g, '\\\\')}"`,
+      `$Shortcut.Description = "rdCLI Desktop Shell"`,
+      `$Shortcut.WorkingDirectory = "${path.dirname(execPath).replace(/\\/g, '\\\\')}"`,
+      `$Shortcut.Save()`,
+    ].join('; ');
+
+    execSync(`powershell.exe -NoProfile -NonInteractive -Command "${psScript}"`, { stdio: 'ignore' });
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '安装成功',
+      message: '桌面快捷方式已创建',
+      detail: 'rdCLI 快捷方式已添加到桌面，你可以双击启动。',
+    });
+  } catch (err) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: '安装失败',
+      message: '无法创建桌面快捷方式',
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function removeDesktopShortcut() {
+  if (process.platform === 'linux') {
+    const desktopEntryPath = getDesktopEntryPath();
+    const iconDir = path.join(app.getPath('home'), '.local', 'share', 'icons', 'hicolor');
+    const appsDir = path.dirname(desktopEntryPath);
+
+    try {
+      if (fs.existsSync(desktopEntryPath)) fs.unlinkSync(desktopEntryPath);
+      for (const size of [256, 128, 64, 48, 32]) {
+        const iconPath = path.join(iconDir, `${size}x${size}`, 'apps', 'rdcli.png');
+        if (fs.existsSync(iconPath)) fs.unlinkSync(iconPath);
+      }
+      try { execSync(`update-desktop-database "${appsDir}"`, { stdio: 'ignore' }); } catch {}
+      try { execSync(`gtk-update-icon-cache -f -t "${iconDir}"`, { stdio: 'ignore' }); } catch {}
+
+      await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '已移除',
+        message: '桌面快捷方式已移除',
+      });
+    } catch (err) {
+      await dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: '移除失败',
+        message: '无法移除桌面快捷方式',
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+  } else if (process.platform === 'win32') {
+    const shortcutPath = path.join(app.getPath('home'), 'Desktop', 'rdCLI.lnk');
+    try {
+      if (fs.existsSync(shortcutPath)) fs.unlinkSync(shortcutPath);
+      await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '已移除',
+        message: '桌面快捷方式已移除',
+      });
+    } catch (err) {
+      await dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: '移除失败',
+        message: '无法移除桌面快捷方式',
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 function registerIpcHandlers() {
