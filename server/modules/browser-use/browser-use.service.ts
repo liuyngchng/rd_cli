@@ -833,7 +833,7 @@ export const browserUseService = {
     }));
   },
 };
-
-process.once('beforeExit', () => {
-  void browserUseService.stopAllSessions();
-});
+// Note: browser session cleanup on shutdown is handled explicitly in
+// server/index.ts's shutdownRuntimeServices (SIGTERM/SIGINT). A separate
+// 'beforeExit' hook here would double-run stopAllSessions and never fires for
+// the normal signal-driven shutdown path anyway (process.exit bypasses it).

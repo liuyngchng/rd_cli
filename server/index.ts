@@ -50,7 +50,7 @@ import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
-import { initializeDatabase, sessionsDb } from './modules/database/index.js';
+import { closeConnection, initializeDatabase, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { debug } from '@/shared/debug.js';
@@ -416,8 +416,8 @@ async function startServer() {
             });
         });
 
-        await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
+        // Clean up all long-lived resources on shutdown: browser sessions, plugin
+        // subprocesses, file watchers, the SQLite connection, and the server marker.
         const shutdownRuntimeServices = async () => {
             try {
                 await browserUseService.stopAllSessions();
@@ -428,6 +428,16 @@ async function startServer() {
                 await stopAllPlugins();
             } catch (err) {
                 console.error('[Plugins] Error stopping plugins during shutdown:', getErrorMessage(err));
+            }
+            try {
+                await closeSessionsWatcher();
+            } catch (err) {
+                console.error('[Sessions] Error closing session watchers during shutdown:', getErrorMessage(err));
+            }
+            try {
+                closeConnection();
+            } catch (err) {
+                console.error('[Database] Error closing database connection during shutdown:', getErrorMessage(err));
             }
             try {
                 await removeLocalServerMarker();

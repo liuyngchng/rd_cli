@@ -117,6 +117,19 @@ export function getConnection(): Database.Database {
 
   debug('getConnection: creating Database instance (loading better-sqlite3 native binding)');
   instance = new Database(dbPath);
+
+  // WAL mode allows concurrent reads with a single writer, which is essential
+  // when the server shares the database with other processes (e.g. the Electron
+  // main process or a second server instance). Without WAL, readers block
+  // writers and vice versa — "database is locked" (SQLITE_BUSY) is common on
+  // Windows where file-lock semantics differ from POSIX.
+  instance.pragma('journal_mode = WAL');
+
+  // SQLITE_BUSY is especially likely during startup when the previous server
+  // instance may still be flushing its WAL. A busy_timeout tells SQLite to
+  // retry for up to 5 seconds instead of failing immediately.
+  instance.pragma('busy_timeout = 5000');
+
   debug('getConnection: Database instance created');
 
   // app_config must exist immediately — the auth middleware reads
@@ -137,12 +150,31 @@ export function getDatabasePath(): string {
 
 /**
  * Closes the database connection and clears the singleton.
- * Primarily used for graceful shutdown or testing.
+ *
+ * Before closing, forces a WAL checkpoint so that all pending writes are
+ * flushed to the main database file. This prevents "database is locked" errors
+ * during restart (common on Windows) and ensures a clean state for the next
+ * process that opens the database.
  */
 export function closeConnection(): void {
   if (instance) {
-    instance.close();
-    instance = null;
-    console.log('Database connection closed');
+    try {
+      // Passive checkpoint: writes any committed frames from the WAL back into
+      // the main database file. A busy_timeout is set so this won't fail on
+      // transient locks.
+      instance.pragma('wal_checkpoint(PASSIVE)');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[Database] WAL checkpoint failed during close:', message);
+    }
+    try {
+      instance.close();
+      instance = null;
+      console.log('Database connection closed');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[Database] Error closing database connection:', message);
+      instance = null;
+    }
   }
 }

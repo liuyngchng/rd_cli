@@ -559,7 +559,23 @@ export class LocalServerController {
 
     const child = this.ownedServerProcess;
     this.ownedServerProcess = null;
-    child.kill('SIGTERM');
+
+    // On POSIX platforms, SIGTERM lets the server run its graceful-shutdown
+    // handler (checkpoint WAL, close SQLite, stop watchers) before exiting.
+    // Windows has no POSIX signals: `child.kill('SIGTERM')` is a no-op there and
+    // Node falls back to TerminateProcess. SQLite WAL is crash-safe, so a hard
+    // kill is safe for the DB — but on Windows we still prefer taskkill /t so
+    // any child tree (e.g. spawned agents) is torn down with the server.
+    if (process.platform === 'win32') {
+      try {
+        const { execFileSync } = await import('node:child_process');
+        execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+      } catch {
+        try { child.kill(); } catch { /* already exited */ }
+      }
+    } else {
+      child.kill('SIGTERM');
+    }
 
     await new Promise((resolve) => {
       const timeout = setTimeout(resolve, 3000);
