@@ -118,7 +118,6 @@ export default function McpServerFormModal({
   const showProjectSelector = formData.scope !== 'user';
   const supportsHttpHeaders = formData.transport === 'http' || formData.transport === 'sse';
   const supportsWorkingDirectory = !isGlobalMode && MCP_SUPPORTS_WORKING_DIRECTORY[provider];
-  const showCodexOnlyFields = provider === 'codex' && !isGlobalMode;
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
@@ -380,34 +379,6 @@ export default function McpServerFormModal({
                 className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 rows={3}
                 placeholder="Authorization=Bearer token&#10;X-API-Key=your-key"
-              />
-            </div>
-          )}
-
-          {showCodexOnlyFields && formData.importMode === 'form' && formData.transport === 'stdio' && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">
-                Environment Variable Names
-              </label>
-              <textarea
-                value={multilineText.envVars}
-                onChange={(event) => updateMultilineText('envVars', event.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                rows={3}
-                placeholder="GITHUB_TOKEN&#10;API_KEY"
-              />
-            </div>
-          )}
-
-          {showCodexOnlyFields && formData.importMode === 'form' && formData.transport === 'http' && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">
-                Bearer Token Environment Variable
-              </label>
-              <Input
-                value={formData.bearerTokenEnvVar}
-                onChange={(event) => updateForm('bearerTokenEnvVar', event.target.value)}
-                placeholder="MCP_TOKEN"
               />
             </div>
           )}

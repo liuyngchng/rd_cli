@@ -28,13 +28,11 @@ type SandboxOptions = {
 
 const SANDBOX_TEMPLATES: Record<string, string> = {
   claude: 'docker.io/rdcliai/sandbox:claude-code',
-  codex: 'docker.io/rdcliai/sandbox:codex',
-};
+  };
 
 const SANDBOX_SECRETS: Record<string, string> = {
   claude: 'anthropic',
-  codex: 'openai',
-};
+  };
 
 function parseSandboxArguments(argumentsList: string[], homeDirectory: string): SandboxOptions {
   const parsedOptions: Omit<SandboxOptions, 'subcommand' | 'template'> & {
@@ -122,7 +120,7 @@ Subcommands:
   ${terminalTextStyles.bright('help')}         Show this help
 
 Options:
-  -a, --agent <agent>       Agent to use: claude, codex (default: claude)
+  -a, --agent <agent>       Agent to use: claude (default: claude)
   -n, --name <name>         Sandbox name (default: derived from workspace folder)
   -t, --template <image>    Custom template image
   -e, --env <KEY=VALUE>     Set environment variable (repeatable)
@@ -130,8 +128,7 @@ Options:
 
 Examples:
   $ rdcli sandbox ~/my-project
-  $ rdcli sandbox ~/my-project --agent codex --port 8080
-  $ rdcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
+    $ rdcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
   $ rdcli sandbox ls
   $ rdcli sandbox stop my-project
   $ rdcli sandbox start my-project
@@ -141,8 +138,6 @@ Prerequisites:
   1. Install sbx CLI: https://docs.docker.com/ai/sandboxes/get-started/
   2. Authenticate and store your API key:
        sbx login
-       sbx secret set -g anthropic   # for Claude
-       sbx secret set -g openai      # for Codex
 
 Advanced usage:
   For branch mode, multiple workspaces, memory limits, network policies,

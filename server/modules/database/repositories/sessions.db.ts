@@ -285,9 +285,9 @@ export const sessionsDb = {
    * Finds the newest app-created session for a project that is still waiting
    * for its provider-native id to be recorded.
    *
-   * Primary intention: OpenCode can expose a new session in its shared
-   * `opencode.db` before the websocket runtime reports that same provider id
-   * back to our app. At that moment the sidebar already has an optimistic
+   * Primary intention: an external tool may expose a new session before the
+   * websocket runtime reports that same provider id back to our app. At that
+   * moment the sidebar already has an optimistic
    * app-owned session row, but the watcher only knows the provider-native id.
    *
    * Without this lookup, the synchronizer would insert a second row keyed by

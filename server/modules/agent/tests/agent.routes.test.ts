@@ -31,9 +31,6 @@ function createDependencies(
     projects: { createProjectPath: () => ({ outcome: 'created' }) },
     models: {} as AgentDependencies['models'],
     queryClaude: unexpectedProviderCall as AgentDependencies['queryClaude'],
-    queryCursor: unexpectedProviderCall as AgentDependencies['queryCursor'],
-    queryCodex: unexpectedProviderCall as AgentDependencies['queryCodex'],
-    queryOpenCode: unexpectedProviderCall as AgentDependencies['queryOpenCode'],
     GithubClient: class {} as unknown as AgentDependencies['GithubClient'],
     ...overrides,
   };

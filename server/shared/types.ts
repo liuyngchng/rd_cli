@@ -66,7 +66,7 @@ export type AuthenticatedWebSocketRequest = IncomingMessage & {
  * Use this as the source of truth whenever a function or payload needs to identify
  * a specific LLM integration.
  */
-export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode';
+export type LLMProvider = 'claude';
 
 /**
  * One selectable model row in a provider model catalog.
@@ -360,9 +360,8 @@ export type FetchHistoryResult = {
  *
  * Provider skill adapters should use this to describe the origin of each
  * skill markdown file without leaking provider-specific folder names into route
- * contracts. `repo` is used for Codex repository lookup locations, while
- * `project` is used for providers that treat workspace-local skills as project
- * scoped.
+ * contracts. `project` is used for providers that treat workspace-local skills
+ * as project scoped.
  */
 export type ProviderSkillScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system';
 
@@ -427,7 +426,7 @@ export type ProviderSkillRemoveInput = {
  *
  * The `command` value is the exact invocation text the selected provider expects
  * for this skill. Claude plugin skills use a namespaced command such as
- * `/plugin-name:skill-name`, while Codex skills use the `$skill-name` form.
+ * `/plugin-name:skill-name`.
  * `sourcePath` points to the skill markdown file that produced the record so
  * callers can distinguish duplicate skill names across scopes.
  */

@@ -628,15 +628,7 @@ export function useChatComposerState({
   const buildSendOptions = useCallback((currentInput: string): QueuedSendOptions => {
     const getToolsSettings = () => {
       try {
-        const settingsKey =
-          provider === 'cursor'
-            ? 'cursor-tools-settings'
-            : provider === 'codex'
-              ? 'codex-settings'
-              : provider === 'opencode'
-                  ? 'opencode-settings'
-                : 'claude-settings';
-        const savedSettings = safeLocalStorage.getItem(settingsKey);
+        const savedSettings = safeLocalStorage.getItem('claude-settings');
         if (savedSettings) {
           return JSON.parse(savedSettings);
         }

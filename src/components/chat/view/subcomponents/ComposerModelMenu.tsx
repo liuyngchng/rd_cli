@@ -43,8 +43,8 @@ export default function ComposerModelMenu({
   const close = useCallback(() => setIsOpen(false), []);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close);
 
-  // The model list starts collapsed every time the menu opens, the way Codex
-  // shows reasoning first and keeps the longer model list one click away.
+  // The model list starts collapsed every time the menu opens, showing
+  // reasoning first and keeping the longer model list one click away.
   useEffect(() => {
     if (!isOpen) {
       setIsModelSectionOpen(false);
@@ -58,14 +58,24 @@ export default function ComposerModelMenu({
   );
   const effortLabel = effort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : effort;
 
+  // Only show claude models.
+  const filteredModelOptions = useMemo(
+    () =>
+      modelOptions.filter((option) => {
+        const lower = `${option.value} ${option.label ?? ''}`.toLowerCase();
+        return lower.includes('claude');
+      }),
+    [modelOptions],
+  );
+
   const selectedModelOption = useMemo(
-    () => modelOptions.find((option) => option.value === model) ?? null,
-    [model, modelOptions],
+    () => filteredModelOptions.find((option) => option.value === model) ?? null,
+    [model, filteredModelOptions],
   );
   const modelLabel = selectedModelOption?.label || model;
 
   const hasEffortSection = resolvedEffortOptions.length > 0;
-  const hasModelSection = modelOptions.length > 0 || modelsLoading;
+  const hasModelSection = filteredModelOptions.length > 0 || modelsLoading;
   if (!hasEffortSection && !hasModelSection) {
     return null;
   }
@@ -140,12 +150,12 @@ export default function ComposerModelMenu({
                   <ComposerMenuHeading>
                     {t('composer.model', { defaultValue: 'Model' })}
                   </ComposerMenuHeading>
-                  {modelOptions.length === 0 && modelsLoading && (
+                  {filteredModelOptions.length === 0 && modelsLoading && (
                     <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelOptions.map((option) => (
+                  {filteredModelOptions.map((option) => (
                     <ComposerMenuItem
                       key={option.value}
                       label={option.label || option.value}

@@ -23,10 +23,9 @@ const EXIT_ANIMATION_MS = 220;
 
 /**
  * Minimal response-in-progress indicator, in the spirit of the inline status
- * lines in Claude Code / Codex / OpenCode: a shimmering activity label, the
- * elapsed time, and an interrupt affordance. Rendered only while the viewed
- * session has an entry in the processing map; it disappears the instant that
- * entry is removed.
+ * lines in Claude Code: a shimmering activity label, the elapsed time, and an
+ * interrupt affordance. Rendered only while the viewed session has an entry
+ * in the processing map; it disappears the instant that entry is removed.
  */
 export default function ActivityIndicator({ activity, onAbort, isInputFocused = false }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');

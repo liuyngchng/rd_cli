@@ -84,9 +84,6 @@ export interface NormalizedMessage {
   parentToolUseId?: string;
   subagentTools?: unknown[];
   isFinal?: boolean;
-  // Cursor-specific ordering
-  sequence?: number;
-  rowid?: number;
 }
 
 // ─── Per-session slot ────────────────────────────────────────────────────────

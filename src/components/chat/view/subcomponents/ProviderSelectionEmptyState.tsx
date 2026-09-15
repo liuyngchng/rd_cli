@@ -25,9 +25,6 @@ import {
 
 const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
-  { id: "codex", name: "OpenAI" },
-  { id: "cursor", name: "Cursor" },
-  { id: "opencode", name: "OpenCode" },
 ];
 
 const MOD_KEY =
@@ -52,12 +49,6 @@ type ProviderSelectionEmptyStateProps = {
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
-  cursorModel: string;
-  setCursorModel: (model: string) => void;
-  codexModel: string;
-  setCodexModel: (model: string) => void;
-  opencodeModel: string;
-  setOpenCodeModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   tasksEnabled: boolean;
@@ -81,23 +72,13 @@ function getModelConfig(
 }
 
 function getCurrentModel(
-  p: LLMProvider,
+  _p: LLMProvider,
   c: string,
-  cu: string,
-  co: string,
-  o: string,
 ) {
-  if (p === "claude") return c;
-  if (p === "codex") return co;
-  if (p === "opencode") return o;
-  return cu;
+  return c;
 }
 
-function getProviderDisplayName(p: LLMProvider) {
-  if (p === "claude") return "Claude";
-  if (p === "cursor") return "Cursor";
-  if (p === "codex") return "Codex";
-  if (p === "opencode") return "OpenCode";
+function getProviderDisplayName(_p: LLMProvider) {
   return "Claude";
 }
 
@@ -109,12 +90,6 @@ export default function ProviderSelectionEmptyState({
   textareaRef,
   claudeModel,
   setClaudeModel,
-  cursorModel,
-  setCursorModel,
-  codexModel,
-  setCodexModel,
-  opencodeModel,
-  setOpenCodeModel,
   providerModelCatalog,
   providerModelsLoading,
   tasksEnabled,
@@ -140,9 +115,6 @@ export default function ProviderSelectionEmptyState({
   const currentModel = getCurrentModel(
     provider,
     claudeModel,
-    cursorModel,
-    codexModel,
-    opencodeModel,
   );
 
   const currentModelLabel = useMemo(() => {
@@ -158,18 +130,9 @@ export default function ProviderSelectionEmptyState({
       if (providerId === "claude") {
         setClaudeModel(modelValue);
         localStorage.setItem("claude-model", modelValue);
-      } else if (providerId === "codex") {
-        setCodexModel(modelValue);
-        localStorage.setItem("codex-model", modelValue);
-      } else if (providerId === "opencode") {
-        setOpenCodeModel(modelValue);
-        localStorage.setItem("opencode-model", modelValue);
-      } else {
-        setCursorModel(modelValue);
-        localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setOpenCodeModel],
+    [setClaudeModel],
   );
 
   const handleModelSelect = useCallback(
@@ -277,8 +240,8 @@ export default function ProviderSelectionEmptyState({
                           >
                             <div className="min-w-0 flex-1">
                               <div className="truncate">{model.label}</div>
-                              {/* 
-                              // * Temporarly commented out because the description of models from claude 
+                              {/*
+                              // * Temporarly commented out because the description of models from claude
                               // * was a bit inconsistent.  Will return it back when it becomes more consistent.
                               */}
                               {/* {model.description && (
@@ -301,23 +264,9 @@ export default function ProviderSelectionEmptyState({
           </Dialog>
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
-            {
-              {
-                claude: t("providerSelection.readyPrompt.claude", {
-                  model: claudeModel,
-                }),
-                cursor: t("providerSelection.readyPrompt.cursor", {
-                  model: cursorModel,
-                }),
-                codex: t("providerSelection.readyPrompt.codex", {
-                  model: codexModel,
-                }),
-                opencode: t("providerSelection.readyPrompt.opencode", {
-                  model: opencodeModel,
-                  defaultValue: "Ready with OpenCode {{model}}",
-                }),
-              }[provider]
-            }
+            {t("providerSelection.readyPrompt.claude", {
+              model: claudeModel,
+            })}
           </p>
 
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground/60">

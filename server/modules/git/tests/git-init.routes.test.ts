@@ -26,7 +26,6 @@ test('git init does not run when repository validation fails for an execution er
     spawnProcess,
     resolveProjectPathById: () => '/workspace/repo',
     queryClaude: unexpectedProvider,
-    queryCursor: unexpectedProvider,
   });
   const app = express();
   app.use(express.json());

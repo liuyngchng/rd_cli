@@ -48,13 +48,10 @@ const validateProjectPathForUser = async (req, projectPath) => {
   return null;
 };
 
-const MODEL_PROVIDERS = ["claude", "cursor", "codex", "opencode"];
+const MODEL_PROVIDERS = ["claude"];
 
 const MODEL_PROVIDER_LABELS = {
   claude: "Claude",
-  cursor: "Cursor",
-  codex: "Codex",
-  opencode: "OpenCode",
 };
 
 const readModelProvider = (value) => {

@@ -17,18 +17,6 @@ const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> =
     provider: 'claude',
     rootPath: path.join(os.homedir(), '.claude', 'projects'),
   },
-  {
-    provider: 'cursor',
-    rootPath: path.join(os.homedir(), '.cursor', 'projects'),
-  },
-  {
-    provider: 'codex',
-    rootPath: path.join(os.homedir(), '.codex', 'sessions'),
-  },
-  {
-    provider: 'opencode',
-    rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
-  },
 ];
 
 const WATCHER_IGNORED_PATTERNS = [
@@ -69,8 +57,9 @@ let watcherRescheduleAfterRefresh = false;
  * Filters watcher events to provider-specific session artifact file types.
  */
 function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
-  if (provider === 'opencode') {
-    return path.basename(filePath) === 'opencode.db';
+  if (provider === 'claude') {
+    // Claude sessions are single .jsonl files per session in a flat directory.
+    return filePath.endsWith('.jsonl');
   }
 
   return filePath.endsWith('.jsonl');

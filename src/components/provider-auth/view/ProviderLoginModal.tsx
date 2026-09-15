@@ -13,9 +13,7 @@ type ProviderLoginModalProps = {
 };
 
 const getProviderCommand = ({
-  provider,
   customCommand,
-  isAuthenticated: _isAuthenticated,
 }: {
   provider: LLMProvider;
   customCommand?: string;
@@ -25,32 +23,10 @@ const getProviderCommand = ({
     return customCommand;
   }
 
-  if (provider === 'claude') {
-    return 'claude --dangerously-skip-permissions /login';
-  }
-
-  if (provider === 'cursor') {
-    return 'cursor-agent login';
-  }
-
-  if (provider === 'codex') {
-    return IS_PLATFORM ? 'codex login --device-auth' : 'codex login';
-  }
-
-  if (provider === 'opencode') {
-    return 'opencode auth login';
-  }
-
   return 'claude --dangerously-skip-permissions /login';
 };
 
-const getProviderTitle = (provider: LLMProvider) => {
-  if (provider === 'claude') return 'Claude CLI Login';
-  if (provider === 'cursor') return 'Cursor CLI Login';
-  if (provider === 'codex') return 'Codex CLI Login';
-  if (provider === 'opencode') return 'OpenCode CLI Login';
-  return 'Claude CLI Login';
-};
+const getProviderTitle = (_provider: LLMProvider) => 'Claude CLI Login';
 
 export default function ProviderLoginModal({
   isOpen,

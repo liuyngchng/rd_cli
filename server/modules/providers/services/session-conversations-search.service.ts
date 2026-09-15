@@ -8,7 +8,7 @@ import { rgPath } from '@vscode/ripgrep';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 
 type AnyRecord = Record<string, any>;
-type SearchableProvider = 'claude' | 'codex';
+type SearchableProvider = 'claude';
 
 type SearchSnippetHighlight = {
   start: number;
@@ -82,7 +82,7 @@ type ProjectBucket = {
   sessions: SearchableSessionRow[];
 };
 
-const SUPPORTED_PROVIDERS = new Set<SearchableProvider>(['claude', 'codex']);
+const SUPPORTED_PROVIDERS = new Set<SearchableProvider>(['claude']);
 const MAX_MATCHES_PER_SESSION = 2;
 const RIPGREP_FILE_CHUNK_SIZE = 40;
 const RIPGREP_CHUNK_CONCURRENCY = 6;
@@ -93,15 +93,6 @@ const INTERNAL_CONTENT_PREFIXES = [
   'Caveat:',
   'Invalid API key',
   '[Request interrupted',
-] as const;
-
-/**
- * Codex includes extra internal metadata tags that should not surface as
- * user-facing searchable conversation content.
- */
-const CODEX_INTERNAL_CONTENT_PREFIXES = [
-  '<environment_context>',
-  '<cwd>',
 ] as const;
 
 function normalizeComparablePath(inputPath: string): string {
@@ -158,11 +149,6 @@ function toSummaryText(customName: string | null, fallback: string | null | unde
 
 function isInternalContent(content: string): boolean {
   return INTERNAL_CONTENT_PREFIXES.some((prefix) => content.startsWith(prefix));
-}
-
-function isInternalCodexContent(content: string): boolean {
-  const normalized = content.trimStart();
-  return CODEX_INTERNAL_CONTENT_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 function escapeRegex(value: string): string {
@@ -424,35 +410,6 @@ function extractClaudeSearchableMessage(entry: AnyRecord): ClaudeSearchableMessa
     text,
     role: rawRole,
   };
-}
-
-function extractCodexText(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return '';
-  }
-
-  return content
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return '';
-      }
-
-      const record = item as AnyRecord;
-      if (
-        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
-        && typeof record.text === 'string'
-      ) {
-        return record.text;
-      }
-
-      return '';
-    })
-    .filter(Boolean)
-    .join(' ');
 }
 
 function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSessionRow[] {
@@ -930,135 +887,12 @@ async function parseClaudeSessionMatches(
   return runtime.claudeFileResultsCache.get(fileKey)?.get(session.session_id) ?? null;
 }
 
-function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
-  if (!payload || payload.type !== 'user_message') {
-    return false;
-  }
-
-  if (payload.kind && payload.kind !== 'plain') {
-    return false;
-  }
-
-  return typeof payload.message === 'string' && payload.message.trim().length > 0;
-}
-
-async function parseCodexSessionMatches(
-  session: SearchableSessionRow,
-  runtime: SearchRuntime,
-): Promise<SessionConversationResult | null> {
-  const matches: SessionConversationMatch[] = [];
-  let latestUserMessageText: string | null = null;
-  const seenMessageFingerprints = new Set<string>();
-
-  try {
-    const fileStream = fsSync.createReadStream(session.jsonl_path);
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    for await (const line of rl) {
-      if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
-        break;
-      }
-      if (!line.trim()) {
-        continue;
-      }
-
-      let entry: AnyRecord;
-      try {
-        entry = JSON.parse(line) as AnyRecord;
-      } catch {
-        continue;
-      }
-
-      let text: string | null = null;
-      let role: 'user' | 'assistant' | null = null;
-
-      if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
-        text = String(entry.payload.message);
-        role = 'user';
-      } else if (
-        entry.type === 'event_msg'
-        && entry.payload?.type === 'agent_reasoning'
-        && typeof entry.payload?.text === 'string'
-      ) {
-        text = String(entry.payload.text);
-        role = 'assistant';
-      } else if (entry.type === 'response_item' && entry.payload?.type === 'message') {
-        const payload = entry.payload as AnyRecord;
-        if (payload.role === 'user') {
-          text = extractCodexText(payload.content);
-          role = 'user';
-        } else if (payload.role === 'assistant') {
-          text = extractCodexText(payload.content);
-          role = 'assistant';
-        }
-      } else if (entry.type === 'response_item' && entry.payload?.type === 'reasoning') {
-        const summaryText = Array.isArray(entry.payload.summary)
-          ? entry.payload.summary
-            .map((item: AnyRecord) => (typeof item?.text === 'string' ? item.text : ''))
-            .filter(Boolean)
-            .join('\n')
-          : '';
-
-        if (summaryText.trim()) {
-          text = summaryText;
-          role = 'assistant';
-        }
-      }
-
-      if (!text || !role) {
-        continue;
-      }
-      if (isInternalCodexContent(text)) {
-        continue;
-      }
-      if (role === 'user') {
-        latestUserMessageText = text;
-      }
-
-      const fingerprint = `${role}:${text.trim().toLowerCase()}`;
-      if (seenMessageFingerprints.has(fingerprint)) {
-        continue;
-      }
-      seenMessageFingerprints.add(fingerprint);
-
-      if (!runtime.matchesQuery(text)) {
-        continue;
-      }
-
-      const { snippet, highlights } = runtime.buildSnippet(text);
-      addSessionMatch(runtime, matches, {
-        role,
-        snippet,
-        highlights,
-        timestamp: entry.timestamp ? String(entry.timestamp) : null,
-        provider: 'codex',
-      });
-    }
-  } catch {
-    return null;
-  }
-
-  if (matches.length === 0) {
-    return null;
-  }
-
-  return {
-    sessionId: session.session_id,
-    provider: 'codex',
-    sessionSummary: toSummaryText(session.custom_name, latestUserMessageText, 'Codex Session'),
-    matches,
-  };
-}
-
 async function parseSessionMatches(
   session: SearchableSessionRow,
   runtime: SearchRuntime,
 ): Promise<SessionConversationResult | null> {
   if (session.provider === 'claude') {
     return parseClaudeSessionMatches(session, runtime);
-  }
-  if (session.provider === 'codex') {
-    return parseCodexSessionMatches(session, runtime);
   }
   return null;
 }

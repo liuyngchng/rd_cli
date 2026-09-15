@@ -136,6 +136,13 @@ const copiedModulePaths = new Set();
  */
 async function copyModuleFromRoot(rootRelPath) {
   if (copiedModulePaths.has(rootRelPath)) return true;
+  // Skip musl builds of platform binaries (e.g. the Claude Code CLI's
+  // `linux-x64-musl` variant). They only matter for Alpine/musl containers;
+  // the desktop app and its Ubuntu-based Docker image both use glibc, so the
+  // musl binary is dead weight (~280MB).
+  if (/-musl(\/|$)/.test(rootRelPath.split(path.sep).pop())) {
+    return false;
+  }
   const from = path.join(rootDir, rootRelPath);
   if (!(await pathExists(from))) return false;
   const to = path.join(stageDir, rootRelPath);

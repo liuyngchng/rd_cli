@@ -118,10 +118,10 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
   });
   const globalButtonLabel = 'Add Global MCP Server';
   const providerButtonLabel = `Add ${providerName} MCP Server`;
-  const globalAddDescription = 'Add Global MCP Server writes one common stdio or HTTP server to Claude, Cursor, Codex, and OpenCode.';
+  const globalAddDescription = 'Add Global MCP Server writes one common stdio or HTTP server to Claude.';
   const providerAddDescription = `${providerButtonLabel} only changes ${providerName}.`;
-  const globalModalDescription = 'Adds this MCP server to every provider: Claude, Cursor, Codex, and OpenCode. '
-    + 'Only stdio and HTTP transports are supported because the same config must work across all providers.';
+  const globalModalDescription = 'Adds this MCP server to Claude. '
+    + 'Only stdio and HTTP transports are supported.';
 
   return (
     <div className="space-y-4">
@@ -271,13 +271,6 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
           <div className="py-8 text-center text-muted-foreground">{t('mcpServers.empty')}</div>
         )}
       </div>
-
-      {selectedProvider === 'codex' && (
-        <div className="rounded-lg border border-border bg-muted/50 p-4">
-          <h4 className="mb-2 font-medium text-foreground">{t('mcpServers.help.title')}</h4>
-          <p className="text-sm text-muted-foreground">{t('mcpServers.help.description')}</p>
-        </div>
-      )}
 
       {selectedProvider === 'claude' && !IS_PLATFORM && <TeamMcpFeatureCard />}
 

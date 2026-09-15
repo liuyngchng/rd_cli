@@ -17,11 +17,11 @@ interface BashCommandDisplayProps {
 }
 
 /**
- * Codex-in-VSCode style command row: a compact, single-line command with a
- * chevron on the left. When the command produced output, the row becomes a
- * dropdown that expands to reveal the output inline. Theme-integrated surfaces
- * keep it clean in both light and dark mode; consecutive commands stack tightly
- * into a clean list.
+ * Compact command row: a single-line command with a chevron on the left.
+ * When the command produced output, the row becomes a dropdown that expands
+ * to reveal the output inline. Theme-integrated surfaces keep it clean in
+ * both light and dark mode; consecutive commands stack tightly into a clean
+ * list.
  */
 export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   command,
@@ -98,9 +98,6 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
             !hasOutput && 'opacity-0',
           )}
         />
-        <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
-          $
-        </span>
         {/* Not a <code> tag: the global `.chat-message code` rule forces
             `white-space: pre-wrap !important`, which would defeat `truncate`
             and render collapsed multi-line commands in full. */}

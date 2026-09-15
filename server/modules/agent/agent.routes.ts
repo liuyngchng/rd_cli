@@ -19,9 +19,6 @@ type AgentRouterDependencies = {
   projects: { createProjectPath(projectPath: string, customName: string | null): unknown };
   models: typeof import('../providers/index.js').providerModelsService;
   queryClaude: ProviderRunFunction;
-  queryCursor: ProviderRunFunction;
-  queryCodex: ProviderRunFunction;
-  queryOpenCode: ProviderRunFunction;
   GithubClient: typeof import('@octokit/rest').Octokit;
 };
 
@@ -41,9 +38,6 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
   const projectsDb = dependencies.projects;
   const providerModelsService = dependencies.models;
   const queryClaudeSDK = dependencies.queryClaude;
-  const spawnCursor = dependencies.queryCursor;
-  const queryCodex = dependencies.queryCodex;
-  const spawnOpenCode = dependencies.queryOpenCode;
   const Octokit = dependencies.GithubClient;
   const router = express.Router();
 
@@ -662,7 +656,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *                          - Source for auto-generated branch names (if createBranch=true and no branchName)
    *                          - Fallback for PR title if no commits are made
    *
-   * @param {string} provider - (Optional) AI provider to use. Options: 'claude' | 'cursor' | 'codex' | 'opencode'
+   * @param {string} provider - (Optional) AI provider to use. Supported: 'claude'
    *                           Default: 'claude'
    *
    * @param {boolean} stream - (Optional) Enable Server-Sent Events (SSE) streaming for real-time updates.
@@ -670,18 +664,11 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    *                          - true: Returns text/event-stream with incremental updates
    *                          - false: Returns complete JSON response after completion
    *
-   * @param {string} model - (Optional) Model identifier for providers.
-   *
-   *                        Claude models: 'default', 'sonnet', 'opus', 'haiku', 'sonnet[1m]', 'opus[1m]', 'fable'
-   *                        Cursor models: 'gpt-5' (default), 'gpt-5.2', 'gpt-5.2-high', 'sonnet-4.5', 'opus-4.5',
-   *                                       'composer-1', 'auto', 'gpt-5.1', 'gpt-5.1-high',
-   *                                       'gpt-5.1-codex', 'gpt-5.1-codex-high', 'gpt-5.1-codex-max',
-   *                                       'gpt-5.1-codex-max-high', 'opus-4.1', 'grok', and thinking variants
-   *                        Codex models: 'gpt-5.4' (default), 'gpt-5.5', 'gpt-5.4-mini'
+   * @param {string} model - (Optional) Model identifier for the Claude provider.
+   *                        Supported: 'default', 'sonnet', 'opus', 'haiku', 'sonnet[1m]', 'opus[1m]', 'fable'
    *
    * @param {string} effort - (Optional) Reasoning effort for providers/models that support it.
    *                          Claude supports: 'low', 'medium', 'high', 'xhigh', 'max' depending on model.
-   *                          Codex supports: 'low', 'medium', 'high', 'xhigh'.
    *                          'default' or omission lets the provider decide.
    *
    * @param {boolean} cleanup - (Optional) Auto-cleanup project directory after completion.
@@ -785,7 +772,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
    * Input Validations (400 Bad Request):
    *   - Either githubUrl OR projectPath must be provided (not neither)
    *   - message must be non-empty string
-   *   - provider must be 'claude', 'cursor', 'codex', or 'opencode'
+   *   - provider must be 'claude'
    *   - createBranch/createPR requires githubUrl OR projectPath (not neither)
    *   - branchName must pass Git naming rules (if provided)
    *
@@ -896,8 +883,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       return res.status(400).json({ error: 'message is required' });
     }
 
-    if (!['claude', 'cursor', 'codex', 'opencode'].includes(provider)) {
-      return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", or "opencode"' });
+    if (!['claude'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be "claude"' });
     }
 
     // Validate GitHub branch/PR creation requirements
@@ -978,55 +965,17 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
         });
       }
 
-      const codexModels = (await providerModelsService.getProviderModels('codex')).models;
-      const opencodeModels = (await providerModelsService.getProviderModels('opencode')).models;
+      // Start the Claude session
+      console.log('🤖 Starting Claude SDK session');
 
-      // Start the appropriate session
-      if (provider === 'claude') {
-        console.log('🤖 Starting Claude SDK session');
-
-        await queryClaudeSDK(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model,
-          effort,
-          permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
-        }, writer);
-
-      } else if (provider === 'cursor') {
-        console.log('🖱️ Starting Cursor CLI session');
-
-        await spawnCursor(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || undefined,
-          skipPermissions: true // Bypass permissions for Cursor
-        }, writer);
-      } else if (provider === 'codex') {
-        console.log('🤖 Starting Codex SDK session');
-
-        await queryCodex(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || codexModels.DEFAULT,
-          effort,
-          permissionMode: 'bypassPermissions'
-        }, writer);
-      } else if (provider === 'opencode') {
-        console.log('Starting OpenCode CLI session');
-
-        await spawnOpenCode(message.trim(), {
-          projectPath: finalProjectPath,
-          cwd: finalProjectPath,
-          sessionId: sessionId || null,
-          model: model || opencodeModels.DEFAULT,
-          effort,
-          permissionMode: 'bypassPermissions' // Agent runs are non-interactive, like the other providers above
-        }, writer);
-      }
+      await queryClaudeSDK(message.trim(), {
+        projectPath: finalProjectPath,
+        cwd: finalProjectPath,
+        sessionId: sessionId || null,
+        model: model,
+        effort,
+        permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
+      }, writer);
 
       // Handle GitHub branch and PR creation after successful agent completion
       let branchInfo = null;

@@ -3,8 +3,6 @@ import type {
   AuthStatus,
   AgentCategory,
   ClaudePermissionsState,
-  CursorPermissionsState,
-  CodexPermissionMode,
   SettingsProject,
 } from '../../../types/types';
 
@@ -21,10 +19,6 @@ export type AgentsSettingsTabProps = {
   onProviderLogin: (provider: AgentProvider) => void;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
-  cursorPermissions: CursorPermissionsState;
-  onCursorPermissionsChange: (value: CursorPermissionsState) => void;
-  codexPermissionMode: CodexPermissionMode;
-  onCodexPermissionModeChange: (value: CodexPermissionMode) => void;
   projects: SettingsProject[];
 };
 
@@ -48,9 +42,5 @@ export type AgentCategoryContentSectionProps = {
   agentContextById: AgentContextByProvider;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
-  cursorPermissions: CursorPermissionsState;
-  onCursorPermissionsChange: (value: CursorPermissionsState) => void;
-  codexPermissionMode: CodexPermissionMode;
-  onCodexPermissionModeChange: (value: CodexPermissionMode) => void;
   projects: SettingsProject[];
 };

@@ -351,11 +351,6 @@ export class DesktopWindowManager {
         .catch((error) => this.actions.showError('无法在 VS Code 中打开环境', error)),
     });
     items.push({
-      label: '在 Cursor 中打开',
-      click: () => void this.actions.openEnvironmentInIde(environment, 'cursor')
-        .catch((error) => this.actions.showError('无法在 Cursor 中打开环境', error)),
-    });
-    items.push({
       label: '打开 SSH 终端',
       click: () => void this.actions.openEnvironmentInSsh(environment)
         .catch((error) => this.actions.showError('无法打开 SSH 终端', error)),

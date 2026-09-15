@@ -14,7 +14,6 @@ type GitRouterDependencies = {
   spawnProcess: typeof import('cross-spawn').default;
   resolveProjectPathById(projectId: string): string | null;
   queryClaude: ProviderRunFunction;
-  queryCursor: ProviderRunFunction;
 };
 
 /** Creates Git routes around explicit repository, filesystem, subprocess, and AI adapters. */
@@ -23,7 +22,6 @@ const fs = dependencies.fileSystem;
 const spawn = dependencies.spawnProcess;
 const projectsDb = { getProjectPathById: dependencies.resolveProjectPathById };
 const queryClaudeSDK = dependencies.queryClaude;
-const spawnCursor = dependencies.queryCursor;
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
 
@@ -944,15 +942,10 @@ router.get('/commit-diff', async (req, res) => {
 
 // Generate commit message based on staged changes using AI
 router.post('/generate-commit-message', async (req, res) => {
-  const { project, files, provider = 'claude' } = req.body;
+  const { project, files } = req.body;
 
   if (!project || !files || files.length === 0) {
     return res.status(400).json({ error: 'Project id and files are required' });
-  }
-
-  // Validate provider
-  if (!['claude', 'cursor'].includes(provider)) {
-    return res.status(400).json({ error: 'provider must be "claude" or "cursor"' });
   }
 
   try {
@@ -999,7 +992,7 @@ router.post('/generate-commit-message', async (req, res) => {
     }
 
     // Generate commit message using AI
-    const message = await generateCommitMessageWithAI(files, diffContext, provider, projectPath);
+    const message = await generateCommitMessageWithAI(files, diffContext, projectPath);
 
     res.json({ message });
   } catch (error) {
@@ -1009,14 +1002,13 @@ router.post('/generate-commit-message', async (req, res) => {
 });
 
 /**
- * Generates a commit message using AI (Claude SDK or Cursor CLI)
+ * Generates a commit message using AI (Claude SDK)
  * @param {Array<string>} files - List of changed files
  * @param {string} diffContext - Git diff content
- * @param {string} provider - 'claude' or 'cursor'
  * @param {string} projectPath - Project directory path
  * @returns {Promise<string>} Generated commit message
  */
-async function generateCommitMessageWithAI(files, diffContext, provider, projectPath) {
+async function generateCommitMessageWithAI(files, diffContext, projectPath) {
   // Create the prompt
   const prompt = `Generate a conventional commit message for these changes.
 
@@ -1046,7 +1038,7 @@ Generate the commit message:`;
           const parsed = typeof data === 'string' ? JSON.parse(data) : data;
           console.log('🔍 Writer received message type:', parsed.type);
 
-          // Handle different message formats from Claude SDK and Cursor CLI
+          // Handle different message formats from Claude SDK
           // Claude SDK sends: {type: 'claude-response', data: {message: {content: [...]}}}
           if (parsed.type === 'claude-response' && parsed.data) {
             const message = parsed.data.message || parsed.data;
@@ -1061,11 +1053,6 @@ Generate the commit message:`;
               }
             }
           }
-          // Cursor CLI sends: {type: 'cursor-output', output: '...'}
-          else if (parsed.type === 'cursor-output' && parsed.output) {
-            console.log('✅ Cursor output:', parsed.output.substring(0, 100));
-            responseText += parsed.output;
-          }
           // Also handle direct text messages
           else if (parsed.type === 'text' && parsed.text) {
             console.log('✅ Direct text:', parsed.text.substring(0, 100));
@@ -1079,22 +1066,15 @@ Generate the commit message:`;
       setSessionId: () => {}, // No-op for this use case
     };
 
-    console.log('🚀 Calling AI agent with provider:', provider);
+    console.log('🚀 Calling AI agent');
     console.log('📝 Prompt length:', prompt.length);
 
-    // Call the appropriate agent
-    if (provider === 'claude') {
-      await queryClaudeSDK(prompt, {
-        cwd: projectPath,
-        permissionMode: 'bypassPermissions',
-        model: 'sonnet'
-      }, writer);
-    } else if (provider === 'cursor') {
-      await spawnCursor(prompt, {
-        cwd: projectPath,
-        skipPermissions: true
-      }, writer);
-    }
+    // Call the Claude agent
+    await queryClaudeSDK(prompt, {
+      cwd: projectPath,
+      permissionMode: 'bypassPermissions',
+      model: 'sonnet'
+    }, writer);
 
     console.log('📊 Total response text collected:', responseText.length, 'characters');
     console.log('📄 Response preview:', responseText.substring(0, 200));
