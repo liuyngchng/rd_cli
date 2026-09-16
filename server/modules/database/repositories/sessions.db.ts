@@ -513,4 +513,42 @@ export const sessionsDb = {
     const db = getConnection();
     return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
   },
+
+  /**
+   * Lists the on-disk transcript paths for sessions that have exceeded the
+   * retention window, so the cleanup service can remove the files before the
+   * database rows are deleted. Returns one row per expired session that still
+   * references a transcript file.
+   */
+  listExpiredSessionFiles(retentionDays: number): Array<{ session_id: string; jsonl_path: string }> {
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT session_id, jsonl_path
+         FROM sessions
+         WHERE jsonl_path IS NOT NULL
+           AND jsonl_path <> ''
+           AND datetime(COALESCE(updated_at, created_at)) < datetime('now', ?)`
+      )
+      .all(`-${retentionDays} days`) as Array<{ session_id: string; jsonl_path: string }>;
+    return rows;
+  },
+
+  /**
+   * Deletes all session rows that have exceeded the retention window.
+   *
+   * Retention is driven by the latest activity timestamp (`updated_at`, falling
+   * back to `created_at`). Returns the number of rows removed so callers can log
+   * and surface the effect of each cleanup pass.
+   */
+  deleteSessionsOlderThan(retentionDays: number): number {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `DELETE FROM sessions
+         WHERE datetime(COALESCE(updated_at, created_at)) < datetime('now', ?)`
+      )
+      .run(`-${retentionDays} days`);
+    return result.changes;
+  },
 };

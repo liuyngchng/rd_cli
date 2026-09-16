@@ -16,6 +16,8 @@ import {
     closeSessionsWatcher,
     initializeSessionsWatcher,
     providerRuntimeService,
+    startSessionCleanupScheduler,
+    stopSessionCleanupScheduler,
 } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
@@ -403,6 +405,9 @@ async function startServer() {
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
 
+            // Start periodic session-expiry cleanup (30-day retention default)
+            startSessionCleanupScheduler();
+
             // Start server-side plugin processes for enabled plugins
             startEnabledPluginServers().catch(err => {
                 console.error('[Plugins] Error during startup:', err.message);
@@ -426,6 +431,11 @@ async function startServer() {
                 await closeSessionsWatcher();
             } catch (err) {
                 console.error('[Sessions] Error closing session watchers during shutdown:', getErrorMessage(err));
+            }
+            try {
+                stopSessionCleanupScheduler();
+            } catch (err) {
+                console.error('[Sessions] Error stopping session cleanup scheduler during shutdown:', getErrorMessage(err));
             }
             try {
                 closeConnection();

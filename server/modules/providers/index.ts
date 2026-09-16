@@ -8,3 +8,5 @@ export { providerModelsService } from './services/provider-models.service.js';
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
+export { startSessionCleanupScheduler } from './services/session-cleanup.service.js';
+export { stopSessionCleanupScheduler } from './services/session-cleanup.service.js';
