@@ -19,6 +19,7 @@ import path from 'path';
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
+import { debug } from '@/shared/debug.js';
 import {
   appendFilesInputTag,
   buildClaudeUserContent,
@@ -614,6 +615,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     const prevStreamTimeout = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
     process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = '300000';
 
+    const llmBaseUrl = process.env.ANTHROPIC_BASE_URL || '(not set)';
+    debug('[llm] query start',
+      `url=${llmBaseUrl}`,
+      `model=${sdkOptions.model}`,
+      `session=${sessionId || '(new)'}`,
+      `providerSession=${providerSessionId || '(none)'}`,
+    );
+
     let queryInstance;
     try {
       queryInstance = query({
@@ -669,6 +678,25 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // Transform and normalize message via adapter
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
+
+      // Trace LLM API activity to the debug log (RDCLI_LOG_LEVEL=debug only).
+      if (message.type === 'assistant') {
+        const blocks = Array.isArray(message.message?.content)
+          ? message.message.content.map((block) => block?.type ?? 'unknown')
+          : [];
+        debug('[llm] assistant',
+          `session=${sid}`,
+          `model=${message.message?.model ?? 'unknown'}`,
+          `blocks=${blocks.join(',') || '(empty)'}`,
+        );
+      } else if (message.type === 'result') {
+        debug('[llm] result',
+          `session=${sid}`,
+          `duration_ms=${message.duration_ms ?? 'n/a'}`,
+          `num_turns=${message.num_turns ?? 'n/a'}`,
+          `cost_usd=${message.total_cost_usd ?? 'n/a'}`,
+        );
+      }
 
       // Use adapter to normalize SDK events into NormalizedMessage[]
       const normalized = context.normalizeMessage(transformedMessage, sid);

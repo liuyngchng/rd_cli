@@ -50,5 +50,16 @@ if (!process.env.DATABASE_PATH) {
 }
 
 if (process.env.RDCLI_LOG_LEVEL === 'debug') {
-  console.log('[DEBUG] load-env: DATABASE_PATH =', process.env.DATABASE_PATH);
+  // load-env runs before the debug() helper is importable, so write the log
+  // line inline. The line is best-effort — failures are silently ignored.
+  try {
+    const logDir = path.join(process.cwd(), 'logs');
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const logFile = path.join(logDir, `rc_cli_desktop_${yyyy}_${MM}_${dd}.log`);
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(logFile, `[DEBUG] ${now.toISOString()} load-env: DATABASE_PATH = ${process.env.DATABASE_PATH}\n`, 'utf8');
+  } catch { /* best-effort */ }
 }
