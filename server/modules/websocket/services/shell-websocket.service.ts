@@ -276,7 +276,11 @@ export function handleShellConnection(
   console.log('[INFO] Shell websocket connected');
 
   const authUser = request?.user;
-  const userId: number | null = authUser?.id != null ? Number(authUser.id) : null;
+  // `authenticateWebSocket` returns `{ userId }` in OSS/JWT mode but
+  // `{ id, userId }` in platform mode, so resolve whichever field is present.
+  const rawUserId: string | number | null | undefined =
+    authUser?.id ?? authUser?.userId ?? null;
+  const userId: number | null = rawUserId != null ? Number(rawUserId) : null;
 
   let shellProcess: IPty | null = null;
   let ptySessionKey: string | null = null;
