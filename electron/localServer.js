@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import http from 'node:http';
@@ -218,10 +218,44 @@ function getServerCwd(appRoot, serverEntry) {
   return path.resolve(path.dirname(normalizedEntry), '..', '..');
 }
 
+function isProcessAlive(pid) {
+  if (!pid || !Number.isInteger(pid) || pid <= 0) return false;
+
+  if (process.platform === 'win32') {
+    // Windows 上 taskkill /f 不触发信号 handler，marker 会残留死 pid。
+    // 用 tasklist 精确判断该 pid 是否仍存活。
+    try {
+      const output = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        encoding: 'utf8',
+      });
+      return output.toLowerCase().includes(`"${pid}"`);
+    } catch {
+      return false;
+    }
+  }
+
+  // POSIX: process.kill(pid, 0) 只做存在性探测，不真正发信号。
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function readServerMarkerUrl() {
   try {
     const raw = await fs.readFile(SERVER_MARKER_PATH, 'utf8');
     const marker = JSON.parse(raw);
+
+    // marker 记录的进程若已死（Windows 强杀后残留、上次异常退出等），
+    // 忽略该 URL 并清理陈旧 marker，避免复用脏状态或死端口。
+    if (marker.pid && !isProcessAlive(marker.pid)) {
+      await fs.unlink(SERVER_MARKER_PATH).catch(() => {});
+      return null;
+    }
+
     return marker.url || (marker.port ? `http://${marker.host || HOST}:${marker.port}` : null);
   } catch {
     return null;
@@ -568,7 +602,6 @@ export class LocalServerController {
     // any child tree (e.g. spawned agents) is torn down with the server.
     if (process.platform === 'win32') {
       try {
-        const { execFileSync } = await import('node:child_process');
         execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
       } catch {
         try { child.kill(); } catch { /* already exited */ }
@@ -584,6 +617,17 @@ export class LocalServerController {
         resolve();
       });
     });
+
+    // Windows 上 taskkill /f 强杀后端口会短暂滞留 TIME_WAIT。
+    // 等待端口真正释放，避免下一次立即启动时 EADDRINUSE。
+    if (process.platform === 'win32' && this.localServerPort) {
+      const port = this.localServerPort;
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (await isPortAvailable(port)) break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
   }
 }
 

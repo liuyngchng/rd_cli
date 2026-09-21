@@ -386,6 +386,14 @@ async function startServer() {
 
         console.log(`${terminalTextStyles.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
    
+        server.on('error', (error: NodeJS.ErrnoException) => {
+            if (error.code === 'EADDRINUSE') {
+                console.error(`[ERROR] 端口 ${SERVER_PORT} 已被占用（旧进程可能尚未完全退出），请稍后重试或释放端口。`);
+            }
+            console.error('[ERROR] Server failed to start:', error.message);
+            process.exit(1);
+        });
+
         server.listen(SERVER_PORT, HOST, async () => {
             const appInstallPath = APP_ROOT;
             await writeLocalServerMarker().catch((error) => {

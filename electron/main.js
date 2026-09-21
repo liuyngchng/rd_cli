@@ -472,12 +472,12 @@ async function createWindow() {
     tryReveal();
   });
 
-  // 兜底：即使某一路信号丢失（渲染崩溃等），也确保主窗口最终能显示
+  // 兜底：5s 后若两路信号还没到齐，强制显示主窗口（避免无限等待）
   revealFallbackTimer = setTimeout(() => {
     mainWindowLoadFinished = true;
     reactAppReady = true;
     tryReveal();
-  }, 15000);
+  }, 5000);
 
   mainWindow.on('closed', () => {
     if (revealFallbackTimer) {

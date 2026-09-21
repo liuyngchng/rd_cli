@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { IS_PLATFORM } from '../../../constants/config';
 import { useAuth } from '../context/AuthContext';
 import Onboarding from '../../onboarding/view/Onboarding';
@@ -28,16 +28,15 @@ function notifyDesktopReady() {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading, hasCompletedOnboarding, refreshOnboardingStatus } = useAuth();
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
-  const readyNotifiedRef = useRef(false);
 
-  // 当 auth 状态加载完成、界面已渲染（登录/设置/主内容）时，通知 Electron 切换窗口。
+  // 组件挂载即通知 Electron 主进程：React 已启动（不等 auth 请求完成）。
+  // mainWindow 的 paintWhenInitiallyHidden:true  + backgroundThrottling:false
+  // 确保隐藏期间 Chromium 持续绘制，show() 的第一帧就是已渲染好的界面。
+  // 主窗口本来 hidden（show: false），用户看不到这个 loading 画面 —— splash
+  // 会一直挡到 tryReveal() 两路信号到齐。
   useEffect(() => {
-    if (!isLoading && !readyNotifiedRef.current) {
-      readyNotifiedRef.current = true;
-      // 延迟一帧确保 React 已提交 DOM，让用户第一眼看到的就是完整界面
-      requestAnimationFrame(() => notifyDesktopReady());
-    }
-  }, [isLoading]);
+    notifyDesktopReady();
+  }, []);
 
   if (isLoading) {
     return <AuthLoadingScreen />;
