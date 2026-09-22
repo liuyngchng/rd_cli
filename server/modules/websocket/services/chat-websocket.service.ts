@@ -44,16 +44,17 @@ export function filterAttachmentsToUploadStore(
 
   return normalizeAttachmentDescriptors(attachments).filter((descriptor) => {
     // Windows-style absolute paths (`C:\…`, `C:/…`) are not rooted in the
-    // assets store even on POSIX hosts, where `path.isAbsolute` ignores the
-    // drive letter and `path.resolve` would otherwise swallow it under the
-    // store directory.
+    // assets store on POSIX hosts, where `path.isAbsolute` ignores the drive
+    // letter and `path.resolve` would otherwise swallow it under the store
+    // directory. On Windows the server runs locally, so drive-letter paths
+    // resolve correctly and must go through the normal containment check.
     const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/.test(descriptor.path);
 
     // 1. Assets store: allow any path under the store tree (per-user
     //    subdirectories included). Path traversal (`..`) is caught below.
     //    Cross-check with a startsWith barrier so a non-absolute path like
     //    `C:/…` that Node sneaks under the store cannot masquerade as safe.
-    if (!isWindowsAbsolute) {
+    if (!isWindowsAbsolute || process.platform === 'win32') {
       const resolved = path.resolve(assetsRoot, descriptor.path);
       if (resolved.startsWith(assetsRoot + path.sep)) {
         const relative = path.relative(assetsRoot, resolved);
