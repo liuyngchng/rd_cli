@@ -24,34 +24,61 @@ import { parseIncomingJsonObject } from '@/shared/utils.js';
 /**
  * Trust boundary for client-supplied image attachments: chat.send options come
  * straight from the browser, and the provider runtimes read the referenced
- * files off disk (Claude base64-encodes them into the prompt). Only images
- * that live directly inside the global upload store (`~/.rdcli/assets`,
- * where POST /api/assets/images puts them) are allowed through — anything
- * else (absolute paths elsewhere, traversal, subdirectories) is dropped.
+ * files off disk (Claude base64-encodes them into the prompt). Only files that
+ * live inside the global upload store (`~/.rdcli/assets`, where the
+ * `/api/assets` routes persist uploads) or inside the active project directory
+ * (for file-tree uploads) are allowed through — anything else is dropped.
+ *
+ * Uploads live under `~/.rdcli/assets/<userId>/`; the filter accepts every
+ * path that resolves into the store tree regardless of depth. Path traversal
+ * and absolute paths outside these two roots are always blocked.
  *
  * Exported for tests; `assetsRootOverride` exists only for them.
  */
 export function filterAttachmentsToUploadStore(
   attachments: unknown,
   assetsRootOverride?: string,
+  projectPathOverride?: string,
 ): ChatAttachmentDescriptor[] {
   const assetsRoot = path.resolve(assetsRootOverride ?? getGlobalImageAssetsDir());
 
   return normalizeAttachmentDescriptors(attachments).filter((descriptor) => {
-    // Relative paths are anchored in the store; absolute ones must already be in it.
-    const resolved = path.resolve(assetsRoot, descriptor.path);
-    const relative = path.relative(assetsRoot, resolved);
-    const isDirectChild =
-      relative.length > 0 &&
-      !relative.startsWith('..') &&
-      !path.isAbsolute(relative) &&
-      !relative.includes(path.sep) &&
-      !relative.includes('/');
+    // Windows-style absolute paths (`C:\…`, `C:/…`) are not rooted in the
+    // assets store even on POSIX hosts, where `path.isAbsolute` ignores the
+    // drive letter and `path.resolve` would otherwise swallow it under the
+    // store directory.
+    const isWindowsAbsolute = /^[a-zA-Z]:[\\/]/.test(descriptor.path);
 
-    if (!isDirectChild) {
-      console.warn(`[Chat] Dropping attachment outside the upload store: ${descriptor.path}`);
+    // 1. Assets store: allow any path under the store tree (per-user
+    //    subdirectories included). Path traversal (`..`) is caught below.
+    //    Cross-check with a startsWith barrier so a non-absolute path like
+    //    `C:/…` that Node sneaks under the store cannot masquerade as safe.
+    if (!isWindowsAbsolute) {
+      const resolved = path.resolve(assetsRoot, descriptor.path);
+      if (resolved.startsWith(assetsRoot + path.sep)) {
+        const relative = path.relative(assetsRoot, resolved);
+        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+          return true;
+        }
+      }
     }
-    return isDirectChild;
+
+    // 2. Project directory: any path inside the project root is allowed because
+    //    the agent already has filesystem access to its own working directory.
+    //    This lets file-tree uploads flow through to the LLM as attachments.
+    if (projectPathOverride) {
+      const projectRoot = path.resolve(projectPathOverride);
+      const absolutePath = path.isAbsolute(descriptor.path)
+        ? path.resolve(descriptor.path)
+        : path.resolve(projectRoot, descriptor.path);
+      const relativeToProject = path.relative(projectRoot, absolutePath);
+      if (!relativeToProject.startsWith('..') && !path.isAbsolute(relativeToProject)) {
+        return true;
+      }
+    }
+
+    console.warn(`[Chat] Dropping attachment outside allowed roots: ${descriptor.path}`);
+    return false;
   });
 }
 
@@ -217,7 +244,11 @@ async function handleChatSend(
     ...normalizeAttachmentDescriptors(clientOptions.files),
     ...normalizeAttachmentDescriptors(clientOptions.attachments),
   ];
-  const verifiedAttachments = filterAttachmentsToUploadStore(attachmentCandidates);
+  const verifiedAttachments = filterAttachmentsToUploadStore(
+    attachmentCandidates,
+    undefined,
+    session.project_path ?? undefined,
+  );
   const uniqueAttachments = verifiedAttachments.filter(
     (descriptor, index, all) => all.findIndex((candidate) => candidate.path === descriptor.path) === index,
   );

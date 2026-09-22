@@ -50,6 +50,7 @@
   "build": {
     "appId": "ai.rdcli.desktop",
     "productName": "rdCLI",
+    "desktopName": "rdcli",
     "asar": false,
     "artifactName": "rdcli-desktop-${version}-${os}-${arch}.${ext}",
     "directories": {
@@ -103,6 +104,7 @@
         "deb"
       ],
       "category": "Development",
+      "syncDesktopName": true,
       "executableName": "rdcli",
       "maintainer": "rdCLI UI Contributors <support@rdcli.ai>"
     },

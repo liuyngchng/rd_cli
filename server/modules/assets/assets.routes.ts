@@ -46,6 +46,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
+  // Browsers send filenames as UTF-8 bytes in Content-Disposition headers;
+  // the default 'latin1' would misinterpret multi-byte characters (e.g. Chinese).
+  defParamCharset: 'utf-8',
   fileFilter: (req, file, cb) => {
     if (isAllowedImageMimeType(file.mimetype)) {
       cb(null, true);
@@ -61,6 +64,9 @@ const upload = multer({
 
 const attachmentUpload = multer({
   storage,
+  // Browsers send filenames as UTF-8 bytes in Content-Disposition headers;
+  // the default 'latin1' would misinterpret multi-byte characters (e.g. Chinese).
+  defParamCharset: 'utf-8',
   limits: {
     fileSize: 10 * 1024 * 1024,
     files: 10,

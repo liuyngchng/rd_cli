@@ -6,6 +6,7 @@ import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
 import type { MainContentProps } from '../types/types';
+import type { ChatAttachment } from '../../chat/types/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
@@ -58,6 +59,18 @@ function MainContent({
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
+
+  // File-tree upload → chat attachment bridge: descriptors queued by a
+  // file-tree upload that the next chat.send carries to the LLM.
+  const [externalAttachments, setExternalAttachments] = useState<ChatAttachment[]>([]);
+
+  const handleFileTreeUploadComplete = useCallback((files: ChatAttachment[]) => {
+    setExternalAttachments((previous) => [...previous, ...files]);
+  }, []);
+
+  const handleExternalAttachmentsConsumed = useCallback(() => {
+    setExternalAttachments([]);
+  }, []);
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const shouldShowBrowserTab = browserUseEnabled;
@@ -175,13 +188,16 @@ function MainContent({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
+                pendingExternalAttachments={externalAttachments}
+                onExternalAttachmentsConsumed={handleExternalAttachmentsConsumed}
               />
             </ErrorBoundary>
           </div>
 
           {activeTab === 'files' && (
             <div className="h-full overflow-hidden">
-              <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />
+              <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen}
+                         onUploadComplete={handleFileTreeUploadComplete} />
             </div>
           )}
 

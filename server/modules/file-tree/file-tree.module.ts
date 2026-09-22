@@ -92,6 +92,9 @@ const fileUploadMiddleware = multer({
       callback(null, `rdcli-file-upload-${randomUUID()}`);
     },
   }),
+  // Browsers send filenames as UTF-8 bytes in Content-Disposition headers;
+  // the default 'latin1' would misinterpret multi-byte characters (e.g. Chinese).
+  defParamCharset: 'utf-8',
   limits: {
     fileSize: MAXIMUM_UPLOAD_SIZE_BYTES,
     files: MAXIMUM_UPLOAD_FILE_COUNT,

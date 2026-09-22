@@ -23,12 +23,22 @@ import FileTreeUploadProgress from './FileTreeUploadProgress';
 import ImageViewer from './ImageViewer';
 
 
+type UploadedFileDescriptor = {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+};
+
 type FileTreeProps = {
   selectedProject: Project | null;
   onFileOpen?: (filePath: string) => void;
+  /** Called after a successful upload with the stored file descriptors so the
+   *  chat can forward their paths to the LLM as attachments. */
+  onUploadComplete?: (files: UploadedFileDescriptor[]) => void;
 };
 
-export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps) {
+export default function FileTree({ selectedProject, onFileOpen, onUploadComplete }: FileTreeProps) {
   const { t } = useTranslation();
   const [selectedImage, setSelectedImage] = useState<FileTreeImageSelection | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -68,6 +78,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     selectedProject,
     onRefresh: refreshFiles,
     showToast,
+    onUploadComplete,
   });
   const operationLoading = operations.operationLoading || upload.operationLoading;
 

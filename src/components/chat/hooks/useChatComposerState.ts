@@ -70,6 +70,12 @@ interface UseChatComposerStateArgs {
   addMessage: (msg: ChatMessage) => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
+  /** Attachments from external surfaces (e.g. file-tree upload) to include in
+   *  the next chat.send alongside any composer-attached files. */
+  pendingExternalAttachments?: ChatAttachment[];
+  /** Called after pendingExternalAttachments have been consumed by a send so
+   *  the parent can clear its queue. */
+  onExternalAttachmentsConsumed?: () => void;
 }
 
 interface MentionableFile {
@@ -258,6 +264,8 @@ export function useChatComposerState({
   addMessage,
   setIsUserScrolledUp,
   setPendingPermissionRequests,
+  pendingExternalAttachments,
+  onExternalAttachmentsConsumed,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -820,6 +828,22 @@ export function useChatComposerState({
         }
       }
 
+      // Merge external attachment descriptors (e.g. from file-tree upload) into
+      // this send. These are already on disk inside the project directory so
+      // there's nothing to upload — just attach their descriptors.
+      const externalDescriptors = pendingExternalAttachments ?? [];
+      if (externalDescriptors.length > 0) {
+        uploadedAttachments = [
+          ...(uploadedAttachments as ChatAttachment[]),
+          ...externalDescriptors.filter(
+            (ext) => !(uploadedAttachments as ChatAttachment[]).some(
+              (existing) => existing.path === ext.path,
+            ),
+          ),
+        ];
+        onExternalAttachmentsConsumed?.();
+      }
+
       const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
 
@@ -935,6 +959,8 @@ export function useChatComposerState({
       addMessage,
       setIsUserScrolledUp,
       slashCommands,
+      pendingExternalAttachments,
+      onExternalAttachmentsConsumed,
     ],
   );
 

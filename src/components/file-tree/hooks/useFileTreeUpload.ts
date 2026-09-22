@@ -14,10 +14,20 @@ import {
   MAX_FILE_UPLOAD_SIZE_LABEL,
 } from '../constants/constants';
 
+type UploadedFileDescriptor = {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+};
+
 type UseFileTreeUploadOptions = {
   selectedProject: Project | null;
   onRefresh: () => void;
   showToast: (message: string, type: 'success' | 'error') => void;
+  /** Called after successful upload with the files stored on disk, so callers
+   *  can forward their paths as chat attachments for the LLM to read. */
+  onUploadComplete?: (files: UploadedFileDescriptor[]) => void;
 };
 
 export type FileTreeUploadProgressState = {
@@ -253,6 +263,7 @@ export const useFileTreeUpload = ({
   selectedProject,
   onRefresh,
   showToast,
+  onUploadComplete,
 }: UseFileTreeUploadOptions) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -362,6 +373,13 @@ export const useFileTreeUpload = ({
         showToast(formatUploadSuccessMessage(uploadedCount, requestedFileCount), 'success');
         scheduleProgressClear(COMPLETE_PROGRESS_CLEAR_DELAY_MS);
         onRefresh();
+
+        // Forward uploaded file descriptors so the chat composer can send
+        // their paths to the LLM as attachments.
+        const uploadedFiles = Array.isArray(response.files) ? response.files as UploadedFileDescriptor[] : [];
+        if (uploadedFiles.length > 0 && onUploadComplete) {
+          onUploadComplete(uploadedFiles);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Upload failed';
         console.error('Upload error:', err);
@@ -379,6 +397,7 @@ export const useFileTreeUpload = ({
       selectedProject,
       setUploadError,
       showToast,
+      onUploadComplete,
     ],
   );
 

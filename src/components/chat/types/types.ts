@@ -142,4 +142,9 @@ export interface ChatInterfaceProps {
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
   onShowAllTasks?: (() => void) | null;
+  /** Attachments queued from another surface (e.g. file-tree upload) that the
+   *  next chat.send should carry to the LLM. */
+  pendingExternalAttachments?: ChatAttachment[];
+  /** Clears the queued external attachments once they've been consumed by a send. */
+  onExternalAttachmentsConsumed?: () => void;
 }

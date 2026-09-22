@@ -35,6 +35,8 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
+  pendingExternalAttachments,
+  onExternalAttachmentsConsumed,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe } = useWebSocket();
@@ -213,6 +215,8 @@ function ChatInterface({
     setIsUserScrolledUp,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
+    pendingExternalAttachments,
+    onExternalAttachmentsConsumed,
   });
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
