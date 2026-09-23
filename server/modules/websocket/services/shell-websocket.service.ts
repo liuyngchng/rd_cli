@@ -6,6 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { AuthenticatedWebSocketRequest, WorkspacePathValidationResult } from '@/shared/types.js';
 
 type ShellIncomingMessage = {
@@ -198,12 +199,13 @@ function buildShellCommand(
     return initialCommand;
   }
 
-  const command = initialCommand || 'claude';
+  const claudeCommand = resolveClaudeCodeExecutablePath();
+  const command = initialCommand || claudeCommand;
   if (resumeSessionId) {
     if (os.platform() === 'win32') {
-      return `claude --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { claude }`;
+      return `"${claudeCommand}" --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { "${claudeCommand}" }`;
     }
-    return `claude --resume "${resumeSessionId}" || claude`;
+    return `'${claudeCommand}' --resume '${resumeSessionId}' || '${claudeCommand}'`;
   }
   return command;
 }
