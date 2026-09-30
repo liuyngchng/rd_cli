@@ -30,7 +30,7 @@ export function unescapeWithMathProtection(text: string) {
     return `${placeholderPrefix}${index}${placeholderSuffix}`;
   });
 
-  processedText = processedText.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
+  processedText = processedText.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
 
   processedText = processedText.replace(
     new RegExp(`${placeholderPrefix}(\\d+)${placeholderSuffix}`, 'g'),
