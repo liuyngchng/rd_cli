@@ -46,6 +46,7 @@ import {
 } from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { voiceRoutes } from './modules/voice/index.js';
+import { createProofreadModule } from './modules/proofread/index.js';
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
@@ -232,6 +233,9 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
+
+// Proofread API (uses API key authentication, creates pre-filled sessions)
+app.use('/api/proofread', createProofreadModule(queryClaude));
 
 app.use('/api/voice', authenticateToken, voiceRoutes);
 
