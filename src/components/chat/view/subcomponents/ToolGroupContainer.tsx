@@ -24,6 +24,7 @@ interface ToolGroupContainerProps {
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolProcess?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
 }
@@ -67,10 +68,16 @@ export default function ToolGroupContainer({
   onGrantToolPermission,
   showRawParameters,
   showThinking,
+  hideToolProcess,
   selectedProject,
   provider,
 }: ToolGroupContainerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // When hide-tool-process is on, suppress the entire tool group
+  if (hideToolProcess) {
+    return null;
+  }
   const config = getToolConfig(group.toolName).input;
   const label = config.label || group.toolName;
   const borderClass = config.colorScheme?.border || 'border-border';

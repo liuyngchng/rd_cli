@@ -43,16 +43,15 @@ export function isAllowedImageMimeType(mimeType: string): boolean {
 }
 
 /**
- * Returns the per-user assets folder (`~/.rdcli/assets/<userId>`). Keeping
- * each user's attachments in their own subfolder of the global assets dir
- * means the existing image-source trust boundary (`isAllowedImageSourcePath`)
- * continues to accept these paths unchanged.
+ * Returns the per-user workspace root (`~/.rdcli/users/<userId>`). All user
+ * uploads and generated files live here, alongside the user's CLAUDE.md, so
+ * the agent sees everything in one place.
  */
 export function getUserImageAssetsDir(userId: number): string {
   return path.join(getGlobalImageAssetsDir(), String(userId));
 }
 
-/** Creates the user's `~/.rdcli/assets/<userId>` folder if needed and returns it. */
+/** Creates the user's `~/.rdcli/users/<userId>` workspace if needed and returns it. */
 export async function ensureUserImageAssetsDir(userId: number): Promise<string> {
   const assetsDir = getUserImageAssetsDir(userId);
   await fs.mkdir(assetsDir, { recursive: true });
@@ -85,10 +84,10 @@ export function buildStoredAttachmentRecords(files: UploadedAttachmentFile[], us
 
 /**
  * Resolves one asset filename to its absolute path inside the requesting
- * user's assets folder, or null when the name is empty, contains path
+ * user's workspace root, or null when the name is empty, contains path
  * separators/traversal, or would escape the folder. This is the only lookup
  * the serving route uses, so nothing outside the user's own
- * `~/.rdcli/assets/<userId>` can ever be read through it — a file stored by
+ * `~/.rdcli/users/<userId>` can ever be read through it — a file stored by
  * another user resolves outside this folder and reads as missing.
  */
 export function resolveImageAssetFile(filename: string, userId: number): string | null {

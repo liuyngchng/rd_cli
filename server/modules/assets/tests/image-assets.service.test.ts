@@ -11,7 +11,7 @@ import {
   resolveImageAssetFile,
 } from '@/modules/assets/services/image-assets.service.js';
 
-const ASSETS_DIR = path.join(os.homedir(), '.rdcli', 'assets');
+const ASSETS_DIR = path.join(os.homedir(), '.rdcli', 'users');
 const USER_ID = 7;
 const USER_ASSETS_DIR = path.join(ASSETS_DIR, String(USER_ID));
 

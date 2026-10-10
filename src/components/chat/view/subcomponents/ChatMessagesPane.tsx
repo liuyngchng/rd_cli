@@ -59,6 +59,7 @@ interface ChatMessagesPaneProps {
   onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolProcess?: boolean;
   selectedProject: Project;
 }
 
@@ -101,6 +102,7 @@ function ChatMessagesPane({
   onGrantToolPermission,
   showRawParameters,
   showThinking,
+  hideToolProcess,
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
@@ -253,6 +255,7 @@ function ChatMessagesPane({
                     onGrantToolPermission={onGrantToolPermission}
                     showRawParameters={showRawParameters}
                     showThinking={showThinking}
+                    hideToolProcess={hideToolProcess}
                     selectedProject={selectedProject}
                     provider={provider}
                   />
@@ -273,6 +276,7 @@ function ChatMessagesPane({
                   onGrantToolPermission={onGrantToolPermission}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
+                  hideToolProcess={hideToolProcess}
                   selectedProject={selectedProject}
                   provider={provider}
                 />

@@ -31,7 +31,11 @@
   },
   "binaryFile": {
     "title": "Binary File",
-    "message": "The file \"{{fileName}}\" cannot be displayed in the text editor because it is a binary file."
+    "message": "The file \"{{fileName}}\" cannot be displayed in the text editor because it is a binary file.",
+    "canOpenExternally": "You can open it with your system default application.",
+    "openWithDefault": "Open with default app",
+    "opening": "Opening...",
+    "openError": "Unable to open file"
   },
   "filePreview": {
     "loading": "Loading preview...",

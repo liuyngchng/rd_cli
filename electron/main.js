@@ -20,6 +20,29 @@ let splashWindow = null;
 let localServer = null;
 let isQuitting = false;
 
+/**
+ * Show a window and bring it to the foreground.
+ *
+ * On Linux most window managers ignore focus() when the calling process does
+ * not own the active focus — toggling alwaysOnTop briefly forces the window
+ * to the front so the user sees it immediately on launch.
+ */
+function showAndFocusWindow(win) {
+  if (!win || win.isDestroyed()) return;
+  if (process.platform === 'linux') {
+    win.setAlwaysOnTop(true);
+  }
+  win.show();
+  if (process.platform === 'linux') {
+    setTimeout(() => {
+      if (!win.isDestroyed()) {
+        win.setAlwaysOnTop(false);
+      }
+    }, 500);
+  }
+  win.focus();
+}
+
 function getAppRoot() {
   return app.isPackaged ? app.getAppPath() : path.resolve(__dirname, '..');
 }
@@ -408,12 +431,17 @@ function registerIpcHandlers() {
     await localServer.updateDesktopSetting(key, value);
     return getDesktopState();
   });
+
+  ipcMain.handle('rdcli-desktop:open-path', async (_event, filePath) => {
+    const result = await shell.openPath(filePath);
+    return { ok: result === '', error: result || null };
+  });
 }
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
+    width: 1200,
+    height: 680,
     minWidth: 800,
     minHeight: 600,
     show: false,
@@ -455,8 +483,7 @@ async function createWindow() {
     }
     // paintWhenInitiallyHidden + backgroundThrottling:false 确保隐藏期间
     // 渲染器持续绘制帧，show() 的第一帧就是已渲染好的登录界面。
-    mainWindow.show();
-    mainWindow.focus();
+    showAndFocusWindow(mainWindow);
   }
 
   // 两个信号缺一不可，同时满足才切换窗口：
@@ -512,8 +539,7 @@ function registerAppEvents() {
     if (BrowserWindow.getAllWindows().length === 0) {
       void createWindow();
     } else if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+      showAndFocusWindow(mainWindow);
     }
   });
 
@@ -546,8 +572,7 @@ function registerSingleInstance() {
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
+      showAndFocusWindow(mainWindow);
     }
   });
 

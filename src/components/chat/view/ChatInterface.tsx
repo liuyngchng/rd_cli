@@ -31,6 +31,7 @@ function ChatInterface({
   onShowSettings,
   showRawParameters,
   showThinking,
+  hideToolProcess,
   sendByCtrlEnter,
   externalMessageUpdate,
   newSessionTrigger,
@@ -359,6 +360,7 @@ function ChatInterface({
           onGrantToolPermission={handleGrantToolPermission}
           showRawParameters={showRawParameters}
           showThinking={showThinking}
+          hideToolProcess={hideToolProcess}
           selectedProject={selectedProject}
         />
 
