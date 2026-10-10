@@ -78,7 +78,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       description={t('login.description')}
       footerText={t('login.footerText')}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <AuthInputField
           id="username"
           label={t('login.username')}
