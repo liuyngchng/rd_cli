@@ -72,7 +72,15 @@
     "addTo": "将 {{entry}} 添加到允许的工具。",
     "retry": "权限已保存。重试请求以使用该工具。",
     "error": "无法更新权限。请重试。",
-    "openSettings": "打开设置"
+    "openSettings": "打开设置",
+    "required": "需要权限",
+    "tool": "工具",
+    "allowRule": "允许规则",
+    "viewToolInput": "查看工具输入",
+    "deny": "拒绝",
+    "allowSaved": "允许（已保存）",
+    "allowRemember": "允许并记住",
+    "allowOnce": "允许一次"
   },
   "todo": {
     "updated": "待办列表已成功更新",

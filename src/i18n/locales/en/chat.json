@@ -72,7 +72,15 @@
     "addTo": "Adds {{entry}} to Allowed Tools.",
     "retry": "Permission saved. Retry the request to use the tool.",
     "error": "Unable to update permissions. Please try again.",
-    "openSettings": "Open settings"
+    "openSettings": "Open settings",
+    "required": "Permission required",
+    "tool": "Tool",
+    "allowRule": "Allow rule",
+    "viewToolInput": "View tool input",
+    "deny": "Deny",
+    "allowSaved": "Allow (saved)",
+    "allowRemember": "Allow & remember",
+    "allowOnce": "Allow once"
   },
   "todo": {
     "updated": "Todo list has been updated successfully",
