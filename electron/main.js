@@ -335,24 +335,35 @@ async function installLinuxDesktopEntry() {
 
 async function installWindowsShortcut() {
   try {
-    const execPath = app.isPackaged ? process.execPath : process.execPath;
-    const desktopDir = path.join(app.getPath('home'), 'Desktop');
+    const execPath = process.execPath;
+    const desktopDir = app.getPath('desktop');
     const shortcutPath = path.join(desktopDir, 'rdCLI.lnk');
     const iconPath = path.join(getAppRoot(), 'electron', 'assets', 'logo-windows.ico');
 
-    // 用 PowerShell 创建快捷方式
+    // 用 PowerShell 创建快捷方式。
+    // 直接把脚本塞进 -Command 会被外层 cmd.exe 破坏嵌套双引号，导致脚本残缺，
+    // 因此改为写入临时 .ps1 文件后通过 -File 执行，脚本内一律用单引号。
     const psScript = [
       `$WshShell = New-Object -ComObject WScript.Shell`,
-      `$Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")`,
-      `$Shortcut.TargetPath = "${execPath.replace(/\\/g, '\\\\')}"`,
-      `$Shortcut.Arguments = "--no-sandbox"`,
-      `$Shortcut.IconLocation = "${iconPath.replace(/\\/g, '\\\\')}"`,
-      `$Shortcut.Description = "rdCLI Desktop Shell"`,
-      `$Shortcut.WorkingDirectory = "${path.dirname(execPath).replace(/\\/g, '\\\\')}"`,
+      `$Shortcut = $WshShell.CreateShortcut('${shortcutPath.replace(/'/g, "''")}')`,
+      `$Shortcut.TargetPath = '${execPath.replace(/'/g, "''")}'`,
+      `$Shortcut.Arguments = '--no-sandbox'`,
+      `$Shortcut.IconLocation = '${iconPath.replace(/'/g, "''")}'`,
+      `$Shortcut.Description = 'rdCLI Desktop Shell'`,
+      `$Shortcut.WorkingDirectory = '${path.dirname(execPath).replace(/'/g, "''")}'`,
       `$Shortcut.Save()`,
-    ].join('; ');
+    ].join('\n');
 
-    execSync(`powershell.exe -NoProfile -NonInteractive -Command "${psScript}"`, { stdio: 'ignore' });
+    const scriptPath = path.join(app.getPath('temp'), 'rdcli-create-shortcut.ps1');
+    fs.writeFileSync(scriptPath, psScript, 'utf8');
+    try {
+      execSync(
+        `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`,
+        { stdio: 'ignore' },
+      );
+    } finally {
+      try { fs.unlinkSync(scriptPath); } catch {}
+    }
 
     await dialog.showMessageBox(mainWindow, {
       type: 'info',
@@ -399,7 +410,7 @@ async function removeDesktopShortcut() {
       });
     }
   } else if (process.platform === 'win32') {
-    const shortcutPath = path.join(app.getPath('home'), 'Desktop', 'rdCLI.lnk');
+    const shortcutPath = path.join(app.getPath('desktop'), 'rdCLI.lnk');
     try {
       if (fs.existsSync(shortcutPath)) fs.unlinkSync(shortcutPath);
       await dialog.showMessageBox(mainWindow, {
