@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -449,6 +449,16 @@ function registerIpcHandlers() {
   });
 }
 
+// 主窗口的背景色应与 React 应用的主题背景保持一致（见 src/index.css：
+// 浅色 hsl(44 22% 96%) → #f6f4ef，深色 hsl(0 0% 8%) → #141414），
+// 这样即便主窗口在 React 内容绘制前闪现一帧，也不会出现深色→浅色的跳变。
+function getThemeBackgroundColor() {
+  const themeMode = localServer.getSettings().themeMode;
+  const useDark = themeMode === 'dark'
+    || (themeMode !== 'light' && nativeTheme.shouldUseDarkColors);
+  return useDark ? '#141414' : '#f6f4ef';
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -456,7 +466,7 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: '#0f172a',
+    backgroundColor: getThemeBackgroundColor(),
     title: APP_NAME,
     icon: getWindowIconPath(),
     // 隐藏窗口时仍持续绘制帧，确保 show() 时第一帧就是已渲染好的登录界面，
