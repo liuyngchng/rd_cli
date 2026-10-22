@@ -53,7 +53,7 @@ import { fileTreeRoutes } from './modules/file-tree/index.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
-import { closeConnection, initializeDatabase, sessionsDb } from './modules/database/index.js';
+import { closeConnection, initializeDatabase, proofreadTasksDb, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { debug } from '@/shared/debug.js';
@@ -235,7 +235,11 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 app.use('/api/agent', agentRoutes);
 
 // Proofread API (uses API key authentication, creates pre-filled sessions)
-app.use('/api/proofread', createProofreadModule(queryClaude));
+app.use('/api/proofread', createProofreadModule(
+  queryClaude,
+  proofreadTasksDb,
+  (sessionId: string) => providerRuntimeService.abort('claude', sessionId),
+));
 
 app.use('/api/voice', authenticateToken, voiceRoutes);
 

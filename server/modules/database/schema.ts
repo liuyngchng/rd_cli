@@ -144,6 +144,26 @@ CREATE TABLE IF NOT EXISTS app_config (
 );
 `;
 
+export const PROOFREAD_TASKS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS proofread_tasks (
+    task_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    file_name TEXT NOT NULL,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    additional_instructions TEXT,
+    session_id TEXT,
+    result_text TEXT,
+    result_json TEXT,
+    tokens_json TEXT,
+    error_message TEXT,
+    last_queried_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -186,6 +206,10 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
 
 ${LAST_SCANNED_AT_SQL}
+
+${PROOFREAD_TASKS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_proofread_tasks_user_id ON proofread_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_proofread_tasks_status ON proofread_tasks(status);
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}
 `;

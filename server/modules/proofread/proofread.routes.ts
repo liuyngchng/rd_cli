@@ -7,8 +7,9 @@ import multer from 'multer';
 
 import { getGlobalImageAssetsDir as getGlobalAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
 import { userDb, apiKeysDb } from '@/modules/database/index.js';
-import type { ProofreadService } from './proofread.service.js';
 import { debug } from '@/shared/debug.js';
+
+import type { ProofreadService } from './proofread.service.js';
 
 const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
 
@@ -31,6 +32,7 @@ function isAllowedDocx(mimetype: string, filename: string): boolean {
 type ProofreadRouterDependencies = {
   proofreadService: ProofreadService;
   getSessionId: () => string;   // generates a fresh session id
+  getTaskId: () => string;      // generates a fresh async task id
 };
 
 type AuthenticatedUser = {
@@ -109,7 +111,7 @@ async function ensureUserProofreadDir(userId: number): Promise<string> {
  * Creates the proofread router with a single endpoint.
  */
 export function createProofreadRouter(deps: ProofreadRouterDependencies): express.Router {
-  const { proofreadService, getSessionId } = deps;
+  const { proofreadService, getSessionId, getTaskId } = deps;
   const router = express.Router();
 
   // Multer: store uploaded docx in the user's assets folder.
@@ -141,9 +143,233 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       if (isAllowedDocx(file.mimetype, file.originalname)) {
         cb(null, true);
       } else {
-        cb(new Error('仅支持 .docx 格式的 Word 文档'));
+        cb(Object.assign(new Error('仅支持 .docx 格式的 Word 文档'), { code: 'UNSUPPORTED_FORMAT' }));
       }
     },
+  });
+
+  /**
+   * GET /api/proofread
+   *
+   * Returns the authenticated user's active (pending + processing) tasks,
+   * most recent first.
+   */
+  router.get('/', validateExternalApiKey, (req, res) => {
+    const userId = getUserId(req);
+    if (userId == null) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
+      });
+      return;
+    }
+
+    const tasks = proofreadService.listActiveTasks(userId);
+
+    res.json({
+      success: true,
+      data: tasks.map((t) => ({
+        task_id: t.task_id,
+        status: t.status,
+        file_name: t.file_name,
+        file_size: t.file_size,
+        additional_instructions: t.additional_instructions,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+      })),
+    });
+  });
+
+  /**
+   * POST /api/proofread
+   *
+   * Creates an asynchronous proofreading task. Returns immediately with a taskId
+   * so the caller can poll GET /api/proofread/:taskId for the completed result.
+   */
+  router.post('/', validateExternalApiKey, (req, res, next) => {
+    upload.single('file')(req, res, (uploadError?: unknown) => {
+      if (uploadError) {
+        if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
+          res.status(400).json({
+            success: false,
+            error: { code: 'UPLOAD_FAILED', message: '文件超过 20MB 上限，请压缩或拆分后重试' },
+          });
+        } else if (uploadError instanceof Error && (uploadError as Error & { code?: string }).code === 'UNSUPPORTED_FORMAT') {
+          res.status(400).json({
+            success: false,
+            error: { code: 'UNSUPPORTED_FORMAT', message: uploadError.message },
+          });
+        } else {
+          const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+          res.status(400).json({ success: false, error: { code: 'UPLOAD_FAILED', message } });
+        }
+        return;
+      }
+
+      void (async () => {
+        try {
+          if (!req.file) {
+            res.status(400).json({
+              success: false,
+              error: { code: 'MISSING_FILE', message: '请上传 .docx 格式的 Word 文档' },
+            });
+            return;
+          }
+
+          const user = resolveUser(req);
+          const userId = getUserId(req);
+          if (userId == null) {
+            res.status(401).json({
+              success: false,
+              error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
+            });
+            return;
+          }
+
+          const assetsDir = getUserProofreadDir(userId);
+          const filePath = path.join(assetsDir, req.file.filename);
+          const posixPath = toPosixPath(filePath);
+
+          const additionalInstructions = typeof req.body.additional_instructions === 'string'
+            ? req.body.additional_instructions.trim() || undefined
+            : undefined;
+
+          const workspacePath = path.join(os.homedir(), '.rdcli', 'users', String(userId));
+          const taskId = getTaskId();
+
+          debug('[Proofread] Creating async task',
+            `taskId=${taskId}`,
+            `file=${posixPath}`,
+          );
+
+          const result = await proofreadService.createProofreadTask({
+            user: { userId, username: (user as Record<string, unknown>).username as string || '' },
+            filePath: posixPath,
+            fileName: req.file.originalname,
+            fileSize: req.file.size,
+            additionalInstructions,
+            sessionId: taskId,
+            workspacePath,
+          });
+
+          res.json({
+            success: true,
+            data: {
+              task_id: result.taskId,
+              status: result.status,
+            },
+          });
+        } catch (error) {
+          next(error);
+        }
+      })();
+    });
+  });
+
+  /**
+   * GET /api/proofread/:taskId
+   *
+   * Returns the current status and result of an async proofreading task.
+   * Rate-limited: at most one query per 10 seconds per task.
+   */
+  router.get('/:taskId', validateExternalApiKey, (req, res) => {
+    const taskId = String(req.params.taskId);
+    const { task, allowed } = proofreadService.queryTaskWithRateLimit(taskId);
+
+    if (!task) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'TASK_NOT_FOUND', message: '任务不存在' },
+      });
+      return;
+    }
+
+    if (!allowed) {
+      res.status(429).json({
+        success: false,
+        error: { code: 'RATE_LIMITED', message: '请至少间隔 10 秒再查询' },
+      });
+      return;
+    }
+
+    // Parse stored JSON fields
+    let tokens: Record<string, unknown> | undefined;
+    if (task.tokens_json) {
+      try {
+        tokens = JSON.parse(task.tokens_json);
+      } catch { /* keep undefined */ }
+    }
+
+    const data: Record<string, unknown> = {
+      task_id: task.task_id,
+      status: task.status,
+      file_name: task.file_name,
+      file_size: task.file_size,
+      created_at: task.created_at,
+      updated_at: task.updated_at,
+    };
+
+    if (task.additional_instructions) {
+      data.additional_instructions = task.additional_instructions;
+    }
+
+    if (task.status === 'completed') {
+      data.result_text = task.result_text;
+      if (tokens) data.tokens = tokens;
+      if (task.session_id) {
+        data.session_id = task.session_id;
+        data.session_url = proofreadService.getSessionUrl(task.session_id);
+      }
+    } else if (task.status === 'failed' || task.status === 'cancelled') {
+      data.error_message = task.error_message;
+    }
+
+    res.json({ success: true, data });
+  });
+
+  /**
+   * DELETE /api/proofread/:taskId
+   *
+   * Cancels a pending or processing proofread task. If the task is currently
+   * processing, the underlying Claude session is aborted. Only tasks in
+   * pending or processing state can be cancelled.
+   */
+  router.delete('/:taskId', validateExternalApiKey, async (req, res) => {
+    const taskId = String(req.params.taskId);
+
+    try {
+      const task = await proofreadService.cancelTask(taskId);
+
+      if (!task) {
+        // Either already terminal, or never existed.
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'TASK_NOT_FOUND',
+            message: '任务不存在或已完成，无法撤销',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          task_id: task.task_id,
+          status: task.status,
+          updated_at: task.updated_at,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[Proofread] Cancel task error for ${taskId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      res.status(500).json({
+        success: false,
+        error: { code: 'CANCEL_FAILED', message: '撤销失败，请稍后重试' },
+      });
+    }
   });
 
   /**

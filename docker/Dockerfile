@@ -3,6 +3,20 @@
 # ============================================================================
 FROM ubuntu:24.04 AS rdcli-builder
 
+# ---- Proxy support (apt + npm in this stage) -------------------------------
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+ARG NO_PROXY=""
+ENV HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
+    http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY"
+
+RUN if [ -n "$HTTP_PROXY" ]; then \
+        echo 'Acquire::http::Proxy "'$HTTP_PROXY'";' > /etc/apt/apt.conf.d/01proxy; \
+    fi; \
+    if [ -n "$HTTPS_PROXY" ]; then \
+        echo 'Acquire::https::Proxy "'$HTTPS_PROXY'";' >> /etc/apt/apt.conf.d/01proxy; \
+    fi
+
 # Build tools for native npm modules (better-sqlite3, bcrypt, node-pty)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git build-essential python3 python3-setuptools \
@@ -26,6 +40,20 @@ RUN npm ci --no-audit --no-fund \
 # Stage 2 – final runtime image
 # ============================================================================
 FROM ubuntu:24.04
+
+# ---- Proxy support (apt + npm + pip in this stage) -------------------------
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+ARG NO_PROXY=""
+ENV HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
+    http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY"
+
+RUN if [ -n "$HTTP_PROXY" ]; then \
+        echo 'Acquire::http::Proxy "'$HTTP_PROXY'";' > /etc/apt/apt.conf.d/01proxy; \
+    fi; \
+    if [ -n "$HTTPS_PROXY" ]; then \
+        echo 'Acquire::https::Proxy "'$HTTPS_PROXY'";' >> /etc/apt/apt.conf.d/01proxy; \
+    fi
 
 # ---------------------------------------------------------------------------
 # Locale, timezone & misc
