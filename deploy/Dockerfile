@@ -199,11 +199,7 @@ RUN chmod +x /opt/rdcli/dist-server/server/modules/cli/cli.js \
 # ---------------------------------------------------------------------------
 # Create a non-root user — Claude Code refuses --dangerously-skip-permissions
 # (required by the bypassPermissions proofread mode) when running as root.
-# UID 1000 matches the typical first user / custom workspace mount on Linux.
-# Ubuntu 24.04 ships with a default 'ubuntu' user (UID 1000) — remove it
-# first so we can reuse UID 1000 for rdcli (matches typical host mount perms).
-RUN userdel -r ubuntu 2>/dev/null || true \
-    && groupadd -r rdcli && useradd -r -g rdcli -m -d /home/rdcli -u 1000 rdcli \
+RUN groupadd -r rdcli && useradd -r -g rdcli -m -d /home/rdcli rdcli \
     && mkdir -p /home/rdcli/.claude \
     && chown -R rdcli:rdcli /home/rdcli
 
