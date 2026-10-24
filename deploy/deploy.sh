@@ -23,3 +23,5 @@ docker run -dit \
     -e CLAUDE_CODE_ATTRIBUTION_HEADER=0 \
     -p 19004:3001 \
     rd_cli:1.0.1
+
+docker logs -f my_rd_cli

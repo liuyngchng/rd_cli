@@ -1,4 +1,4 @@
-import { Info, type LucideIcon } from 'lucide-react';
+import { Info, Key, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SettingsMainTab } from '../types/types';
 
@@ -17,8 +17,9 @@ type MainTabConfig = {
 const TAB_CONFIG: MainTabConfig[] = [
   { id: 'agents', labelKey: 'mainTabs.agents' },
   { id: 'appearance', labelKey: 'mainTabs.appearance' },
+  { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
   { id: 'voice', labelKey: 'mainTabs.voice' },
-{ id: 'notifications', labelKey: 'mainTabs.notifications' },
+  { id: 'notifications', labelKey: 'mainTabs.notifications' },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];
 

@@ -139,6 +139,7 @@ app.use(
         mediaSrc: ["'self'"],
         frameSrc: ["'self'"],
       },
+      useDefaults: false,
     },
     crossOriginEmbedderPolicy: false, // Allow loading external resources
   })
