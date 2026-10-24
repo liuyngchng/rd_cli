@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 echo 'stop current container'
-docker stop my_rd_cli
+docker stop my_rd_cli 2>/dev/null || true
 echo 'start container'
 docker run -dit \
     --name my_rd_cli \
@@ -14,7 +14,7 @@ docker run -dit \
     --add-host "claude.ai:::1" \
     -v /data/remote/workspace:/opt/workspace \
     -w /opt/workspace \
-    -e ANTHROPIC_BASE_URL=http://rd_llm_host:16002 \
+    -e ANTHROPIC_BASE_URL=http://192.168.1.104:16002 \
     -e ANTHROPIC_AUTH_TOKEN=sk-12345 \
     -e API_TIMEOUT_MS=600000 \
     -e ANTHROPIC_MODEL=deepseek-v4-pro \
