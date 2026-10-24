@@ -67,9 +67,11 @@ ENV LANG=C.UTF-8 \
     TZ=Asia/Shanghai \
     NODE_TLS_REJECT_UNAUTHORIZED=0
 
-# ---------------------------------------------------------------------------
-# System dependencies
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Root phase — install system packages & Node.js, then switch to rdcli
+# ============================================================================
+
+# ---- System dependencies (apt) ---------------------------------------------
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -78,9 +80,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     build-essential \
     python3 \
-    python3-venv \
     python3-pip \
     python3-setuptools \
+    virtualenv \
     pandoc \
     ffmpeg \
     libreoffice-writer \
@@ -95,72 +97,78 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     tree \
     vim-tiny
 
-
-# ---------------------------------------------------------------------------
-# Python virtualenv – Office document processing
-# ---------------------------------------------------------------------------
-# Set PIP_OFFLINE_=1 to install from pre-downloaded packages offline
-# (build.sh pip_download_dir=<dir> does this automatically).
-ARG PIP_OFFLINE_=""
-COPY deploy/requirements.txt /opt/requirements.txt
-
-# Pre-downloaded pip packages (build.sh populates deploy/.pip-offline/ when
-# pip_download_dir=<dir> is given; otherwise it contains only a .gitkeep).
-COPY deploy/.pip-offline/ /opt/.pip-offline/
-
-RUN python3 -m venv /opt/llm_py_env
-
-# Offline path: install from local packages, no network needed.
-RUN if [ -n "$PIP_OFFLINE_" ] && ls /opt/.pip-offline/*.whl /opt/.pip-offline/*.tar.gz 2>/dev/null; then \
-      echo "Pip offline install from /opt/.pip-offline"; \
-      /opt/llm_py_env/bin/pip install \
-        --no-index \
-        --find-links /opt/.pip-offline \
-        -r /opt/requirements.txt; \
-    fi
-
-# Online path (skipped when offline install succeeded above).
-RUN --mount=type=cache,target=/root/.cache/pip \
-    if [ -z "$PIP_OFFLINE_" ] || ! ls /opt/.pip-offline/*.whl /opt/.pip-offline/*.tar.gz 2>/dev/null; then \
-      /opt/llm_py_env/bin/pip install -r /opt/requirements.txt; \
-    fi
-
-RUN rm -rf /opt/.pip-offline
-
-# ---------------------------------------------------------------------------
-# Node.js – install from local tarball
-# ---------------------------------------------------------------------------
-# Install to /usr/local so both the builder (root) and the rdcli runtime user
-# can access it.  /root is 0700 and would break USER-switch below.
-ENV NODE_VERSION=v22.23.2
-
+# ---- Node.js – installed system-wide, readable by all users ----------------
 COPY deploy/node-v22.23.2-linux-x64.tar.xz /tmp/
-
 RUN tar -xJf /tmp/node-v22.23.2-linux-x64.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node-v22.23.2-linux-x64.tar.xz
 
-ENV NODE_HOME=/usr/local
-ENV PATH=/opt/llm_py_env/bin:${NODE_HOME}/bin:${PATH}
+# ---- Runtime user -----------------------------------------------------------
+# Ubuntu 24.04 ships with a default 'ubuntu' user (UID 1000). Remove it so we
+# can reuse UID 1000 for rdcli — this matches the host user's UID, so
+# bind-mounted workspace directories work without permission friction.
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && useradd -r -m -d /home/rdcli -u 1000 -s /bin/bash rdcli \
+    && mkdir -p /home/rdcli/.claude && chown rdcli:rdcli /home/rdcli/.claude
 
-# ---------------------------------------------------------------------------
-# Claude Code CLI
-# ---------------------------------------------------------------------------
+# ============================================================================
+# rdcli phase — everything below runs as rdcli, all files naturally owned
+# ============================================================================
+USER rdcli
+ENV HOME=/home/rdcli \
+    NPM_CONFIG_PREFIX=/home/rdcli/.npm-global
+
+ENV PATH=/home/rdcli/llm_py_env/bin:/home/rdcli/.npm-global/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/sbin:/bin
+
+# ---- Claude Code global memory – office document assistant role -------------
+COPY --chown=rdcli:rdcli deploy/CLAUDE.md /home/rdcli/.claude/CLAUDE.md
+
+# ---- Python virtualenv – Office document processing -------------------------
+# Set PIP_OFFLINE_=1 to install from pre-downloaded packages offline
+# (build.sh pip_download_dir=<dir> does this automatically).
+ARG PIP_OFFLINE_=""
+COPY --chown=rdcli:rdcli deploy/requirements.txt /tmp/requirements.txt
+
+# Pre-downloaded pip packages (build.sh populates deploy/.pip-offline/ when
+# pip_download_dir=<dir> is given; otherwise it contains only a .gitkeep).
+COPY --chown=rdcli:rdcli deploy/.pip-offline/ /tmp/.pip-offline/
+
+RUN virtualenv /home/rdcli/llm_py_env
+
+# Offline path: install from local packages, no network needed.
+RUN if [ -n "$PIP_OFFLINE_" ] && ls /tmp/.pip-offline/*.whl /tmp/.pip-offline/*.tar.gz 2>/dev/null; then \
+      echo "Pip offline install from /tmp/.pip-offline"; \
+      /home/rdcli/llm_py_env/bin/pip install \
+        --no-index \
+        --find-links /tmp/.pip-offline \
+        -r /tmp/requirements.txt; \
+    fi
+
+# Online path (skipped when offline install succeeded above).
+RUN --mount=type=cache,target=/home/rdcli/.cache/pip,uid=1000,gid=1000 \
+    if [ -z "$PIP_OFFLINE_" ] || ! ls /tmp/.pip-offline/*.whl /tmp/.pip-offline/*.tar.gz 2>/dev/null; then \
+      /home/rdcli/llm_py_env/bin/pip install -r /tmp/requirements.txt; \
+    fi
+
+RUN rm -rf /tmp/.pip-offline /tmp/requirements.txt
+
+# ---- Claude Code CLI --------------------------------------------------------
 # When build.sh finds a host-installed claude binary, it copies it into
 # deploy/claude-code/ and sets CLAUDE_CODE_OFFLINE=1 — offline install.
 # Otherwise falls back to `npm install -g` (requires network).
 ARG CLAUDE_CODE_OFFLINE=""
-COPY deploy/claude-code/ /opt/claude-code/
+COPY --chown=rdcli:rdcli deploy/claude-code/ /tmp/claude-code/
 
 # Offline path: use the host-provided binary, no network.
-RUN if [ -n "$CLAUDE_CODE_OFFLINE" ] && [ -f /opt/claude-code/claude ]; then \
+RUN if [ -n "$CLAUDE_CODE_OFFLINE" ] && [ -f /tmp/claude-code/claude ]; then \
       echo "Installing Claude Code CLI from local binary"; \
-      chmod +x /opt/claude-code/claude; \
-      ln -sf /opt/claude-code/claude ${NODE_HOME}/bin/claude; \
+      mkdir -p /home/rdcli/.npm-global/bin; \
+      cp /tmp/claude-code/claude /home/rdcli/.npm-global/bin/claude; \
+      chmod +x /home/rdcli/.npm-global/bin/claude; \
     fi
 
 # Online fallback path (skipped when the binary was installed above).
-RUN --mount=type=cache,target=/root/.npm \
-    if [ -z "$CLAUDE_CODE_OFFLINE" ] || [ ! -f /opt/claude-code/claude ]; then \
+RUN --mount=type=cache,target=/home/rdcli/.npm,uid=1000,gid=1000 \
+    if [ -z "$CLAUDE_CODE_OFFLINE" ] || [ ! -f /tmp/claude-code/claude ]; then \
       echo "Claude Code CLI local binary not found, falling back to npm install"; \
       npm install -g @anthropic-ai/claude-code \
         --fetch-retries=5 \
@@ -171,49 +179,34 @@ RUN --mount=type=cache,target=/root/.npm \
         --no-fund; \
     fi
 
-# ---------------------------------------------------------------------------
-# rdCLI – built from local source (Stage 1), never published to npm
-# ---------------------------------------------------------------------------
-WORKDIR /opt/rdcli
+RUN rm -rf /tmp/claude-code
 
-# Copy compiled output + package metadata from builder
-COPY --from=rdcli-builder /build/dist        /opt/rdcli/dist
-COPY --from=rdcli-builder /build/dist-server /opt/rdcli/dist-server
-COPY --from=rdcli-builder /build/public      /opt/rdcli/public
-COPY --from=rdcli-builder /build/shared      /opt/rdcli/shared
-COPY --from=rdcli-builder /build/package.json      /opt/rdcli/
-COPY --from=rdcli-builder /build/package-lock.json /opt/rdcli/
-COPY --from=rdcli-builder /build/scripts/fix-node-pty.js /opt/rdcli/scripts/
+# ---- rdCLI – built from local source (Stage 1), never published to npm ------
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/dist        /home/rdcli/rdcli/dist
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/dist-server /home/rdcli/rdcli/dist-server
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/public      /home/rdcli/rdcli/public
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/shared      /home/rdcli/rdcli/shared
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/package.json      /home/rdcli/rdcli/
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/package-lock.json /home/rdcli/rdcli/
+COPY --chown=rdcli:rdcli --from=rdcli-builder /build/scripts/fix-node-pty.js /home/rdcli/rdcli/scripts/
+
+WORKDIR /home/rdcli/rdcli
 
 # Install production dependencies + compile native modules
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/home/rdcli/.npm,uid=1000,gid=1000 \
     npm ci --omit=dev --no-audit --no-fund
 
 # Wire up the rdcli command
 # (tsc emits cli.js with 0644 perms and no exec bit – chmod it so runc can exec it)
-RUN chmod +x /opt/rdcli/dist-server/server/modules/cli/cli.js \
-    && ln -s /opt/rdcli/dist-server/server/modules/cli/cli.js ${NODE_HOME}/bin/rdcli
+RUN chmod +x /home/rdcli/rdcli/dist-server/server/modules/cli/cli.js \
+    && mkdir -p /home/rdcli/.npm-global/bin /home/rdcli/workspace \
+    && ln -s /home/rdcli/rdcli/dist-server/server/modules/cli/cli.js \
+          /home/rdcli/.npm-global/bin/rdcli
 
 # ---------------------------------------------------------------------------
 # Runtime
 # ---------------------------------------------------------------------------
-# Create a non-root user — Claude Code refuses --dangerously-skip-permissions
-# (required by the bypassPermissions proofread mode) when running as root.
-RUN groupadd -r rdcli && useradd -r -g rdcli -m -d /home/rdcli rdcli \
-    && mkdir -p /home/rdcli/.claude \
-    && chown -R rdcli:rdcli /home/rdcli
-
-# Give rdcli ownership of directories it needs to read / write at runtime.
-RUN mkdir -p /opt/workspace \
-    && chown -R rdcli:rdcli /opt/rdcli /opt/workspace /opt/llm_py_env
-
-USER rdcli
-ENV HOME=/home/rdcli
-
-# Claude Code global memory – office document assistant role
-COPY --chown=rdcli:rdcli deploy/CLAUDE.md /home/rdcli/.claude/CLAUDE.md
-
-WORKDIR /opt/workspace
+WORKDIR /home/rdcli/workspace
 EXPOSE 3001
 
-CMD ["/usr/local/bin/rdcli"]
+CMD ["/home/rdcli/.npm-global/bin/rdcli"]

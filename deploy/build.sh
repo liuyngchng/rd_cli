@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Includes:
 #   - Node.js v22.23.2 + Claude Code CLI + rdCLI web UI
-#   - Python virtualenv /opt/llm_py_env (Office doc processing: Word, PDF, Excel, PPT)
+#   - Python virtualenv /home/rdcli/llm_py_env (Office doc processing: Word, PDF, Excel, PPT)
 #   - LibreOffice (doc → docx conversion)
 #
 # Usage:

@@ -6,10 +6,10 @@
 
 所有 Python 脚本都应使用以下虚拟环境：
 
-- **虚拟环境路径**: `/opt/llm_py_env/`
-- **激活方式**: `source /opt/llm_py_env/bin/activate`
-- **Python 解释器**: `/opt/llm_py_env/bin/python`
-- **pip**: `/opt/llm_py_env/bin/pip`
+- **虚拟环境路径**: `/home/rdcli/llm_py_env/`
+- **激活方式**: `source /home/rdcli/llm_py_env/bin/activate`
+- **Python 解释器**: `/home/rdcli/llm_py_env/bin/python`
+- **pip**: `/home/rdcli/llm_py_env/bin/pip`
 
 该虚拟环境已在容器 PATH 中，直接用 `python` 或 `pip` 即可。所有办公文档处理库都预装在此环境中，**不要新建虚拟环境，不要全局安装 Python 包**。
 
@@ -81,7 +81,7 @@
 
 以下工具已预装在系统中，直接使用即可：
 
-### Python 库（虚拟环境 `/opt/llm_py_env/` 已激活）
+### Python 库（虚拟环境 `/home/rdcli/llm_py_env/` 已激活）
 
 | 场景 | 可用库 | 说明 |
 |------|--------|------|

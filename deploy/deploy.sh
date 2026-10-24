@@ -15,8 +15,8 @@ docker run -dit \
     --add-host "anthropic.com:::1" \
     --add-host claude.ai:127.0.0.1 \
     --add-host "claude.ai:::1" \
-    -v /data/remote/workspace:/opt/workspace \
-    -w /opt/workspace \
+    -v /data/remote/workspace:/home/rdcli/workspace \
+    -w /home/rdcli/workspace \
     -e ANTHROPIC_BASE_URL=http://192.168.1.104:16002 \
     -e ANTHROPIC_AUTH_TOKEN=sk-12345 \
     -e API_TIMEOUT_MS=600000 \
