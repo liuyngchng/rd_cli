@@ -7,6 +7,7 @@ import multer from 'multer';
 
 import { getGlobalImageAssetsDir as getGlobalAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
 import { userDb, apiKeysDb } from '@/modules/database/index.js';
+import { AppError } from '@/shared/utils.js';
 import { debug, log } from '@/shared/debug.js';
 
 import type { ProofreadService } from './proofread.service.js';
@@ -38,14 +39,20 @@ function ok(res: express.Response, statusCode: number, data?: Record<string, unk
 }
 
 /** Unified error response envelope. */
-function fail(res: express.Response, statusCode: number, message: string, data?: Record<string, unknown>): void {
+function fail(
+  res: express.Response,
+  httpStatus: number,
+  bizCode: number,
+  message: string,
+  data?: Record<string, unknown>,
+): void {
   const body: Record<string, unknown> = {
-    code: statusCode,
+    code: bizCode,
     timestamp: nowLocalTimestamp(),
     message,
   };
   if (data) body.data = data;
-  res.status(statusCode).json(body);
+  res.status(httpStatus).json(body);
 }
 
 function isAllowedDocx(mimetype: string, filename: string): boolean {
@@ -120,27 +127,27 @@ function validateExternalApiKey(
     try {
       const user = userDb.getFirstUser();
       if (!user) {
-        fail(res, 500, 'Platform mode: No user found in database');
+        fail(res, 500, 1010, 'Platform mode: No user found in database');
         return;
       }
       (req as unknown as Record<string, unknown>).user = user;
       return next();
     } catch (error) {
       console.error('Platform mode error:', error);
-      fail(res, 500, 'Platform mode: Failed to fetch user');
+      fail(res, 500, 1010, 'Platform mode: Failed to fetch user');
       return;
     }
   }
 
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   if (!apiKey) {
-    fail(res, 401, '缺少 API Key，请通过 x-api-key 请求头或 apiKey 查询参数传入');
+    fail(res, 401, 1009, '缺少 API Key，请通过 x-api-key 请求头或 apiKey 查询参数传入');
     return;
   }
 
   const user = apiKeysDb.validateApiKey(apiKey as string);
   if (!user) {
-    fail(res, 401, 'API Key 无效或已禁用');
+    fail(res, 401, 1009, 'API Key 无效或已禁用');
     return;
   }
 
@@ -241,7 +248,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       if (!task) {
         log('[Proofread API] GET /api/proofread/task — response',
           JSON.stringify({ taskId, found: false }));
-        fail(res, 404, '任务不存在');
+        fail(res, 404, 1008, '任务不存在');
         return;
       }
 
@@ -283,7 +290,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     const userId = getUserId(req);
     if (userId == null) {
       log('[Proofread API] GET /api/proofread/task — request (no userId)');
-      fail(res, 401, 'Authentication required');
+      fail(res, 401, 1009, 'Authentication required');
       return;
     }
 
@@ -311,12 +318,12 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
         if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
-          fail(res, 400, '文件超过 20MB 上限，请压缩或拆分后重试');
+          fail(res, 400, 1003, '文件超过 20MB 上限，请压缩或拆分后重试');
         } else if (uploadError instanceof Error && (uploadError as Error & { code?: string }).code === 'UNSUPPORTED_FORMAT') {
-          fail(res, 400, uploadError.message);
+          fail(res, 400, 1002, uploadError.message);
         } else {
           const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
-          fail(res, 400, message);
+          fail(res, 400, 1003, message);
         }
         return;
       }
@@ -325,7 +332,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         try {
           if (!req.file) {
             log('[Proofread API] POST /api/proofread — request (no file)');
-            fail(res, 400, '请上传 .docx 格式的 Word 文档');
+            fail(res, 400, 1001, '请上传 .docx 格式的 Word 文档');
             return;
           }
 
@@ -333,7 +340,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const userId = getUserId(req);
           if (userId == null) {
             log('[Proofread API] POST /api/proofread — request (no userId)');
-            fail(res, 401, 'Authentication required');
+            fail(res, 401, 1009, 'Authentication required');
             return;
           }
 
@@ -348,12 +355,13 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const callbackUrl = normalizeCallbackUrl(req.body.callback_url);
           if (!callbackUrl) {
             const raw = typeof req.body.callback_url === 'string' ? req.body.callback_url : '';
+            const bizCode = raw ? 1005 : 1004;
             const errorMessage = raw
               ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
               : '请提供 callback_url 回调地址';
             log('[Proofread API] POST /api/proofread — request error',
               JSON.stringify({ userId, message: errorMessage }));
-            fail(res, 400, errorMessage);
+            fail(res, 400, bizCode, errorMessage);
             return;
           }
 
@@ -397,6 +405,10 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         } catch (error) {
           log('[Proofread API] POST /api/proofread — error',
             error instanceof Error ? error.message : String(error));
+          if (error instanceof AppError && error.code === 'TOO_MANY_TASKS') {
+            fail(res, 429, 1006, error.message);
+            return;
+          }
           next(error);
         }
       })();
@@ -408,7 +420,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
   router.delete('/task', validateExternalApiKey, async (req, res) => {
     const taskId = typeof req.query.id === 'string' ? req.query.id.trim() : undefined;
     if (!taskId) {
-      fail(res, 400, '请提供 ?id=<taskId> 参数');
+      fail(res, 400, 1007, '请提供 ?id=<taskId> 参数');
       return;
     }
 
@@ -420,7 +432,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       if (!task) {
         log('[Proofread API] DELETE /api/proofread/task — response',
           JSON.stringify({ taskId, cancelled: false }));
-        fail(res, 404, '任务不存在或已完成，无法撤销');
+        fail(res, 404, 1008, '任务不存在或已完成，无法撤销');
         return;
       }
 
@@ -434,7 +446,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         `[Proofread] Cancel task error for ${taskId}:`,
         error instanceof Error ? error.message : String(error),
       );
-      fail(res, 500, '撤销失败，请稍后重试');
+      fail(res, 500, 1010, '撤销失败，请稍后重试');
     }
   });
 
@@ -443,8 +455,14 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
   router.post('/session', validateExternalApiKey, (req, res, next) => {
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
-        const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
-        fail(res, 400, message);
+        if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
+          fail(res, 400, 1003, '文件超过 20MB 上限，请压缩或拆分后重试');
+        } else if (uploadError instanceof Error && (uploadError as Error & { code?: string }).code === 'UNSUPPORTED_FORMAT') {
+          fail(res, 400, 1002, uploadError.message);
+        } else {
+          const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+          fail(res, 400, 1003, message);
+        }
         return;
       }
 
@@ -452,7 +470,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         try {
           if (!req.file) {
             log('[Proofread API] POST /api/proofread/session — request (no file)');
-            fail(res, 400, '请上传 .docx 格式的 Word 文档');
+            fail(res, 400, 1001, '请上传 .docx 格式的 Word 文档');
             return;
           }
 
@@ -460,7 +478,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const userId = getUserId(req);
           if (userId == null) {
             log('[Proofread API] POST /api/proofread/session — request (no userId)');
-            fail(res, 401, 'Authentication required');
+            fail(res, 401, 1009, 'Authentication required');
             return;
           }
 

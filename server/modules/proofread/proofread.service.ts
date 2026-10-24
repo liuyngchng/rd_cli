@@ -219,7 +219,8 @@ export function toLocalTimestamp(raw: string | null | undefined): string | null 
   if (!m) return raw;
   const utcDate = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
   if (Number.isNaN(utcDate.getTime())) return raw;
-  utcDate.setHours(utcDate.getHours() + 8);
+  // Date getters (getFullYear, getHours, etc.) already return local time —
+  // no manual offset needed.
   const yyyy = utcDate.getFullYear();
   const MM = String(utcDate.getMonth() + 1).padStart(2, '0');
   const dd = String(utcDate.getDate()).padStart(2, '0');
@@ -575,8 +576,13 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         data.error_message = task.error_message;
       }
 
+      const code = task.status === 'completed'
+        ? 0
+        : task.status === 'cancelled'
+          ? 2002
+          : 2001;
       const payload: Record<string, unknown> = {
-        code: task.status === 'completed' ? 0 : 1,
+        code,
         timestamp: nowLocalTimestamp(),
         message: task.status === 'completed' ? 'success' : task.error_message ?? 'failed',
         task_id: task.task_id,

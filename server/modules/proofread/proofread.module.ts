@@ -27,11 +27,11 @@ export function createProofreadModule(
   }
 
   function getSessionId(): string {
-    return `proofread-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+    return crypto.randomUUID();
   }
 
   function getTaskId(): string {
-    return `pt-${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+    return crypto.randomUUID();
   }
 
   const proofreadService = createProofreadService({
