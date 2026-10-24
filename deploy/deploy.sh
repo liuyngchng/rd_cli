@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 echo 'stop current container'
-docker stop my_rd_cli 2>/dev/null || true
+docker rm -f my_rd_cli 2>/dev/null || true
 echo 'start container'
 # 容器内 rdcli 用户。若宿主 /data/remote/workspace 权限不匹配，
 # 先执行: sudo chown -R <uid> /data/remote/workspace

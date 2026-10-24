@@ -393,7 +393,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
           log('[Proofread API] POST /api/proofread — response',
             JSON.stringify(result));
-          ok(res, 200, { task_id: result.taskId, status: result.status }, result.taskId);
+          ok(res, 200, { status: result.status }, result.taskId);
         } catch (error) {
           log('[Proofread API] POST /api/proofread — error',
             error instanceof Error ? error.message : String(error));
