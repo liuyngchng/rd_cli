@@ -111,7 +111,7 @@ temp/
 .windsurf/
 .serena/
 CLAUDE.md
-!docker/CLAUDE.md
+!deploy/CLAUDE.md
 .mcp.json
 .gemini/
 
@@ -134,7 +134,13 @@ dev-debug.log
 
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# deploy 构建产物（本地生成，勿提交）
+deploy/.pip-offline/
+deploy/.last-pip-dir
+deploy/claude-code/
+!deploy/claude-code/.gitkeep
 
 # Translations
 !src/i18n/locales/*/tasks.json

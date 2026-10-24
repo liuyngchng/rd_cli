@@ -123,7 +123,7 @@ POST /api/proofread/session
 
 程序不注入任何核稿 Prompt 或模式参数。核稿标准完全定义在容器的全局 CLAUDE.md
 
-中（`docker/CLAUDE.md` 的「文稿校对审读」章节），Claude 启动时自动加载，
+中（`deploy/CLAUDE.md` 的「文稿校对审读」章节），Claude 启动时自动加载，
 
 根据文档内容自行判断适用标准。
 

@@ -810,7 +810,7 @@ curl -X POST https://rdcli.example.com/api/agent \
 
 ### 核稿标准说明
 
-核稿不注入自定义 System Prompt。校对标准完全定义在容器的全局 CLAUDE.md 中（`docker/CLAUDE.md`），Claude 启动时自动加载。
+核稿不注入自定义 System Prompt。校对标准完全定义在容器的全局 CLAUDE.md 中（`deploy/CLAUDE.md`），Claude 启动时自动加载。
 
 **两套标准：**
 
