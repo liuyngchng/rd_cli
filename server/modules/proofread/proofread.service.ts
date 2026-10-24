@@ -206,6 +206,42 @@ function buildUserMessage(
   return message;
 }
 
+/**
+ * Converts a SQLite `CURRENT_TIMESTAMP` value (UTC, no zone marker, e.g.
+ * `2026-10-24 10:52:57`) into a UTC+8 (Asia/Shanghai) local-time string in the
+ * same `YYYY-MM-DD HH:MM:SS` layout, e.g. `2026-10-24 18:52:57`.
+ *
+ * Unparseable values (or values that already carry a zone) are returned as-is.
+ */
+export function toLocalTimestamp(raw: string | null | undefined): string | null {
+  if (!raw) return raw ?? null;
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (!m) return raw;
+  const utcDate = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
+  if (Number.isNaN(utcDate.getTime())) return raw;
+  utcDate.setHours(utcDate.getHours() + 8);
+  const yyyy = utcDate.getFullYear();
+  const MM = String(utcDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(utcDate.getDate()).padStart(2, '0');
+  const HH = String(utcDate.getHours()).padStart(2, '0');
+  const mm = String(utcDate.getMinutes()).padStart(2, '0');
+  const ss = String(utcDate.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`;
+}
+
+/** Formats the current instant as a UTC+8 local timestamp (`YYYY-MM-DD HH:MM:SS`). */
+export function nowLocalTimestamp(): string {
+  const now = new Date();
+  // new Date() is already local; format directly.
+  const yyyy = now.getFullYear();
+  const MM = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const HH = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`;
+}
+
 /** Maximum number of processing tasks allowed per user. */
 const MAX_PROCESSING_TASKS = 5;
 
@@ -235,7 +271,7 @@ function postCallback(callbackUrl: string, payload: Record<string, unknown>): Pr
     log('[Proofread API] Callback — request',
       JSON.stringify({
         taskId: payload.task_id,
-        status: payload.status,
+        status: (payload.data as Record<string, unknown>)?.status,
         url: callbackUrl,
         payload,
       }));
@@ -514,26 +550,7 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
       const task = proofreadTasksDb.getTask(taskId);
       if (!task || !task.callback_url) return;
 
-      // SQLite CURRENT_TIMESTAMP stores UTC without a zone marker. Convert to
-      // UTC+8 (Asia/Shanghai) so the callback consumer sees local time directly.
-      const toLocalTimestamp = (raw: string | null): string | null => {
-        if (!raw) return raw;
-        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-        if (!m) return raw;
-        const utcDate = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
-        if (Number.isNaN(utcDate.getTime())) return raw;
-        utcDate.setHours(utcDate.getHours() + 8);
-        const yyyy = utcDate.getFullYear();
-        const MM = String(utcDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(utcDate.getDate()).padStart(2, '0');
-        const HH = String(utcDate.getHours()).padStart(2, '0');
-        const mm = String(utcDate.getMinutes()).padStart(2, '0');
-        const ss = String(utcDate.getSeconds()).padStart(2, '0');
-        return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`;
-      };
-
-      const payload: Record<string, unknown> = {
-        task_id: task.task_id,
+      const data: Record<string, unknown> = {
         status: task.status,
         file_name: task.file_name,
         file_size: task.file_size,
@@ -542,21 +559,29 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
       };
 
       if (task.additional_instructions) {
-        payload.additional_instructions = task.additional_instructions;
+        data.additional_instructions = task.additional_instructions;
       }
 
       if (task.status === 'completed') {
-        payload.result_text = task.result_text;
+        data.result_text = task.result_text;
         if (task.tokens_json) {
-          try { payload.tokens = JSON.parse(task.tokens_json); } catch { /* skip */ }
+          try { data.tokens = JSON.parse(task.tokens_json); } catch { /* skip */ }
         }
         if (task.session_id) {
-          payload.session_id = task.session_id;
-          payload.session_url = getSessionUrl(task.session_id);
+          data.session_id = task.session_id;
+          data.session_url = getSessionUrl(task.session_id);
         }
       } else if (task.status === 'failed' || task.status === 'cancelled') {
-        payload.error_message = task.error_message;
+        data.error_message = task.error_message;
       }
+
+      const payload: Record<string, unknown> = {
+        code: task.status === 'completed' ? 0 : 1,
+        timestamp: nowLocalTimestamp(),
+        message: task.status === 'completed' ? 'success' : task.error_message ?? 'failed',
+        task_id: task.task_id,
+        data,
+      };
 
       await deliverCallback(task.callback_url, payload);
     },

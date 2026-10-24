@@ -10,6 +10,7 @@ import { userDb, apiKeysDb } from '@/modules/database/index.js';
 import { debug, log } from '@/shared/debug.js';
 
 import type { ProofreadService } from './proofread.service.js';
+import { nowLocalTimestamp, toLocalTimestamp } from './proofread.service.js';
 
 const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
 
@@ -21,6 +22,31 @@ const ALLOWED_MIME_TYPES = new Set([
 const ALLOWED_EXTENSIONS = new Set(['.docx']);
 
 const CALLBACK_URL_RE = /^https?:\/\/.+/i;
+
+// ── Response helpers ────────────────────────────────────────────────────────
+
+/** Unified success response envelope. */
+function ok(res: express.Response, statusCode: number, data?: Record<string, unknown>, taskId?: string): void {
+  const body: Record<string, unknown> = {
+    code: 0,
+    timestamp: nowLocalTimestamp(),
+    message: 'success',
+  };
+  if (taskId) body.task_id = taskId;
+  if (data) body.data = data;
+  res.status(statusCode).json(body);
+}
+
+/** Unified error response envelope. */
+function fail(res: express.Response, statusCode: number, message: string, data?: Record<string, unknown>): void {
+  const body: Record<string, unknown> = {
+    code: statusCode,
+    timestamp: nowLocalTimestamp(),
+    message,
+  };
+  if (data) body.data = data;
+  res.status(statusCode).json(body);
+}
 
 function isAllowedDocx(mimetype: string, filename: string): boolean {
   if (ALLOWED_MIME_TYPES.has(mimetype)) {
@@ -94,27 +120,27 @@ function validateExternalApiKey(
     try {
       const user = userDb.getFirstUser();
       if (!user) {
-        res.status(500).json({ error: 'Platform mode: No user found in database' });
+        fail(res, 500, 'Platform mode: No user found in database');
         return;
       }
       (req as unknown as Record<string, unknown>).user = user;
       return next();
     } catch (error) {
       console.error('Platform mode error:', error);
-      res.status(500).json({ error: 'Platform mode: Failed to fetch user' });
+      fail(res, 500, 'Platform mode: Failed to fetch user');
       return;
     }
   }
 
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   if (!apiKey) {
-    res.status(401).json({ error: 'API key required' });
+    fail(res, 401, '缺少 API Key，请通过 x-api-key 请求头或 apiKey 查询参数传入');
     return;
   }
 
   const user = apiKeysDb.validateApiKey(apiKey as string);
   if (!user) {
-    res.status(401).json({ error: 'Invalid or inactive API key' });
+    fail(res, 401, 'API Key 无效或已禁用');
     return;
   }
 
@@ -215,10 +241,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       if (!task) {
         log('[Proofread API] GET /api/proofread/task — response',
           JSON.stringify({ taskId, found: false }));
-        res.status(404).json({
-          success: false,
-          error: { code: 'TASK_NOT_FOUND', message: '任务不存在' },
-        });
+        fail(res, 404, '任务不存在');
         return;
       }
 
@@ -228,12 +251,11 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       }
 
       const data: Record<string, unknown> = {
-        task_id: task.task_id,
         status: task.status,
         file_name: task.file_name,
         file_size: task.file_size,
-        created_at: task.created_at,
-        updated_at: task.updated_at,
+        created_at: toLocalTimestamp(task.created_at),
+        updated_at: toLocalTimestamp(task.updated_at),
       };
 
       if (task.additional_instructions) {
@@ -253,7 +275,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
       log('[Proofread API] GET /api/proofread/task — response',
         JSON.stringify({ taskId, status: task.status, resultTextLen: task.result_text?.length ?? 0 }));
-      res.json({ success: true, data });
+      ok(res, 200, data, task.task_id);
       return;
     }
 
@@ -261,10 +283,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     const userId = getUserId(req);
     if (userId == null) {
       log('[Proofread API] GET /api/proofread/task — request (no userId)');
-      res.status(401).json({
-        success: false,
-        error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
-      });
+      fail(res, 401, 'Authentication required');
       return;
     }
 
@@ -273,16 +292,15 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     const tasks = proofreadService.listActiveTasks(userId);
 
     log('[Proofread API] GET /api/proofread/task — response', JSON.stringify({ count: tasks.length }));
-    res.json({
-      success: true,
-      data: tasks.map((t) => ({
+    ok(res, 200, {
+      tasks: tasks.map((t) => ({
         task_id: t.task_id,
         status: t.status,
         file_name: t.file_name,
         file_size: t.file_size,
         additional_instructions: t.additional_instructions,
-        created_at: t.created_at,
-        updated_at: t.updated_at,
+        created_at: toLocalTimestamp(t.created_at),
+        updated_at: toLocalTimestamp(t.updated_at),
       })),
     });
   });
@@ -293,18 +311,12 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
         if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
-          res.status(400).json({
-            success: false,
-            error: { code: 'UPLOAD_FAILED', message: '文件超过 20MB 上限，请压缩或拆分后重试' },
-          });
+          fail(res, 400, '文件超过 20MB 上限，请压缩或拆分后重试');
         } else if (uploadError instanceof Error && (uploadError as Error & { code?: string }).code === 'UNSUPPORTED_FORMAT') {
-          res.status(400).json({
-            success: false,
-            error: { code: 'UNSUPPORTED_FORMAT', message: uploadError.message },
-          });
+          fail(res, 400, uploadError.message);
         } else {
           const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
-          res.status(400).json({ success: false, error: { code: 'UPLOAD_FAILED', message } });
+          fail(res, 400, message);
         }
         return;
       }
@@ -313,10 +325,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         try {
           if (!req.file) {
             log('[Proofread API] POST /api/proofread — request (no file)');
-            res.status(400).json({
-              success: false,
-              error: { code: 'MISSING_FILE', message: '请上传 .docx 格式的 Word 文档' },
-            });
+            fail(res, 400, '请上传 .docx 格式的 Word 文档');
             return;
           }
 
@@ -324,10 +333,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const userId = getUserId(req);
           if (userId == null) {
             log('[Proofread API] POST /api/proofread — request (no userId)');
-            res.status(401).json({
-              success: false,
-              error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
-            });
+            fail(res, 401, 'Authentication required');
             return;
           }
 
@@ -342,13 +348,12 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const callbackUrl = normalizeCallbackUrl(req.body.callback_url);
           if (!callbackUrl) {
             const raw = typeof req.body.callback_url === 'string' ? req.body.callback_url : '';
-            const errorCode = raw ? 'INVALID_CALLBACK_URL' : 'MISSING_CALLBACK_URL';
             const errorMessage = raw
               ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
               : '请提供 callback_url 回调地址';
             log('[Proofread API] POST /api/proofread — request error',
-              JSON.stringify({ userId, code: errorCode, message: errorMessage }));
-            res.status(400).json({ success: false, error: { code: errorCode, message: errorMessage } });
+              JSON.stringify({ userId, message: errorMessage }));
+            fail(res, 400, errorMessage);
             return;
           }
 
@@ -388,10 +393,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
           log('[Proofread API] POST /api/proofread — response',
             JSON.stringify(result));
-          res.json({
-            success: true,
-            data: { task_id: result.taskId, status: result.status },
-          });
+          ok(res, 200, { task_id: result.taskId, status: result.status }, result.taskId);
         } catch (error) {
           log('[Proofread API] POST /api/proofread — error',
             error instanceof Error ? error.message : String(error));
@@ -406,10 +408,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
   router.delete('/task', validateExternalApiKey, async (req, res) => {
     const taskId = typeof req.query.id === 'string' ? req.query.id.trim() : undefined;
     if (!taskId) {
-      res.status(400).json({
-        success: false,
-        error: { code: 'MISSING_TASK_ID', message: '请提供 ?id=<taskId> 参数' },
-      });
+      fail(res, 400, '请提供 ?id=<taskId> 参数');
       return;
     }
 
@@ -421,19 +420,13 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       if (!task) {
         log('[Proofread API] DELETE /api/proofread/task — response',
           JSON.stringify({ taskId, cancelled: false }));
-        res.status(404).json({
-          success: false,
-          error: { code: 'TASK_NOT_FOUND', message: '任务不存在或已完成，无法撤销' },
-        });
+        fail(res, 404, '任务不存在或已完成，无法撤销');
         return;
       }
 
       log('[Proofread API] DELETE /api/proofread/task — response',
         JSON.stringify({ taskId, cancelled: true, status: task.status }));
-      res.json({
-        success: true,
-        data: { task_id: task.task_id, status: task.status, updated_at: task.updated_at },
-      });
+      ok(res, 200, { status: task.status, updated_at: toLocalTimestamp(task.updated_at) }, task.task_id);
     } catch (error) {
       log('[Proofread API] DELETE /api/proofread/task — error',
         JSON.stringify({ taskId, error: error instanceof Error ? error.message : String(error) }));
@@ -441,10 +434,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         `[Proofread] Cancel task error for ${taskId}:`,
         error instanceof Error ? error.message : String(error),
       );
-      res.status(500).json({
-        success: false,
-        error: { code: 'CANCEL_FAILED', message: '撤销失败，请稍后重试' },
-      });
+      fail(res, 500, '撤销失败，请稍后重试');
     }
   });
 
@@ -454,7 +444,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
         const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
-        res.status(400).json({ success: false, error: { code: 'UPLOAD_FAILED', message } });
+        fail(res, 400, message);
         return;
       }
 
@@ -462,10 +452,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         try {
           if (!req.file) {
             log('[Proofread API] POST /api/proofread/session — request (no file)');
-            res.status(400).json({
-              success: false,
-              error: { code: 'MISSING_FILE', message: '请上传 .docx 格式的 Word 文档' },
-            });
+            fail(res, 400, '请上传 .docx 格式的 Word 文档');
             return;
           }
 
@@ -473,10 +460,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const userId = getUserId(req);
           if (userId == null) {
             log('[Proofread API] POST /api/proofread/session — request (no userId)');
-            res.status(401).json({
-              success: false,
-              error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
-            });
+            fail(res, 401, 'Authentication required');
             return;
           }
 
@@ -520,10 +504,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
           log('[Proofread API] POST /api/proofread/session — response',
             JSON.stringify(result));
-          res.json({
-            success: true,
-            data: { session_id: result.sessionId, session_url: result.sessionUrl },
-          });
+          ok(res, 200, { session_id: result.sessionId, session_url: result.sessionUrl });
         } catch (error) {
           log('[Proofread API] POST /api/proofread/session — error',
             error instanceof Error ? error.message : String(error));

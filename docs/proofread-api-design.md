@@ -2,57 +2,279 @@
 
 ## 概述
 
-不新增异步核稿任务系统，而是利用 rdCLI 现有的聊天能力：OA 系统调用一个端点创建预填充的核稿会话，返回链接后用户点击跳转到 rdCLI 聊天界面，在对话中完成核稿。
+rdCLI 提供两种核稿模式：
 
-核稿过程就是一次正常的聊天会话——Claude 读到 docx 文件，按 System Prompt 要求进行校对，用户可以在聊天窗口里追问、精修、追加指令。
+| 模式 | 端点 | 交互方式 |
+|------|------|----------|
+| **异步任务** | `POST /api/proofread` | 提交 docx → 后台核稿 → 回调通知结果 |
+| **会话跳转** | `POST /api/proofread/session` | 提交 docx → 返回聊天链接 → 用户跳转交互 |
 
----
-
-## 架构
-
-```
-OA 办公系统                                  rdCLI
-   │                                          │
-   │  用户点击 [核稿]                          │
-   │                                          │
-   │  POST /api/proofread/session             │
-   │  file: <docx>                            │
-   │  style: "government"                     │
-   │  additional_instructions: "重点查数据"      │
-   │  Authorization: API Key                  │
-   │─────────────────────────────────────────►│
-   │                                          │
-   │                                          │ 1. 存储 docx 到 assets
-   │                                          │ 2. 创建 Claude session
-   │                                          │ 3. 注入 System Prompt（核稿模板）
-   │                                          │ 4. 首条消息 = "请核稿" + 文档引用
-   │                                          │ 5. 等待 Claude 完成首轮回复
-   │                                          │
-   │  { session_id, session_url }             │
-   │◄─────────────────────────────────────────│
-   │                                          │
-   │  新窗口打开 session_url                   │
-   │─────────────────────────────────────────►│  聊天界面，用户看到核稿结果
-   │                                          │  可以追问、追加指令
-```
+核稿标准完全定义在容器的全局 `CLAUDE.md`（「文稿校对审读」章节）中，Claude 启动时自动加载，根据文档内容自行判断适用标准。
 
 ---
 
-## API 端点
+## 通用约定
 
-| 方法 | 路径 | 鉴权 | 说明 |
+### 鉴权
+
+所有 API 端点通过 API Key 鉴权（Platform 模式免鉴权，使用默认用户）：
+
+```
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Platform 模式下可以不传 `x-api-key`。
+
+### 响应格式
+
+成功：
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "task_id": "pt-xxxxxxxx-xxxxxxxx",
+  "data": { ... }
+}
+```
+
+失败：
+
+```json
+{
+  "code": 401,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "API Key 无效或已禁用",
+  "data": { }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | number | `0` 表示成功，失败时等于 HTTP 状态码（400/401/404/500 等） |
+| `timestamp` | string | 服务器当前时间，UTC+8，`YYYY-MM-DD HH:MM:SS` |
+| `message` | string | 成功固定为 `"success"`，失败为错误描述 |
+| `task_id` | string | 任务 ID，仅异步任务相关端点返回 |
+| `data` | object | 业务数据，成功时承载结果，失败时通常为空对象 |
+
+### 错误码
+
+| code | 场景 |
+|------|------|
+| `0` | 成功 |
+| `400` | 参数缺失/不合法、文件缺失、格式不支持、文件超限 |
+| `401` | 未提供 API Key、API Key 无效或已禁用 |
+| `404` | 任务不存在 |
+| `429` | 同时处理的任务数超过上限（5 个） |
+| `500` | 服务器内部错误、核稿失败 |
+
+---
+
+## POST /api/proofread — 异步核稿
+
+提交 docx，后台异步核稿，完成后回调 `callback_url`。
+
+### 请求
+
+```
+POST /api/proofread
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: multipart/form-data
+```
+
+| 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `POST` | `/api/proofread/session` | API Key | 上传 docx → 创建核稿会话 → 返回链接 |
+| `file` | file | 是 | Word 文档（.docx），最大 20MB |
+| `callback_url` | string | 是 | 核稿完成后回调地址，`http://` 或 `https://` |
+| `additional_instructions` | string | 否 | 追加核稿要求 |
+
+### 响应 (200)
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "task_id": "pt-mvm96saj-f05b09a4",
+  "data": {
+    "task_id": "pt-mvm96saj-f05b09a4",
+    "status": "pending"
+  }
+}
+```
+
+### 回调
+
+核稿完成后，`callback_url` 会收到一个 POST 请求（失败时自动重试，最多 4 次：2s / 5s / 15s / 30s 超时）。
+
+回调请求体：
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "task_id": "pt-mvm96saj-f05b09a4",
+  "data": {
+    "status": "completed",
+    "file_name": "中国石油天然气零售系统密钥管理及发行软件建设方案-终稿.docx",
+    "file_size": 4173832,
+    "created_at": "2026-10-24 18:25:51",
+    "updated_at": "2026-10-24 18:29:00",
+    "result_text": "……核稿结果 Markdown……",
+    "tokens": {
+      "inputTokens": 12345,
+      "outputTokens": 6789,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "totalTokens": 19134
+    },
+    "session_id": "pt-mvm96saj-f05b09a4",
+    "session_url": "http://rdcli-host/session/pt-mvm96saj-f05b09a4"
+  }
+}
+```
+
+失败回调：
+
+```json
+{
+  "code": 1,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "核稿处理异常：Claude 未返回任何结果",
+  "task_id": "pt-mvm96saj-f05b09a4",
+  "data": {
+    "status": "failed",
+    "file_name": "…….docx",
+    "file_size": 4173832,
+    "created_at": "2026-10-24 18:25:51",
+    "updated_at": "2026-10-24 18:29:00",
+    "error_message": "核稿处理异常：Claude 未返回任何结果"
+  }
+}
+```
+
+`data.status` 取值：`completed`（完成）、`failed`（失败）、`cancelled`（已撤销）。
 
 ---
 
-## POST /api/proofread/session
+## GET /api/proofread/task?id=xxx — 查询单个任务
+
+### 请求
+
+```
+GET /api/proofread/task?id=pt-mvm96saj-f05b09a4
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### 响应 (200)
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "task_id": "pt-mvm96saj-f05b09a4",
+  "data": {
+    "status": "completed",
+    "file_name": "…….docx",
+    "file_size": 4173832,
+    "created_at": "2026-10-24 18:25:51",
+    "updated_at": "2026-10-24 18:29:00",
+    "result_text": "……",
+    "tokens": { ... },
+    "session_id": "pt-mvm96saj-f05b09a4",
+    "session_url": "http://rdcli-host/session/pt-mvm96saj-f05b09a4"
+  }
+}
+```
+
+### 响应 (404)
+
+```json
+{
+  "code": 404,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "任务不存在"
+}
+```
+
+---
+
+## GET /api/proofread/task — 查看进行中的任务
+
+### 请求
+
+```
+GET /api/proofread/task
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### 响应 (200)
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "data": {
+    "tasks": [
+      {
+        "task_id": "pt-mvm96saj-f05b09a4",
+        "status": "processing",
+        "file_name": "…….docx",
+        "file_size": 4173832,
+        "additional_instructions": null,
+        "created_at": "2026-10-24 18:25:51",
+        "updated_at": "2026-10-24 18:29:00"
+      }
+    ]
+  }
+}
+```
+
+仅返回 `pending` 和 `processing` 状态的任务，最多 50 条，按创建时间倒序。
+
+---
+
+## DELETE /api/proofread/task?id=xxx — 撤销任务
+
+### 请求
+
+```
+DELETE /api/proofread/task?id=pt-mvm96saj-f05b09a4
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### 响应 (200)
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
+  "task_id": "pt-mvm96saj-f05b09a4",
+  "data": {
+    "status": "cancelled",
+    "updated_at": "2026-10-24 18:29:00"
+  }
+}
+```
+
+只有 `pending` 和 `processing` 状态的任务可撤销。撤销后，若任务正在核稿，底层 Claude 会话会被中止。
+
+---
+
+## POST /api/proofread/session — 创建会话跳转
+
+上传 docx → 创建核稿会话 → 返回链接，用户点击跳转到 rdCLI 聊天界面完成核稿。
 
 ### 请求
 
 ```
 POST /api/proofread/session
-Authorization: Bearer <API_Key>
+x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Content-Type: multipart/form-data
 ```
 
@@ -65,75 +287,47 @@ Content-Type: multipart/form-data
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-24 18:52:57",
+  "message": "success",
   "data": {
     "session_id": "abc123-def456",
-    "session_url": "https://rdcli.example.com/chat?session=abc123-def456"
+    "session_url": "http://rdcli-host/session/abc123-def456"
   }
 }
 ```
 
-### 错误响应 (400)
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "UNSUPPORTED_FORMAT",
-    "message": "仅支持 .docx 格式"
-  }
-}
-```
+返回的 `session_id` 就是正常的聊天会话，用户可以继续对话、追问、追加指令。
 
 ---
 
 ## 服务端处理流程
 
 ```
-POST /api/proofread/session
+POST /api/proofread（或 /api/proofread/session）
 │
-├─ 1. multer 接收文件 → 存入 ~/.rdcli/assets/<userId>/ （复用现有 assets 存储）
+├─ 1. multer 接收文件 → 存入 ~/.rdcli/assets/<userId>/
 │
-├─ 2. 创建 Claude session
-│     providerRuntimeService.run('claude', userMessage, {
-│       sessionId: null,           // 新会话
-│       permissionMode: 'bypassPermissions',
-│       cwd: projectPath,
-│       files: [docx 文件的路径],   // Claude 可以 Read 它
-│     }, writer)
+├─ 2. 异步模式：创建 proofread_tasks 记录（pending），返回 taskId
+│     会话模式：直接创建 Claude session，返回 session_url
 │
-├─ 3. User Message：
-│     "请校对审读这篇文档。"
-│     + (additional_instructions ? "\n\n" + additional_instructions : "")
+├─ 3. 异步模式后台执行：
+│     pending → processing → 驱动 Claude（providerRuntimeService.run）
+│     permissionMode: 'bypassPermissions'
+│     User Message: "请校对审读这篇文档。" + 文档引用
+│                    + (additional_instructions)
+│                    + "请以 Markdown 格式输出审核意见。"
 │
-├─ 4. 等待 Claude 完成首轮回复（收集 assistant 消息直到 complete）
+├─ 4. 收集 assistant 文本 + token 用量
 │
-└─ 5. 返回 session_id + session_url
+└─ 5. 异步模式：completed/failed 后回调 callback_url
 ```
 
 ### 关键细节
 
-- **docx 不预解析**：Claude 有 Read 工具，可以自己读取 Word 文档。文件存到 assets 后通过 `files` 参数传入，Claude 会在首轮自动读取。
-- **会话持续有效**：返回的 session_id 就是正常的聊天会话，用户可以继续对话。
-- **鉴权**：复用 agent.routes.ts 中的 `validateExternalApiKey` 逻辑，支持 API Key 和 Platform 两种模式。
-
----
-
-## 核稿标准
-
-程序不注入任何核稿 Prompt 或模式参数。核稿标准完全定义在容器的全局 CLAUDE.md
-
-中（`deploy/CLAUDE.md` 的「文稿校对审读」章节），Claude 启动时自动加载，
-
-根据文档内容自行判断适用标准。
-
-CLAUDE.md 预定义了两套标准：
-- **通用文稿校对**：错别字、语法、逻辑、表达优化等
-- **党政机关公文核稿**：依据 GB/T 9704-2012，逐项检查文种、标题、发文字号、主送机关等
-
-User Message 仅一句 `"请校对审读这篇文档。"`，不做额外限定。
-
-用户通过 `additional_instructions` 追加的指令直接拼在末尾。
+- **docx 不预解析**：Claude 有 Read 工具，可以自己读取 Word 文档。
+- **会话持续有效**：session 模式下返回的 session_id 就是正常聊天会话。
+- **鉴权**：复用 `validateExternalApiKey` 中间件，支持 API Key 和 Platform 两种模式。
 
 ---
 
@@ -145,79 +339,60 @@ User Message 仅一句 `"请校对审读这篇文档。"`，不做额外限定�
 server/modules/proofread/
 ├── index.ts                  # 模块入口 barrel
 ├── proofread.module.ts       # 组装依赖 → 导出 router
-├── proofread.routes.ts       # POST /api/proofread/session
-├── proofread.service.ts      # 创建会话、返回 session_url
-└── prompt-templates.ts       # 核稿 System Prompt 模板
+├── proofread.routes.ts       # 路由 + 响应包络
+└── proofread.service.ts      # 会话/任务编排、回调投递
 ```
 
-### 修改现有文件
+```
+server/modules/database/repositories/proofread-tasks.ts   # 任务仓储
+```
 
-| 文件 | 改动 |
+### 数据库表
+
+`proofread_tasks`：
+
+| 字段 | 说明 |
 |------|------|
-| `server/modules/providers/list/claude/claude-runtime.provider.js` | `mapCliOptionsToSDK` 中支持 `customSystemPrompt` 参数覆盖默认 system prompt |
-| `server/index.ts` | 挂载 `app.use('/api/proofread', proofreadRoutes)` |
-| `server/modules/providers/shared/` | **不新增** provider 类型，核稿只用现有的 claude provider |
+| `task_id` | 主键，任务/会话 ID |
+| `user_id` | 所属用户 |
+| `status` | `pending` / `processing` / `completed` / `failed` / `cancelled` |
+| `file_name` / `file_size` / `file_path` | 上传文件信息 |
+| `additional_instructions` | 追加核稿要求 |
+| `callback_url` | 异步模式回调地址 |
+| `session_id` | provider-native 会话 ID |
+| `result_text` / `tokens_json` | 核稿结果与 token 用量 |
+| `error_message` | 失败原因 |
+| `created_at` / `updated_at` | 时间戳（UTC，序列化时转 UTC+8） |
 
 ### 依赖
 
-- **零新增 npm 依赖**。不引入 mammoth，Claude 自己读 docx。
-- 复用 `multer`（已安装）：文件上传
-- 复用 `providerRuntimeService.run()`：驱动 Claude 会话
-- 复用 assets 存储路径 `~/.rdcli/assets/`：存储上传的 docx
-
-### 鉴权
-
-复用 agent.routes.ts 中的 `validateExternalApiKey` 中间件模式（提取为共享函数或直接复制）。两种模式：
-
-- **自部署**：`x-api-key` 请求头传递 API Key
-- **Platform**：外部代理认证，使用默认用户
+- **零新增 npm 依赖**
+- `multer`：文件上传
+- `providerRuntimeService.run()`：驱动 Claude 会话
 
 ---
 
 ## OA 系统集成示例
 
 ```bash
-# 用户点击 [核稿] 按钮，OA 后端调用：
-curl -X POST https://rdcli.example.com/api/proofread/session \
-  -H "Authorization: Bearer ck_xxxx" \
+# 异步核稿：
+curl -X POST https://rdcli.example.com/api/proofread \
+  -H "x-api-key: ck_xxxx" \
   -F "file=@来文登记.docx" \
-  -F "style=government" \
+  -F "callback_url=https://oa.example.com/api/proofread/callback" \
   -F "additional_instructions=请重点检查涉及财政数据的表述"
 
 # 响应：
-# { "session_id": "abc123", "session_url": "https://rdcli.example.com/chat?session=abc123" }
+# { "code": 0, "message": "success", "task_id": "pt-xxxx", "data": { "status": "pending" } }
 
-# OA 前端拿到 session_url → window.open() 新窗口打开
-# 用户看到 Claude 已经核稿完成，可以继续对话
+# 会话跳转：
+curl -X POST https://rdcli.example.com/api/proofread/session \
+  -H "x-api-key: ck_xxxx" \
+  -F "file=@来文登记.docx"
+
+# 响应：
+# { "code": 0, "data": { "session_id": "abc123", "session_url": "https://rdcli.example.com/session/abc123" } }
 ```
-
----
-
-## 和完整异步 API 方案的对比
-
-| | 异步 API 方案 | 会话跳转方案 |
-|------|-------------|------------|
-| 新增文件 | 8 个 | 5 个 |
-| 新增 npm 依赖 | mammoth | **零** |
-| 新增 DB 表 | proofread_tasks | **零** |
-| 回调/重试机制 | 需要 | 不需要 |
-| OA 结果渲染 | 需开发 JSON→UI | 不需要（聊天窗口展示） |
-| 用户交互 | 无 | 可追问、追加指令 |
-| Claude 能力 | 单轮 API 调用 | 多轮对话、工具调用（Read docx） |
-| 实现工时 | 大 | 小 |
-| 适用场景 | 全自动批量核稿 | 人工复审 + AI 辅助 |
-
----
-
-## 后续演进
-
-如果客户反馈"每篇都跳转太麻烦，想要批量自动核稿"，可以在本方案基础上追加：
-
-- `proofread_tasks` 表 → 记录任务状态
-- `POST /api/proofread`（异步）→ 创建任务 + 立即返回 taskId
-- 回调机制 → 完成后通知 OA
-
-届时本方案的 `proofread.service.ts` 可以直接作为异步方案的核心引擎。
 
 ---
 
@@ -226,3 +401,4 @@ curl -X POST https://rdcli.example.com/api/proofread/session \
 | 日期 | 审阅人 | 意见 |
 |------|--------|------|
 | 2025-01-15 | — | 初稿（会话跳转方案） |
+| 2026-10-24 | — | 增加异步任务模式；统一响应包络（code/timestamp/message/task_id/data）；时间戳转 UTC+8 |
