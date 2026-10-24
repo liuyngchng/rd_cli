@@ -139,6 +139,31 @@ class ProofreadResultCollector implements ProviderRuntimeWriter {
     return parts.join('\n\n');
   }
 
+  /** True when the stream delivered at least one assistant message. */
+  hasOutput(): boolean {
+    return this.messages.some((msg) => {
+      if (!msg || typeof msg !== 'object') return false;
+      return (msg as Record<string, unknown>).type === 'assistant';
+    });
+  }
+
+  /** Extracts the first SDK-level error message, if any. */
+  getSdkError(): string | undefined {
+    for (const msg of this.messages) {
+      if (!msg || typeof msg !== 'object') continue;
+      const m = msg as Record<string, unknown>;
+      if (m.type === 'error' && typeof m.message === 'string') {
+        return m.message;
+      }
+      // Some SDK versions nest error info differently.
+      if (m.type === 'error' && m.error && typeof m.error === 'object') {
+        const e = m.error as Record<string, unknown>;
+        if (typeof e.message === 'string') return e.message;
+      }
+    }
+    return undefined;
+  }
+
   /** Computes total input / output token counts from stream usage data. */
   getTokenSummary(): Record<string, number> {
     let inputTokens = 0;
@@ -444,6 +469,22 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         const resultText = writer.getResultText();
         const tokens = writer.getTokenSummary();
         const capturedSessionId = writer.getSessionId() || sessionId;
+
+        // Guard: if Claude exited without producing any assistant output, treat
+        // it as a failure rather than delivering an empty "completed" callback.
+        if (!writer.hasOutput() && tokens.totalTokens === 0) {
+          const sdkError = writer.getSdkError();
+          const message = sdkError
+            ? `Claude 运行异常: ${sdkError}`
+            : '核稿处理异常：Claude 未返回任何结果，可能是容器权限问题或其他运行时错误导致';
+          console.error(
+            `[Proofread] Task ${taskId}: Claude produced no output — marking as failed`,
+            sdkError ? `(sdk error: ${sdkError})` : '',
+          );
+          proofreadTasksDb.setFailed(taskId, message, capturedSessionId);
+          await this.deliverTaskCallback(taskId);
+          return;
+        }
 
         proofreadTasksDb.setCompleted(taskId, resultText, tokens, capturedSessionId);
         debug('[Proofread] Task completed', `taskId=${taskId}`, `tokens=${tokens.totalTokens}`);

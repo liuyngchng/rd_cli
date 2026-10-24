@@ -44,6 +44,18 @@ function normalizeCallbackUrl(raw: unknown): string | undefined {
   }
 }
 
+/**
+ * busboy (used by multer) decodes the multipart `Content-Disposition` filename
+ * as Latin-1, so non-ASCII filenames (e.g. Chinese) sent as raw UTF-8 bytes by
+ * browsers/curl arrive garbled. Re-decode those bytes back to UTF-8.
+ *
+ * Pure-ASCII names have identical byte sequences in both encodings, so they
+ * round-trip unchanged — this is safe for every client this API targets.
+ */
+function decodeOriginalname(name: string): string {
+  return Buffer.from(name, 'latin1').toString('utf8');
+}
+
 type ProofreadRouterDependencies = {
   proofreadService: ProofreadService;
   getSessionId: () => string;   // generates a fresh session id
@@ -140,7 +152,8 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     },
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now().toString(36);
-      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.一-鿿_-]/g, '_');
+      const decodedName = decodeOriginalname(file.originalname);
+      const sanitizedName = decodedName.replace(/[^a-zA-Z0-9.一-鿿_-]/g, '_');
       cb(null, `${uniqueSuffix}-${sanitizedName}`);
     },
   });
@@ -152,7 +165,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       files: 1,
     },
     fileFilter: (_req, file, cb) => {
-      if (isAllowedDocx(file.mimetype, file.originalname)) {
+      if (isAllowedDocx(file.mimetype, decodeOriginalname(file.originalname))) {
         cb(null, true);
       } else {
         cb(Object.assign(new Error('仅支持 .docx 格式的 Word 文档'), { code: 'UNSUPPORTED_FORMAT' }));
@@ -318,6 +331,9 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             return;
           }
 
+          // busboy decodes the multipart filename as Latin-1; re-decode to UTF-8.
+          const fileName = decodeOriginalname(req.file.originalname);
+
           const assetsDir = getUserProofreadDir(userId);
           const filePath = path.join(assetsDir, req.file.filename);
           const posixPath = toPosixPath(filePath);
@@ -347,7 +363,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             JSON.stringify({
               taskId,
               userId,
-              fileName: req.file.originalname,
+              fileName,
               fileSize: req.file.size,
               callbackUrl,
               additionalInstructions: additionalInstructions ?? null,
@@ -362,7 +378,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const result = await proofreadService.createProofreadTask({
             user: { userId, username: (user as Record<string, unknown>).username as string || '' },
             filePath: posixPath,
-            fileName: req.file.originalname,
+            fileName,
             fileSize: req.file.size,
             additionalInstructions,
             callbackUrl,
@@ -468,6 +484,9 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const filePath = path.join(assetsDir, req.file.filename);
           const posixPath = toPosixPath(filePath);
 
+          // busboy decodes the multipart filename as Latin-1; re-decode to UTF-8.
+          const fileName = decodeOriginalname(req.file.originalname);
+
           const additionalInstructions = typeof req.body.additional_instructions === 'string'
             ? req.body.additional_instructions.trim() || undefined
             : undefined;
@@ -479,7 +498,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             JSON.stringify({
               sessionId,
               userId,
-              fileName: req.file.originalname,
+              fileName,
               fileSize: req.file.size,
               additionalInstructions: additionalInstructions ?? null,
             }));
@@ -492,7 +511,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const result = await proofreadService.createProofreadSession({
             user: { userId, username: (user as Record<string, unknown>).username as string || '' },
             filePath: posixPath,
-            fileName: req.file.originalname,
+            fileName,
             fileSize: req.file.size,
             additionalInstructions,
             sessionId,

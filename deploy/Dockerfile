@@ -130,19 +130,16 @@ RUN rm -rf /opt/.pip-offline
 # ---------------------------------------------------------------------------
 # Node.js – install from local tarball
 # ---------------------------------------------------------------------------
-ENV NVM_DIR=/root/.nvm \
-    NODE_VERSION=v22.23.2
+# Install to /usr/local so both the builder (root) and the rdcli runtime user
+# can access it.  /root is 0700 and would break USER-switch below.
+ENV NODE_VERSION=v22.23.2
 
 COPY deploy/node-v22.23.2-linux-x64.tar.xz /tmp/
 
-RUN mkdir -p "$NVM_DIR/versions/node" \
-    && tar -xJf /tmp/node-v22.23.2-linux-x64.tar.xz -C "$NVM_DIR/versions/node" \
-    && mv "$NVM_DIR/versions/node/node-v22.23.2-linux-x64" "$NVM_DIR/versions/node/$NODE_VERSION" \
-    && mkdir -p "$NVM_DIR/alias" \
-    && echo "$NODE_VERSION" > "$NVM_DIR/alias/default" \
+RUN tar -xJf /tmp/node-v22.23.2-linux-x64.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node-v22.23.2-linux-x64.tar.xz
 
-ENV NODE_HOME=/root/.nvm/versions/node/v22.23.2
+ENV NODE_HOME=/usr/local
 ENV PATH=/opt/llm_py_env/bin:${NODE_HOME}/bin:${PATH}
 
 # ---------------------------------------------------------------------------
@@ -198,15 +195,24 @@ RUN chmod +x /opt/rdcli/dist-server/server/modules/cli/cli.js \
     && ln -s /opt/rdcli/dist-server/server/modules/cli/cli.js ${NODE_HOME}/bin/rdcli
 
 # ---------------------------------------------------------------------------
-# Claude Code global memory – office document assistant role
-# ---------------------------------------------------------------------------
-RUN mkdir -p /root/.claude
-COPY deploy/CLAUDE.md /root/.claude/CLAUDE.md
-
-# ---------------------------------------------------------------------------
 # Runtime
 # ---------------------------------------------------------------------------
+# Create a non-root user — Claude Code refuses --dangerously-skip-permissions
+# (required by the bypassPermissions proofread mode) when running as root.
+# UID 1000 matches the typical first user / custom workspace mount on Linux.
+RUN groupadd -r rdcli && useradd -r -g rdcli -m -d /home/rdcli -u 1000 rdcli \
+    && chown -R rdcli:rdcli /home/rdcli
+
+# Give rdcli ownership of directories it needs to write at runtime.
+RUN mkdir -p /opt/workspace && chown -R rdcli:rdcli /opt/rdcli /opt/workspace
+
+USER rdcli
+ENV HOME=/home/rdcli
+
+# Claude Code global memory – office document assistant role
+COPY --chown=rdcli:rdcli deploy/CLAUDE.md /home/rdcli/.claude/CLAUDE.md
+
 WORKDIR /opt/workspace
 EXPOSE 3001
 
-CMD ["/root/.nvm/versions/node/v22.23.2/bin/rdcli"]
+CMD ["/usr/local/bin/rdcli"]
