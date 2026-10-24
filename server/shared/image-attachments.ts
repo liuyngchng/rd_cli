@@ -5,20 +5,21 @@ import path from 'node:path';
 /**
  * Shared chat-attachment plumbing for every provider runtime.
  *
- * Uploaded chat files are persisted once in the global `~/.rdcli/assets`
- * folder and referenced by absolute path everywhere else:
+ * Uploaded chat files are persisted directly in the user's workspace
+ * (`~/.rdcli/users/<userId>`) and referenced by absolute path everywhere else:
  * - Claude: paths are read back into base64 `image` content blocks.
  * - General files: verified paths are appended inside a `<files_input>` tag,
  *   which every provider history adapter strips back out for display.
  * - Images: paths use the equivalent `<images_input>` tag.
  *
  * The chat UI loads them through dedicated `/api/assets/images/:filename` and
- * `/api/assets/files/:filename` routes, which serve only from this folder.
+ * `/api/assets/files/:filename` routes, which serve only from the user's
+ * workspace root.
  */
 
-/** Global storage folder for uploaded chat image attachments. */
+/** Returns the user workspace root (`~/.rdcli/users`), where per-user upload directories live. */
 export function getGlobalImageAssetsDir(): string {
-  return path.join(os.homedir(), '.rdcli', 'assets');
+  return path.join(os.homedir(), '.rdcli', 'users');
 }
 
 export type ImageAttachmentDescriptor = {

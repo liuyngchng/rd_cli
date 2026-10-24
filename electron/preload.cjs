@@ -27,4 +27,8 @@ if (isrdCLIAppOrigin(window.location)) {
     onStateUpdated: onDesktopStateUpdated,
     notifyReady: () => ipcRenderer.send('rdcli-desktop:ready'),
   });
+
+  contextBridge.exposeInMainWorld('rdcliDesktop', {
+    openPath: (filePath) => ipcRenderer.invoke('rdcli-desktop:open-path', filePath),
+  });
 }

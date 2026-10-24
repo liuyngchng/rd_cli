@@ -25,11 +25,11 @@ import { parseIncomingJsonObject } from '@/shared/utils.js';
  * Trust boundary for client-supplied image attachments: chat.send options come
  * straight from the browser, and the provider runtimes read the referenced
  * files off disk (Claude base64-encodes them into the prompt). Only files that
- * live inside the global upload store (`~/.rdcli/assets`, where the
+ * live inside the user workspace root (`~/.rdcli/users`, where the
  * `/api/assets` routes persist uploads) or inside the active project directory
  * (for file-tree uploads) are allowed through — anything else is dropped.
  *
- * Uploads live under `~/.rdcli/assets/<userId>/`; the filter accepts every
+ * Uploads live under `~/.rdcli/users/<userId>/`; the filter accepts every
  * path that resolves into the store tree regardless of depth. Path traversal
  * and absolute paths outside these two roots are always blocked.
  *

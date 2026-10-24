@@ -107,7 +107,7 @@ export default function SetupForm({ onSwitchToLogin }: SetupFormProps) {
       description={t('register.description')}
       footerText={t('register.footerText')}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <AuthInputField
           id="username"
           name="username"

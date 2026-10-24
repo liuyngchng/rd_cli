@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -19,6 +19,29 @@ let mainWindow = null;
 let splashWindow = null;
 let localServer = null;
 let isQuitting = false;
+
+/**
+ * Show a window and bring it to the foreground.
+ *
+ * On Linux most window managers ignore focus() when the calling process does
+ * not own the active focus — toggling alwaysOnTop briefly forces the window
+ * to the front so the user sees it immediately on launch.
+ */
+function showAndFocusWindow(win) {
+  if (!win || win.isDestroyed()) return;
+  if (process.platform === 'linux') {
+    win.setAlwaysOnTop(true);
+  }
+  win.show();
+  if (process.platform === 'linux') {
+    setTimeout(() => {
+      if (!win.isDestroyed()) {
+        win.setAlwaysOnTop(false);
+      }
+    }, 500);
+  }
+  win.focus();
+}
 
 function getAppRoot() {
   return app.isPackaged ? app.getAppPath() : path.resolve(__dirname, '..');
@@ -312,24 +335,35 @@ async function installLinuxDesktopEntry() {
 
 async function installWindowsShortcut() {
   try {
-    const execPath = app.isPackaged ? process.execPath : process.execPath;
-    const desktopDir = path.join(app.getPath('home'), 'Desktop');
+    const execPath = process.execPath;
+    const desktopDir = app.getPath('desktop');
     const shortcutPath = path.join(desktopDir, 'rdCLI.lnk');
     const iconPath = path.join(getAppRoot(), 'electron', 'assets', 'logo-windows.ico');
 
-    // 用 PowerShell 创建快捷方式
+    // 用 PowerShell 创建快捷方式。
+    // 直接把脚本塞进 -Command 会被外层 cmd.exe 破坏嵌套双引号，导致脚本残缺，
+    // 因此改为写入临时 .ps1 文件后通过 -File 执行，脚本内一律用单引号。
     const psScript = [
       `$WshShell = New-Object -ComObject WScript.Shell`,
-      `$Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")`,
-      `$Shortcut.TargetPath = "${execPath.replace(/\\/g, '\\\\')}"`,
-      `$Shortcut.Arguments = "--no-sandbox"`,
-      `$Shortcut.IconLocation = "${iconPath.replace(/\\/g, '\\\\')}"`,
-      `$Shortcut.Description = "rdCLI Desktop Shell"`,
-      `$Shortcut.WorkingDirectory = "${path.dirname(execPath).replace(/\\/g, '\\\\')}"`,
+      `$Shortcut = $WshShell.CreateShortcut('${shortcutPath.replace(/'/g, "''")}')`,
+      `$Shortcut.TargetPath = '${execPath.replace(/'/g, "''")}'`,
+      `$Shortcut.Arguments = '--no-sandbox'`,
+      `$Shortcut.IconLocation = '${iconPath.replace(/'/g, "''")}'`,
+      `$Shortcut.Description = 'rdCLI Desktop Shell'`,
+      `$Shortcut.WorkingDirectory = '${path.dirname(execPath).replace(/'/g, "''")}'`,
       `$Shortcut.Save()`,
-    ].join('; ');
+    ].join('\n');
 
-    execSync(`powershell.exe -NoProfile -NonInteractive -Command "${psScript}"`, { stdio: 'ignore' });
+    const scriptPath = path.join(app.getPath('temp'), 'rdcli-create-shortcut.ps1');
+    fs.writeFileSync(scriptPath, psScript, 'utf8');
+    try {
+      execSync(
+        `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`,
+        { stdio: 'ignore' },
+      );
+    } finally {
+      try { fs.unlinkSync(scriptPath); } catch {}
+    }
 
     await dialog.showMessageBox(mainWindow, {
       type: 'info',
@@ -376,7 +410,7 @@ async function removeDesktopShortcut() {
       });
     }
   } else if (process.platform === 'win32') {
-    const shortcutPath = path.join(app.getPath('home'), 'Desktop', 'rdCLI.lnk');
+    const shortcutPath = path.join(app.getPath('desktop'), 'rdCLI.lnk');
     try {
       if (fs.existsSync(shortcutPath)) fs.unlinkSync(shortcutPath);
       await dialog.showMessageBox(mainWindow, {
@@ -408,16 +442,31 @@ function registerIpcHandlers() {
     await localServer.updateDesktopSetting(key, value);
     return getDesktopState();
   });
+
+  ipcMain.handle('rdcli-desktop:open-path', async (_event, filePath) => {
+    const result = await shell.openPath(filePath);
+    return { ok: result === '', error: result || null };
+  });
+}
+
+// 主窗口的背景色应与 React 应用的主题背景保持一致（见 src/index.css：
+// 浅色 hsl(44 22% 96%) → #f6f4ef，深色 hsl(0 0% 8%) → #141414），
+// 这样即便主窗口在 React 内容绘制前闪现一帧，也不会出现深色→浅色的跳变。
+function getThemeBackgroundColor() {
+  const themeMode = localServer.getSettings().themeMode;
+  const useDark = themeMode === 'dark'
+    || (themeMode !== 'light' && nativeTheme.shouldUseDarkColors);
+  return useDark ? '#141414' : '#f6f4ef';
 }
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
+    width: 1200,
+    height: 680,
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: '#0f172a',
+    backgroundColor: getThemeBackgroundColor(),
     title: APP_NAME,
     icon: getWindowIconPath(),
     // 隐藏窗口时仍持续绘制帧，确保 show() 时第一帧就是已渲染好的登录界面，
@@ -455,8 +504,7 @@ async function createWindow() {
     }
     // paintWhenInitiallyHidden + backgroundThrottling:false 确保隐藏期间
     // 渲染器持续绘制帧，show() 的第一帧就是已渲染好的登录界面。
-    mainWindow.show();
-    mainWindow.focus();
+    showAndFocusWindow(mainWindow);
   }
 
   // 两个信号缺一不可，同时满足才切换窗口：
@@ -512,8 +560,7 @@ function registerAppEvents() {
     if (BrowserWindow.getAllWindows().length === 0) {
       void createWindow();
     } else if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+      showAndFocusWindow(mainWindow);
     }
   });
 
@@ -546,8 +593,7 @@ function registerSingleInstance() {
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
+      showAndFocusWindow(mainWindow);
     }
   });
 

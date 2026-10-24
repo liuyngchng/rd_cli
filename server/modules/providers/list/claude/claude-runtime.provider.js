@@ -241,13 +241,15 @@ function mapCliOptionsToSDK(options = {}) {
  * @param {string} sessionId - Session identifier
  * @param {Object} queryInstance - SDK query instance
  * @param {Object} writer - WebSocket writer for reconnect support
+ * @param {AbortController} abortController - AbortController for hard-stop capability
  */
-function addSession(sessionId, queryInstance, writer = null) {
+function addSession(sessionId, queryInstance, writer = null, abortController = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
     status: 'active',
-    writer
+    writer,
+    abortController
   });
 }
 
@@ -370,7 +372,7 @@ function extractTokenBudget(sdkMessage) {
  * Plain text turns pass the string through unchanged. Turns with image
  * attachments use the SDK's streaming-input mode: a single SDKUserMessage
  * whose content carries the prompt text plus one base64 `image` block per
- * attachment (read from the global `~/.rdcli/assets` folder).
+ * attachment (read from the user workspace `~/.rdcli/users/<userId>`).
  *
  * @param {string} command - User prompt
  * @param {Array} images - Image descriptors ({ path, name?, mimeType? })
@@ -624,10 +626,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     );
 
     let queryInstance;
+    const abortController = new AbortController();
     try {
       queryInstance = query({
         prompt: await createPrompt(),
-        options: sdkOptions
+        options: {
+          ...sdkOptions,
+          abortController
+        }
       });
     } catch (hookError) {
       // Older/newer SDK versions may not accept hook shapes yet.
@@ -636,7 +642,10 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       delete sdkOptions.hooks;
       queryInstance = query({
         prompt: await createPrompt(),
-        options: sdkOptions
+        options: {
+          ...sdkOptions,
+          abortController
+        }
       });
     }
 
@@ -649,7 +658,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     // Track the query instance for abort capability
     if (sessionKey()) {
-      addSession(sessionKey(), queryInstance, ws);
+      addSession(sessionKey(), queryInstance, ws, abortController);
     }
 
     // Process streaming messages
@@ -659,7 +668,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(sessionKey(), queryInstance, ws);
+        addSession(sessionKey(), queryInstance, ws, abortController);
 
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
@@ -736,8 +745,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Complete
 
   } catch (error) {
-    console.error('SDK query error:', error);
-
     // Clean up session on error
     if (sessionKey()) {
       removeSession(sessionKey());
@@ -746,9 +753,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     const wasAborted = sessionKey() ? abortedSessionIds.delete(sessionKey()) : false;
     if (wasAborted) {
       // The abort already produced the terminal complete; a generator throw
-      // caused by interrupt() is expected noise, not a user-facing error.
+      // caused by the AbortController is expected, not a user-facing error.
+      // Log at info level — this is normal abort noise, not a bug.
+      console.log(`[Claude SDK] Query aborted for session ${sessionKey()}:`, error?.message || error);
       return;
     }
+
+    console.error('SDK query error:', error);
 
     // Check if Claude CLI is installed for a clearer error message
     const installed = await context.isProviderInstalled();
@@ -789,8 +800,29 @@ async function abortClaudeSDKSession(sessionId) {
     // terminal complete (the abort handler sends the aborted one).
     abortedSessionIds.add(sessionId);
 
-    // Call interrupt() on the query instance
-    await session.instance.interrupt();
+    // Hard-stop first: the AbortController kills the underlying Claude Code
+    // process and makes the query generator throw immediately. Without this,
+    // interrupt() is only a graceful control request that the CLI may keep
+    // processing (e.g. mid-tool-call) for seconds — leaving Claude Code
+    // working in the background after the UI already reported "stopped".
+    if (session.abortController && !session.abortController.signal.aborted) {
+      session.abortController.abort();
+    }
+
+    // Best-effort graceful interrupt so the CLI can persist a clean resume
+    // transcript before the hard-stop takes effect. The abort above is the
+    // authoritative stop — this is optional polish, so use a short timeout to
+    // avoid delaying the UI-side completeRun that signals "stopped".
+    try {
+      await Promise.race([
+        session.instance.interrupt(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('interrupt timed out')), 2000)),
+      ]);
+    } catch (interruptError) {
+      // The abort above already tore the process down; a timeout or failure
+      // here is expected noise, not a reason to mark the abort as failed.
+      console.warn(`interrupt() failed or timed out for session ${sessionId}:`, interruptError?.message || interruptError);
+    }
 
     // Update session status
     session.status = 'aborted';

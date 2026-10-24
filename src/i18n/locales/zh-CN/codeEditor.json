@@ -31,7 +31,11 @@
   },
   "binaryFile": {
     "title": "二进制文件",
-    "message": "文件 \"{{fileName}}\" 无法在文本编辑器中显示，因为它是二进制文件。"
+    "message": "文件 \"{{fileName}}\" 无法在文本编辑器中显示，因为它是二进制文件。",
+    "canOpenExternally": "您可以用系统默认应用打开此文件。",
+    "openWithDefault": "用默认应用打开",
+    "opening": "正在打开...",
+    "openError": "无法打开文件"
   },
   "filePreview": {
     "loading": "正在加载预览...",

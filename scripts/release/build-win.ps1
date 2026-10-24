@@ -10,6 +10,7 @@
 #   3. npm run desktop:pack（build + stage + electron-builder --dir）
 #   3.5 注入 Claude 连接配置（scripts\release\desktop.env → resources\app\.env，可选）
 #   4. 将 release\desktop\win-unpacked 压缩为 zip
+#   5. 删除整个 release\desktop 目录，release 下只保留 zip
 #
 # 产物：release\rdcli-desktop-<version>-win-x64.zip
 #       用户解压后双击 rdCLI.exe 即可运行，无需安装
@@ -83,3 +84,10 @@ if ($LASTEXITCODE -ne 0) { throw '压缩失败' }
 
 Write-Host "✅ 完成：$outZip" -ForegroundColor Green
 Write-Host '   用户解压后双击 rdCLI.exe 即可运行，无需安装、无需配置。' -ForegroundColor Green
+
+# ---- 6. 清理打包零散文件 ---------------------------------------------------
+# 删除整个 release\desktop 目录，release 下只保留最终的 zip
+$desktopDir = 'release\desktop'
+Write-Host '==> 清理打包零散文件' -ForegroundColor Cyan
+Remove-Item $desktopDir -Recurse -Force
+Write-Host "   已删除 $desktopDir" -ForegroundColor Cyan

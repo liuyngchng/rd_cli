@@ -699,8 +699,8 @@ export class DesktopWindowManager {
 
   async createWindow() {
     this.mainWindow = new BrowserWindow({
-      width: 1440,
-      height: 960,
+      width: 1200,
+      height: 680,
       minWidth: 800,
       minHeight: 600,
       show: false,

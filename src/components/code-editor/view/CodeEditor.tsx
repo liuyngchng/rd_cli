@@ -226,6 +226,7 @@ export default function CodeEditor({
         isFullscreen={isFullscreen}
         onClose={onClose}
         onToggleFullscreen={() => setIsFullscreen((previous) => !previous)}
+        projectPath={projectPath}
         title={t('binaryFile.title', 'Binary File')}
         message={t('binaryFile.message', 'The file "{{fileName}}" cannot be displayed in the text editor because it is a binary file.', { fileName: file.name })}
       />

@@ -195,7 +195,7 @@ app.use('/api/file-tree', authenticateToken, fileTreeRoutes);
 // Projects API Routes (protected)
 app.use('/api/projects', authenticateToken, projectModuleRoutes);
 
-// Chat attachment upload/serving (global ~/.rdcli/assets store, protected)
+// Chat attachment upload/serving (user workspace ~/.rdcli/users/<userId>, protected)
 app.use('/api/assets', authenticateToken, assetsRoutes);
 
 // Git API Routes (protected)
@@ -268,7 +268,7 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
 // Frontend now uses window.location for WebSocket URLs
 
 // Chat uploads live under /api/assets (server/modules/assets), which stores
-// images and general files in the global ~/.rdcli/assets folder.
+// images and general files in the user workspace ~/.rdcli/users/<userId>.
 
 // Serve React app for all other routes (excluding static files)
 app.get('*', (req, res) => {

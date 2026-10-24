@@ -1,6 +1,7 @@
 import {
   Brain,
   Eye,
+  EyeOff,
   Languages,
   Mic,
 } from 'lucide-react';
@@ -32,6 +33,11 @@ export const TOOL_DISPLAY_TOGGLES: PreferenceToggleItem[] = [
     key: 'showThinking',
     labelKey: 'quickSettings.showThinking',
     icon: Brain,
+  },
+  {
+    key: 'hideToolProcess',
+    labelKey: 'quickSettings.hideToolProcess',
+    icon: EyeOff,
   },
 ];
 

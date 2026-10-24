@@ -34,6 +34,7 @@ type MessageComponentProps = {
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolProcess?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
 };
@@ -46,7 +47,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, hideToolProcess, selectedProject, provider }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -167,7 +168,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           <div className="w-full">
 
             {message.isToolUse ? (
-              <>
+              hideToolProcess ? (
+                // Compact mode: show only a subtle progress line, no tool commands or results
+                message.displayText ? (
+                  <div className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground/50 italic">
+                    <span className="inline-block h-1 w-1 flex-shrink-0 rounded-full bg-muted-foreground/30" />
+                    {String(message.displayText)}
+                  </div>
+                ) : null
+              ) : (
+                <>
                 <div className="flex flex-col">
                   <div className="flex flex-col">
                     <Markdown className="prose prose-sm max-w-none font-serif dark:prose-invert">
@@ -220,6 +230,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )
                 )}
               </>
+              )
             ) : message.isInteractivePrompt ? (
               // Special handling for interactive prompts
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">

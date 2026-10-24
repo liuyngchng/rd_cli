@@ -1,5 +1,7 @@
 import express from 'express';
 import multer from 'multer';
+import { createHash } from 'node:crypto';
+import { extname } from 'node:path';
 
 import {
   buildStoredAttachmentRecords,
@@ -39,8 +41,13 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    cb(null, `${uniqueSuffix}-${sanitizedName}`);
+    // 用原文件名（含扩展名）做 md5 摘要作为标识，而非直接保留原名。
+    // 这样中文等非 ASCII 字符不会再退化成成串下划线，同时盘上的实际
+    // 文件名只包含十六进制字符，杜绝任何路径穿越 / 特殊字符风险。
+    const fileHash = createHash('md5').update(file.originalname).digest('hex');
+    // 只取白名单扩展名（字母数字），丢弃其他字符，防止非法扩展名混入。
+    const safeExt = extname(file.originalname).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 16);
+    cb(null, `${uniqueSuffix}-${fileHash}${safeExt}`);
   },
 });
 
@@ -74,8 +81,8 @@ const attachmentUpload = multer({
 });
 
 /**
- * Stores chat image attachments in the requesting user's `~/.rdcli/assets/<userId>`
- * folder and returns their absolute paths for use in provider prompts and chat
+ * Stores chat image attachments in the requesting user's `~/.rdcli/users/<userId>`
+ * workspace and returns their absolute paths for use in provider prompts and chat
  * history.
  */
 router.post('/images', (req, res) => {

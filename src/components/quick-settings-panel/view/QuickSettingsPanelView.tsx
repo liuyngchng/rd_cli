@@ -28,11 +28,13 @@ export default function QuickSettingsPanelView() {
     showThinking: preferences.showThinking,
     sendByCtrlEnter: preferences.sendByCtrlEnter,
     voiceEnabled: preferences.voiceEnabled,
+    hideToolProcess: preferences.hideToolProcess,
   }), [
     preferences.sendByCtrlEnter,
     preferences.showRawParameters,
     preferences.showThinking,
     preferences.voiceEnabled,
+    preferences.hideToolProcess,
   ]);
 
   const handlePreferenceChange = useCallback(

@@ -201,11 +201,22 @@ function buildShellCommand(
 
   const claudeCommand = resolveClaudeCodeExecutablePath();
   const command = initialCommand || claudeCommand;
+  // Package-scoped npm paths (e.g. @anthropic-ai/claude-agent-sdk-…)
+  // contain @ which PowerShell interprets as a splatting operator when
+  // the outer double quotes are stripped during command-line processing.
+  // & (call operator) + escaping the path guards against this.
+  const psSafe = (s: string) => s.replace(/`/g, '``').replace(/@/g, '`@').replace(/\$/g, '`$');
+
   if (resumeSessionId) {
     if (os.platform() === 'win32') {
-      return `"${claudeCommand}" --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { "${claudeCommand}" }`;
+      const safeCommand = psSafe(claudeCommand);
+      return `& "${safeCommand}" --resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { & "${safeCommand}" }`;
     }
     return `'${claudeCommand}' --resume '${resumeSessionId}' || '${claudeCommand}'`;
+  }
+
+  if (os.platform() === 'win32') {
+    return `& "${psSafe(command)}"`;
   }
   return command;
 }

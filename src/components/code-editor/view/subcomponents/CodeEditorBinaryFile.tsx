@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
 import type { CodeEditorFile } from '../../types/types';
 
 type CodeEditorBinaryFileProps = {
@@ -6,9 +9,18 @@ type CodeEditorBinaryFileProps = {
   isFullscreen: boolean;
   onClose: () => void;
   onToggleFullscreen: () => void;
+  projectPath?: string;
   title: string;
   message: string;
 };
+
+function buildAbsolutePath(filePath: string, projectPath?: string): string | null {
+  // Already absolute (e.g. an uploaded file path like /home/rd/.rdcli/users/1/xxx.docx)
+  if (filePath.startsWith('/')) return filePath;
+  // Project-relative path needs the project root
+  if (projectPath) return `${projectPath}/${filePath}`;
+  return null;
+}
 
 export default function CodeEditorBinaryFile({
   file,
@@ -16,9 +28,33 @@ export default function CodeEditorBinaryFile({
   isFullscreen,
   onClose,
   onToggleFullscreen,
+  projectPath,
   title,
   message,
 }: CodeEditorBinaryFileProps) {
+  const { t } = useTranslation('codeEditor');
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
+
+  const absolutePath = buildAbsolutePath(file.path, projectPath);
+  const canOpenExternally = Boolean(window.rdcliDesktop?.openPath && absolutePath);
+
+  const handleOpenExternally = async () => {
+    if (!window.rdcliDesktop?.openPath || !absolutePath) return;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      const result = await window.rdcliDesktop.openPath(absolutePath);
+      if (!result.ok) {
+        setOpenError(result.error || t('binaryFile.openError', 'Unable to open file'));
+      }
+    } catch {
+      setOpenError(t('binaryFile.openError', 'Unable to open file'));
+    } finally {
+      setOpening(false);
+    }
+  };
+
   const binaryContent = (
     <div className="flex h-full w-full flex-col items-center justify-center bg-background p-8 text-muted-foreground">
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
@@ -30,13 +66,34 @@ export default function CodeEditorBinaryFile({
         <div>
           <h3 className="mb-2 text-lg font-medium text-foreground">{title}</h3>
           <p className="text-sm text-muted-foreground">{message}</p>
+          {canOpenExternally && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('binaryFile.canOpenExternally', 'You can open it with your system default application.')}
+            </p>
+          )}
         </div>
-        <button
-          onClick={onClose}
-          className="mt-4 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          Close
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canOpenExternally && (
+            <button
+              onClick={handleOpenExternally}
+              disabled={opening}
+              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            >
+              {opening
+                ? t('binaryFile.opening', 'Opening...')
+                : t('binaryFile.openWithDefault', 'Open with default app')}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="mt-2 rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+          >
+            {t('actions.close', 'Close')}
+          </button>
+        </div>
+        {openError && (
+          <p className="text-sm text-red-600 dark:text-red-400">{openError}</p>
+        )}
       </div>
     </div>
   );
