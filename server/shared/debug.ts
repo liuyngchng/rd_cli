@@ -68,3 +68,29 @@ export function debug(...args: unknown[]): void {
   const message = args.map(formatValue).join(' ');
   writeLine(`[DEBUG] ${timestamp} ${message}`);
 }
+
+/**
+ * Formats the current time in a Java/Go-style system-log layout,
+ * e.g. `2026-10-22 10:00:00.123`, using local time.
+ */
+function formatTimestamp(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const MM = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const HH = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
+  return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}.${ms}`;
+}
+
+/**
+ * Writes a timestamped line to stdout, in the same spirit as a classic
+ * application log (`logback`, Go's `log` package, etc.). Always on — unlike
+ * `debug`, this is not gated by `RDCLI_LOG_LEVEL`.
+ */
+export function log(...args: unknown[]): void {
+  const message = args.map(formatValue).join(' ');
+  console.log(`${formatTimestamp()} ${message}`);
+}

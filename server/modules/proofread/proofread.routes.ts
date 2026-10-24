@@ -7,7 +7,7 @@ import multer from 'multer';
 
 import { getGlobalImageAssetsDir as getGlobalAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
 import { userDb, apiKeysDb } from '@/modules/database/index.js';
-import { debug } from '@/shared/debug.js';
+import { debug, log } from '@/shared/debug.js';
 
 import type { ProofreadService } from './proofread.service.js';
 
@@ -122,9 +122,6 @@ async function ensureUserProofreadDir(userId: number): Promise<string> {
   return dir;
 }
 
-/**
- * Creates the proofread router with a single endpoint.
- */
 export function createProofreadRouter(deps: ProofreadRouterDependencies): express.Router {
   const { proofreadService, getSessionId, getTaskId } = deps;
   const router = express.Router();
@@ -163,15 +160,94 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     },
   });
 
-  /**
-   * GET /api/proofread
-   *
-   * Returns the authenticated user's active (pending + processing) tasks,
-   * most recent first.
-   */
-  router.get('/', validateExternalApiKey, (req, res) => {
+  // ── GET /api/proofread — usage help ───────────────────────────────────
+
+  router.get('/', (_req, res) => {
+    res.json({
+      message: '请使用 POST 方法提交核稿任务',
+      example: {
+        curl: [
+          'curl -X POST <rdcli-host>/api/proofread \\',
+          '  -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \\',
+          '  -F "file=@文档.docx" \\',
+          '  -F "callback_url=https://oa.example.com/api/callback" \\',
+          '  -F "additional_instructions=重点检查数据引用"',
+        ].join('\n'),
+        fields: {
+          file: '(必填) Word 文档 .docx，最大 20MB',
+          callback_url: '(必填) 核稿完成后回调地址，http:// 或 https://',
+          additional_instructions: '(可选) 追加核稿要求',
+        },
+      },
+      links: {
+        task_list: 'GET /api/proofread/task — 查看进行中的任务',
+        query_task: 'GET /api/proofread/task?id=<taskId> — 查询单个任务状态',
+        cancel_task: 'DELETE /api/proofread/task?id=<taskId> — 撤销任务',
+        session_mode: 'POST /api/proofread/session — 创建会话跳转',
+      },
+    });
+  });
+
+  // ── GET /api/proofread/task[?id=xxx] ──────────────────────────────────
+
+  router.get('/task', validateExternalApiKey, (req, res) => {
+    const taskId = typeof req.query.id === 'string' ? req.query.id.trim() : undefined;
+
+    if (taskId) {
+      // ── single task query ──────────────────────────────────────────
+      log('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ taskId }));
+
+      const task = proofreadService.getTask(taskId);
+
+      if (!task) {
+        log('[Proofread API] GET /api/proofread/task — response',
+          JSON.stringify({ taskId, found: false }));
+        res.status(404).json({
+          success: false,
+          error: { code: 'TASK_NOT_FOUND', message: '任务不存在' },
+        });
+        return;
+      }
+
+      let tokens: Record<string, unknown> | undefined;
+      if (task.tokens_json) {
+        try { tokens = JSON.parse(task.tokens_json); } catch { /* keep undefined */ }
+      }
+
+      const data: Record<string, unknown> = {
+        task_id: task.task_id,
+        status: task.status,
+        file_name: task.file_name,
+        file_size: task.file_size,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+      };
+
+      if (task.additional_instructions) {
+        data.additional_instructions = task.additional_instructions;
+      }
+
+      if (task.status === 'completed') {
+        data.result_text = task.result_text;
+        if (tokens) data.tokens = tokens;
+        if (task.session_id) {
+          data.session_id = task.session_id;
+          data.session_url = proofreadService.getSessionUrl(task.session_id);
+        }
+      } else if (task.status === 'failed' || task.status === 'cancelled') {
+        data.error_message = task.error_message;
+      }
+
+      log('[Proofread API] GET /api/proofread/task — response',
+        JSON.stringify({ taskId, status: task.status, resultTextLen: task.result_text?.length ?? 0 }));
+      res.json({ success: true, data });
+      return;
+    }
+
+    // ── task list ────────────────────────────────────────────────────
     const userId = getUserId(req);
     if (userId == null) {
+      log('[Proofread API] GET /api/proofread/task — request (no userId)');
       res.status(401).json({
         success: false,
         error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
@@ -179,8 +255,11 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       return;
     }
 
+    log('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ userId }));
+
     const tasks = proofreadService.listActiveTasks(userId);
 
+    log('[Proofread API] GET /api/proofread/task — response', JSON.stringify({ count: tasks.length }));
     res.json({
       success: true,
       data: tasks.map((t) => ({
@@ -195,13 +274,8 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     });
   });
 
-  /**
-   * POST /api/proofread
-   *
-   * Creates an asynchronous proofreading task with a callback URL. Returns immediately
-   * with a taskId. When the task reaches a terminal state, rdCLI POSTs the result to
-   * callback_url.
-   */
+  // ── POST /api/proofread — submit async task ───────────────────────────
+
   router.post('/', validateExternalApiKey, (req, res, next) => {
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
@@ -225,6 +299,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       void (async () => {
         try {
           if (!req.file) {
+            log('[Proofread API] POST /api/proofread — request (no file)');
             res.status(400).json({
               success: false,
               error: { code: 'MISSING_FILE', message: '请上传 .docx 格式的 Word 文档' },
@@ -235,6 +310,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const user = resolveUser(req);
           const userId = getUserId(req);
           if (userId == null) {
+            log('[Proofread API] POST /api/proofread — request (no userId)');
             res.status(401).json({
               success: false,
               error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
@@ -250,15 +326,13 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const callbackUrl = normalizeCallbackUrl(req.body.callback_url);
           if (!callbackUrl) {
             const raw = typeof req.body.callback_url === 'string' ? req.body.callback_url : '';
-            res.status(400).json({
-              success: false,
-              error: {
-                code: raw ? 'INVALID_CALLBACK_URL' : 'MISSING_CALLBACK_URL',
-                message: raw
-                  ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
-                  : '请提供 callback_url 回调地址',
-              },
-            });
+            const errorCode = raw ? 'INVALID_CALLBACK_URL' : 'MISSING_CALLBACK_URL';
+            const errorMessage = raw
+              ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
+              : '请提供 callback_url 回调地址';
+            log('[Proofread API] POST /api/proofread — request error',
+              JSON.stringify({ userId, code: errorCode, message: errorMessage }));
+            res.status(400).json({ success: false, error: { code: errorCode, message: errorMessage } });
             return;
           }
 
@@ -268,6 +342,16 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
           const workspacePath = path.join(os.homedir(), '.rdcli', 'users', String(userId));
           const taskId = getTaskId();
+
+          log('[Proofread API] POST /api/proofread — request',
+            JSON.stringify({
+              taskId,
+              userId,
+              fileName: req.file.originalname,
+              fileSize: req.file.size,
+              callbackUrl,
+              additionalInstructions: additionalInstructions ?? null,
+            }));
 
           debug('[Proofread] Creating async task',
             `taskId=${taskId}`,
@@ -286,108 +370,57 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             workspacePath,
           });
 
+          log('[Proofread API] POST /api/proofread — response',
+            JSON.stringify(result));
           res.json({
             success: true,
-            data: {
-              task_id: result.taskId,
-              status: result.status,
-            },
+            data: { task_id: result.taskId, status: result.status },
           });
         } catch (error) {
+          log('[Proofread API] POST /api/proofread — error',
+            error instanceof Error ? error.message : String(error));
           next(error);
         }
       })();
     });
   });
 
-  /**
-   * GET /api/proofread/:taskId
-   *
-   * Returns the current status and result of an async proofreading task.
-   * Primary result delivery is via callback; this endpoint is a fallback
-   * for debugging or checking status manually.
-   */
-  router.get('/:taskId', validateExternalApiKey, (req, res) => {
-    const taskId = String(req.params.taskId);
-    const task = proofreadService.getTask(taskId);
+  // ── DELETE /api/proofread/task?id=<taskId> ────────────────────────────
 
-    if (!task) {
-      res.status(404).json({
+  router.delete('/task', validateExternalApiKey, async (req, res) => {
+    const taskId = typeof req.query.id === 'string' ? req.query.id.trim() : undefined;
+    if (!taskId) {
+      res.status(400).json({
         success: false,
-        error: { code: 'TASK_NOT_FOUND', message: '任务不存在' },
+        error: { code: 'MISSING_TASK_ID', message: '请提供 ?id=<taskId> 参数' },
       });
       return;
     }
 
-    // Parse stored JSON fields
-    let tokens: Record<string, unknown> | undefined;
-    if (task.tokens_json) {
-      try {
-        tokens = JSON.parse(task.tokens_json);
-      } catch { /* keep undefined */ }
-    }
-
-    const data: Record<string, unknown> = {
-      task_id: task.task_id,
-      status: task.status,
-      file_name: task.file_name,
-      file_size: task.file_size,
-      created_at: task.created_at,
-      updated_at: task.updated_at,
-    };
-
-    if (task.additional_instructions) {
-      data.additional_instructions = task.additional_instructions;
-    }
-
-    if (task.status === 'completed') {
-      data.result_text = task.result_text;
-      if (tokens) data.tokens = tokens;
-      if (task.session_id) {
-        data.session_id = task.session_id;
-        data.session_url = proofreadService.getSessionUrl(task.session_id);
-      }
-    } else if (task.status === 'failed' || task.status === 'cancelled') {
-      data.error_message = task.error_message;
-    }
-
-    res.json({ success: true, data });
-  });
-
-  /**
-   * DELETE /api/proofread/:taskId
-   *
-   * Cancels a pending or processing proofread task. If the task is currently
-   * processing, the underlying Claude session is aborted. Only tasks in
-   * pending or processing state can be cancelled.
-   */
-  router.delete('/:taskId', validateExternalApiKey, async (req, res) => {
-    const taskId = String(req.params.taskId);
+    log('[Proofread API] DELETE /api/proofread/task — request', JSON.stringify({ taskId }));
 
     try {
       const task = await proofreadService.cancelTask(taskId);
 
       if (!task) {
-        // Either already terminal, or never existed.
+        log('[Proofread API] DELETE /api/proofread/task — response',
+          JSON.stringify({ taskId, cancelled: false }));
         res.status(404).json({
           success: false,
-          error: {
-            code: 'TASK_NOT_FOUND',
-            message: '任务不存在或已完成，无法撤销',
-          },
+          error: { code: 'TASK_NOT_FOUND', message: '任务不存在或已完成，无法撤销' },
         });
         return;
       }
 
+      log('[Proofread API] DELETE /api/proofread/task — response',
+        JSON.stringify({ taskId, cancelled: true, status: task.status }));
       res.json({
         success: true,
-        data: {
-          task_id: task.task_id,
-          status: task.status,
-          updated_at: task.updated_at,
-        },
+        data: { task_id: task.task_id, status: task.status, updated_at: task.updated_at },
       });
     } catch (error) {
+      log('[Proofread API] DELETE /api/proofread/task — error',
+        JSON.stringify({ taskId, error: error instanceof Error ? error.message : String(error) }));
       console.error(
         `[Proofread] Cancel task error for ${taskId}:`,
         error instanceof Error ? error.message : String(error),
@@ -399,14 +432,8 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     }
   });
 
-  /**
-   * POST /api/proofread/session
-   *
-   * Creates a pre-filled proofreading chat session. Uploads the Word document,
-   * stores it in the user's assets folder, starts a background Claude session
-   * with the proofreading system prompt, and returns a session URL for the
-   * caller to open.
-   */
+  // ── POST /api/proofread/session — chat session ────────────────────────
+
   router.post('/session', validateExternalApiKey, (req, res, next) => {
     upload.single('file')(req, res, (uploadError?: unknown) => {
       if (uploadError) {
@@ -418,6 +445,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       void (async () => {
         try {
           if (!req.file) {
+            log('[Proofread API] POST /api/proofread/session — request (no file)');
             res.status(400).json({
               success: false,
               error: { code: 'MISSING_FILE', message: '请上传 .docx 格式的 Word 文档' },
@@ -428,6 +456,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const user = resolveUser(req);
           const userId = getUserId(req);
           if (userId == null) {
+            log('[Proofread API] POST /api/proofread/session — request (no userId)');
             res.status(401).json({
               success: false,
               error: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
@@ -435,7 +464,6 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             return;
           }
 
-          // Resolve stored file path.
           const assetsDir = getUserProofreadDir(userId);
           const filePath = path.join(assetsDir, req.file.filename);
           const posixPath = toPosixPath(filePath);
@@ -444,10 +472,17 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             ? req.body.additional_instructions.trim() || undefined
             : undefined;
 
-          // User workspace for the Claude session.
           const workspacePath = path.join(os.homedir(), '.rdcli', 'users', String(userId));
-
           const sessionId = getSessionId();
+
+          log('[Proofread API] POST /api/proofread/session — request',
+            JSON.stringify({
+              sessionId,
+              userId,
+              fileName: req.file.originalname,
+              fileSize: req.file.size,
+              additionalInstructions: additionalInstructions ?? null,
+            }));
 
           debug('[Proofread] Creating session',
             `sessionId=${sessionId}`,
@@ -464,14 +499,15 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             workspacePath,
           });
 
+          log('[Proofread API] POST /api/proofread/session — response',
+            JSON.stringify(result));
           res.json({
             success: true,
-            data: {
-              session_id: result.sessionId,
-              session_url: result.sessionUrl,
-            },
+            data: { session_id: result.sessionId, session_url: result.sessionUrl },
           });
         } catch (error) {
+          log('[Proofread API] POST /api/proofread/session — error',
+            error instanceof Error ? error.message : String(error));
           next(error);
         }
       })();

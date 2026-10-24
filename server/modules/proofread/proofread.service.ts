@@ -5,7 +5,7 @@ import type { ProviderRuntimeWriter, ProviderRunFunction } from '@/shared/types.
 import { appendFilesInputTag } from '@/shared/image-attachments.js';
 import { AppError } from '@/shared/utils.js';
 import { proofreadTasksDb as ProofreadTasksDb } from '@/modules/database/index.js';
-import { debug } from '@/shared/debug.js';
+import { debug, log } from '@/shared/debug.js';
 
 type UserInfo = {
   userId: number;
@@ -220,6 +220,14 @@ function postCallback(callbackUrl: string, payload: Record<string, unknown>): Pr
 
     const body = JSON.stringify(payload);
     const transport = parsed.protocol === 'https:' ? https : http;
+
+    log('[Proofread API] Callback — request',
+      JSON.stringify({
+        taskId: payload.task_id,
+        status: payload.status,
+        url: callbackUrl,
+        payload,
+      }));
     // Ignore TLS certificate validation so self-signed HTTPS endpoints work.
     const requestOptions: https.RequestOptions = {
       hostname: parsed.hostname,
@@ -236,7 +244,10 @@ function postCallback(callbackUrl: string, payload: Record<string, unknown>): Pr
     const req = transport.request(requestOptions, (res) => {
       // Drain the response body so the connection can be reused.
       res.resume();
-      resolve(res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300);
+      const success = res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300;
+      log('[Proofread API] Callback — response',
+        JSON.stringify({ taskId: payload.task_id, statusCode: res.statusCode, success }));
+      resolve(success);
     });
 
     req.setTimeout(CALLBACK_TIMEOUT_MS, () => {

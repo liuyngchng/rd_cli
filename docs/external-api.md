@@ -227,9 +227,12 @@ pending ──→ processing ──→ completed
 
 ---
 
-### GET /api/proofread/:taskId — 查询任务
+### GET /api/proofread/task — 查询任务
 
-用于主动查询任务状态或结果（例如回调丢失后兜底排查）。
+支持两种用法：
+
+- `GET /api/proofread/task` — 返回当前用户所有**未完成**（pending + processing）的核稿任务，按创建时间倒序
+- `GET /api/proofread/task?id=<taskId>` — 查询单个任务状态或结果（例如回调丢失后兜底排查）
 
 **请求：**
 
@@ -237,6 +240,47 @@ pending ──→ processing ──→ completed
 |------|------|
 | **Method** | `GET` |
 | **鉴权** | `x-api-key: ck_xxxx`（必需，Platform 模式除外） |
+
+#### 任务列表 — 响应（200）
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "task_id": "pt-mabc123-x7k2",
+      "status": "processing",
+      "file_name": "来文登记.docx",
+      "file_size": 45678,
+      "additional_instructions": "重点检查数据引用",
+      "created_at": "2026-10-22T10:00:00Z",
+      "updated_at": "2026-10-22T10:00:05Z"
+    },
+    {
+      "task_id": "pt-nxyz456-a3b1",
+      "status": "pending",
+      "file_name": "通知.docx",
+      "file_size": 12345,
+      "created_at": "2026-10-22T09:55:00Z",
+      "updated_at": "2026-10-22T09:55:00Z"
+    }
+  ]
+}
+```
+
+**调用示例：**
+
+```bash
+curl -X GET "https://rdcli.example.com/api/proofread/task" \
+  -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# 空列表：
+# { "success": true, "data": [] }
+```
+
+#### 查询单个任务
+
+`GET /api/proofread/task?id=<taskId>`
 
 **响应 — 排队中（200）：**
 
@@ -327,59 +371,46 @@ pending ──→ processing ──→ completed
 }
 ```
 
+**调用示例：**
+
+```bash
+curl -X GET "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
+  -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
 ---
 
-### GET /api/proofread — 查询进行中的任务列表
+### GET /api/proofread — 用法说明
 
-返回当前用户所有**未完成**（pending + processing）的核稿任务，按创建时间倒序。
-
-**请求：**
-
-| 项目 | 说明 |
-|------|------|
-| **Method** | `GET` |
-| **鉴权** | `x-api-key: ck_xxxx`（必需，Platform 模式除外） |
+无需鉴权，返回核稿任务的提交用法示例。
 
 **响应（200）：**
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "task_id": "pt-mabc123-x7k2",
-      "status": "processing",
-      "file_name": "来文登记.docx",
-      "file_size": 45678,
-      "additional_instructions": "重点检查数据引用",
-      "created_at": "2026-10-22T10:00:00Z",
-      "updated_at": "2026-10-22T10:00:05Z"
-    },
-    {
-      "task_id": "pt-nxyz456-a3b1",
-      "status": "pending",
-      "file_name": "通知.docx",
-      "file_size": 12345,
-      "created_at": "2026-10-22T09:55:00Z",
-      "updated_at": "2026-10-22T09:55:00Z"
+  "message": "请使用 POST 方法提交核稿任务",
+  "example": {
+    "curl": "curl -X POST <rdcli-host>/api/proofread \\\n  -H \"x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" \\\n  -F \"file=@文档.docx\" \\\n  -F \"callback_url=https://oa.example.com/api/callback\" \\\n  -F \"additional_instructions=重点检查数据引用\"",
+    "fields": {
+      "file": "(必填) Word 文档 .docx，最大 20MB",
+      "callback_url": "(必填) 核稿完成后回调地址，http:// 或 https://",
+      "additional_instructions": "(可选) 追加核稿要求"
     }
-  ]
+  },
+  "links": {
+    "task_list": "GET /api/proofread/task — 查看进行中的任务",
+    "query_task": "GET /api/proofread/task?id=<taskId> — 查询单个任务状态",
+    "cancel_task": "DELETE /api/proofread/task?id=<taskId> — 撤销任务",
+    "session_mode": "POST /api/proofread/session — 创建会话跳转"
+  }
 }
-```
-
-**调用示例：**
-
-```bash
-curl -X GET https://rdcli.example.com/api/proofread \
-  -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
-# 空列表：
-# { "success": true, "data": [] }
 ```
 
 ---
 
-### DELETE /api/proofread/:taskId — 撤销任务
+### DELETE /api/proofread/task — 撤销任务
+
+`DELETE /api/proofread/task?id=<taskId>`
 
 撤销一个等待中或处理中的核稿任务。如果任务正在运行，将强制中断底层的 Claude 会话。
 
@@ -391,6 +422,7 @@ curl -X GET https://rdcli.example.com/api/proofread \
 |------|------|
 | **Method** | `DELETE` |
 | **鉴权** | `x-api-key: ck_xxxx`（必需，Platform 模式除外） |
+| **Query** | `id=<taskId>`（必需） |
 
 **响应（200）：**
 
@@ -401,6 +433,18 @@ curl -X GET https://rdcli.example.com/api/proofread \
     "task_id": "pt-mabc123-x7k2",
     "status": "cancelled",
     "updated_at": "2026-10-22T10:01:30Z"
+  }
+}
+```
+
+**响应 — 缺少 id 参数（400）：**
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "MISSING_TASK_ID",
+    "message": "请提供 ?id=<taskId> 参数"
   }
 }
 ```
@@ -420,7 +464,7 @@ curl -X GET https://rdcli.example.com/api/proofread \
 **调用示例：**
 
 ```bash
-curl -X DELETE https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
+curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 响应：
@@ -446,7 +490,7 @@ curl -X POST https://rdcli.example.com/api/proofread \
 # 请求体即核稿结果（见上方「回调通知」一节）。
 
 # Step 3(optional)：如需撤销一个处理中的任务
-curl -X DELETE https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
+curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 响应：
@@ -823,7 +867,7 @@ Claude 根据文档内容自行判断适用标准。核稿输出格式：每条�
 
 | | API 1：异步回调 | API 2：会话跳转 |
 |---|---|---|
-| 端点 | `POST /api/proofread` + `GET /api/proofread/:taskId` | `POST /api/proofread/session` |
+| 端点 | `POST /api/proofread` + `GET /api/proofread/task?id=<taskId>` | `POST /api/proofread/session` |
 | 返回方式 | 先返回 taskId，完成后主动回调 | 立即返回 session_url |
 | 结果格式 | 回调推送 Markdown 文本 (`result_text`) | 聊天界面 Claude 回复 |
 | 人工交互 | 不支持 | 支持追问、追加指令 |
