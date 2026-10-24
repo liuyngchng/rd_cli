@@ -12,7 +12,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { authenticatedFetch } from '../utils/api';
 import type { LLMProvider } from '../types/app';
 
-import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
+import { removeOptimisticUserEchoes, dedupeRealtimeUserEchoes } from './sessionMessageReconciliation';
 
 // ─── NormalizedMessage (mirrors server/adapters/types.js) ────────────────────
 
@@ -335,15 +335,16 @@ function pruneRealtimeSupersededByServer(
 }
 
 function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
-  if (realtime.length === 0) {
+  const selfDedupedRealtime = dedupeRealtimeUserEchoes(realtime);
+  if (selfDedupedRealtime.length === 0) {
     return dedupeAdjacentAssistantEchoes(server);
   }
   if (server.length === 0) {
-    return dedupeAdjacentAssistantEchoes(realtime);
+    return dedupeAdjacentAssistantEchoes(selfDedupedRealtime);
   }
 
   const serverIds = new Set(server.map((message) => message.id));
-  const reconciledRealtime = removeOptimisticUserEchoes(server, realtime);
+  const reconciledRealtime = removeOptimisticUserEchoes(server, selfDedupedRealtime);
   const extra = reconciledRealtime.filter((message) => {
     if (serverIds.has(message.id)) {
       return false;

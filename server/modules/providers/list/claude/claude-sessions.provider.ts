@@ -320,7 +320,14 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('claude');
 
-    if (raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
+    // Only rows the CLI typed `user` are conversational user turns. Other
+    // rows (notably `api-request-blob` diagnostics) also carry
+    // `message.role: 'user'` — their content is the raw API request payload
+    // (system reminders plus the prompt text). Normalizing those emits a
+    // phantom duplicate of the user's input with a random id and the fetch
+    // time as timestamp, which breaks client-side dedup and flashes a
+    // duplicate bubble on every refresh.
+    if (raw.type === 'user' && raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
       if (Array.isArray(raw.message.content)) {
         // Image attachments sent through the SDK are persisted as base64
         // `image` blocks next to the prompt text. Collect them so the UI can
@@ -546,7 +553,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       return messages;
     }
 
-    if (raw.message?.role === 'assistant' && raw.message?.content) {
+    if (raw.type === 'assistant' && raw.message?.role === 'assistant' && raw.message?.content) {
       if (Array.isArray(raw.message.content)) {
         let partIndex = 0;
         for (const part of raw.message.content) {

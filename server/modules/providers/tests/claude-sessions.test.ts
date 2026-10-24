@@ -20,6 +20,7 @@ test('claude: injected skill bodies are hidden even without the isMeta flag', ()
   // its content or it renders as a giant user bubble mid-run.
   const live = provider.normalizeMessage(
     {
+      type: 'user',
       uuid: 'u1',
       timestamp: '2026-07-28T10:00:00.000Z',
       message: { role: 'user', content: [{ type: 'text', text: SKILL_BODY }] },
@@ -30,6 +31,7 @@ test('claude: injected skill bodies are hidden even without the isMeta flag', ()
 
   const persisted = provider.normalizeMessage(
     {
+      type: 'user',
       uuid: 'u2',
       timestamp: '2026-07-28T10:00:00.000Z',
       isMeta: true,
@@ -40,11 +42,39 @@ test('claude: injected skill bodies are hidden even without the isMeta flag', ()
   assert.deepEqual(persisted, []);
 });
 
+test('claude: api-request-blob diagnostics never render as user turns', () => {
+  const provider = new ClaudeSessionsProvider();
+
+  // The CLI persists the raw API request payload as an `api-request-blob`
+  // diagnostic row whose `message.role` is `user`. Without a row-type check
+  // the prompt text inside the payload is normalized as a second copy of the
+  // user's turn — with a random id and the fetch time as timestamp — which
+  // flashes a duplicate user bubble on every history refresh.
+  const messages = provider.normalizeMessage(
+    {
+      type: 'api-request-blob',
+      timestamp: '2026-07-28T10:00:00.000Z',
+      message: {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCodebase and user instructions are shown below.' },
+          { type: 'text', text: '<system-reminder>\nAttribution for git commits and pull requests.' },
+          { type: 'text', text: '你好' },
+        ],
+      },
+    },
+    SESSION_ID,
+  );
+
+  assert.deepEqual(messages, []);
+});
+
 test('claude: the Skill tool result itself still reaches the UI', () => {
   const provider = new ClaudeSessionsProvider();
 
   const messages = provider.normalizeMessage(
     {
+      type: 'user',
       uuid: 'u3',
       timestamp: '2026-07-28T10:00:00.000Z',
       message: {

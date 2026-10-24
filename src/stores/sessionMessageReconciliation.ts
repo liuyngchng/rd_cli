@@ -113,3 +113,55 @@ export function removeOptimisticUserEchoes(
     return false;
   });
 }
+
+/**
+ * Removes SDK-streamed user echoes when a local optimistic user message
+ * with matching content already exists in the realtime buffer.
+ *
+ * During a new session's first live stream the `realtimeMessages` buffer
+ * carries both the frontend's optimistic insert (id `local_*`) and the
+ * provider runtime's echo of the user turn.  Before the server transcript
+ * is populated, `removeOptimisticUserEchoes` has nothing to match against,
+ * so a self-dedup pass is needed to keep only one user bubble.
+ */
+export function dedupeRealtimeUserEchoes(
+  realtimeMessages: NormalizedMessage[],
+): NormalizedMessage[] {
+  const LOCAL_ID = /^local_/;
+
+  // Collect fingerprints of local optimistic user messages so we know
+  // which SDK-echoed rows to drop as duplicates.
+  const localFingerprints: Array<UserTurnFingerprint & { id: string }> = [];
+  for (const message of realtimeMessages) {
+    if (message.kind !== 'text' || message.role !== 'user') continue;
+    if (!LOCAL_ID.test(message.id)) continue;
+    const fp = userTurnFingerprint(message);
+    if (fp) {
+      localFingerprints.push({ ...fp, id: message.id });
+    }
+  }
+
+  if (localFingerprints.length === 0) return realtimeMessages;
+
+  const claimedLocalIds = new Set<string>();
+
+  return realtimeMessages.filter((message) => {
+    if (message.kind !== 'text' || message.role !== 'user') return true;
+
+    // Always keep the local optimistic row itself.
+    if (LOCAL_ID.test(message.id)) return true;
+
+    const messageFp = userTurnFingerprint(message);
+    if (!messageFp) return true;
+
+    for (const localFp of localFingerprints) {
+      if (claimedLocalIds.has(localFp.id)) continue;
+      if (!userTurnFingerprintsMatch(messageFp, localFp)) continue;
+
+      claimedLocalIds.add(localFp.id);
+      return false;
+    }
+
+    return true;
+  });
+}

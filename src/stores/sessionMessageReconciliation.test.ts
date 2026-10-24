@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { NormalizedMessage } from './useSessionStore';
-import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
+import { dedupeRealtimeUserEchoes, removeOptimisticUserEchoes } from './sessionMessageReconciliation';
 
 const createUserMessage = (
   id: string,
@@ -67,4 +67,40 @@ test('keeps the existing optimistic text reconciliation behavior', () => {
   });
 
   assert.deepEqual(removeOptimisticUserEchoes([persisted], [local]), []);
+});
+
+test('drops SDK-streamed user echo when a local optimistic row already exists', () => {
+  const local = createUserMessage('local_hello', '2026-07-28T20:30:21.000Z', {
+    content: '你好',
+  });
+  const sdkEcho = createUserMessage('claude_sdk_echo', '2026-07-28T20:30:22.000Z', {
+    content: '你好',
+  });
+
+  assert.deepEqual(dedupeRealtimeUserEchoes([local, sdkEcho]), [local]);
+});
+
+test('keeps SDK-streamed user rows that have no local counterpart', () => {
+  const sdkEcho = createUserMessage('claude_sdk_echo', '2026-07-28T20:30:22.000Z', {
+    content: '你好',
+  });
+
+  assert.deepEqual(dedupeRealtimeUserEchoes([sdkEcho]), [sdkEcho]);
+});
+
+test('keeps distinct user turns in the realtime buffer', () => {
+  const localFirst = createUserMessage('local_first', '2026-07-28T20:30:21.000Z', {
+    content: 'first',
+  });
+  const localSecond = createUserMessage('local_second', '2026-07-28T20:30:25.000Z', {
+    content: 'second',
+  });
+  const sdkEchoFirst = createUserMessage('claude_echo_first', '2026-07-28T20:30:22.000Z', {
+    content: 'first',
+  });
+
+  assert.deepEqual(
+    dedupeRealtimeUserEchoes([localFirst, sdkEchoFirst, localSecond]),
+    [localFirst, localSecond],
+  );
 });
