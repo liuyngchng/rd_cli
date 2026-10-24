@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS proofread_tasks (
     file_name TEXT NOT NULL,
     file_size INTEGER NOT NULL DEFAULT 0,
     additional_instructions TEXT,
+    callback_url TEXT,
     session_id TEXT,
     result_text TEXT,
     result_json TEXT,

@@ -20,6 +20,8 @@ const ALLOWED_MIME_TYPES = new Set([
 // Also accept browsers that don't know the docx MIME type.
 const ALLOWED_EXTENSIONS = new Set(['.docx']);
 
+const CALLBACK_URL_RE = /^https?:\/\/.+/i;
+
 function isAllowedDocx(mimetype: string, filename: string): boolean {
   if (ALLOWED_MIME_TYPES.has(mimetype)) {
     return true;
@@ -27,6 +29,19 @@ function isAllowedDocx(mimetype: string, filename: string): boolean {
 
   const ext = path.extname(filename).toLowerCase();
   return ALLOWED_EXTENSIONS.has(ext);
+}
+
+/** Returns the normalized callback URL string, or undefined if invalid. */
+function normalizeCallbackUrl(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (!CALLBACK_URL_RE.test(trimmed)) return undefined;
+  try {
+    const url = new URL(trimmed);
+    return url.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 type ProofreadRouterDependencies = {
@@ -183,8 +198,9 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
   /**
    * POST /api/proofread
    *
-   * Creates an asynchronous proofreading task. Returns immediately with a taskId
-   * so the caller can poll GET /api/proofread/:taskId for the completed result.
+   * Creates an asynchronous proofreading task with a callback URL. Returns immediately
+   * with a taskId. When the task reaches a terminal state, rdCLI POSTs the result to
+   * callback_url.
    */
   router.post('/', validateExternalApiKey, (req, res, next) => {
     upload.single('file')(req, res, (uploadError?: unknown) => {
@@ -230,6 +246,22 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const filePath = path.join(assetsDir, req.file.filename);
           const posixPath = toPosixPath(filePath);
 
+          // callback_url is required.
+          const callbackUrl = normalizeCallbackUrl(req.body.callback_url);
+          if (!callbackUrl) {
+            const raw = typeof req.body.callback_url === 'string' ? req.body.callback_url : '';
+            res.status(400).json({
+              success: false,
+              error: {
+                code: raw ? 'INVALID_CALLBACK_URL' : 'MISSING_CALLBACK_URL',
+                message: raw
+                  ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
+                  : '请提供 callback_url 回调地址',
+              },
+            });
+            return;
+          }
+
           const additionalInstructions = typeof req.body.additional_instructions === 'string'
             ? req.body.additional_instructions.trim() || undefined
             : undefined;
@@ -240,6 +272,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           debug('[Proofread] Creating async task',
             `taskId=${taskId}`,
             `file=${posixPath}`,
+            `callbackUrl=${callbackUrl}`,
           );
 
           const result = await proofreadService.createProofreadTask({
@@ -248,6 +281,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             fileName: req.file.originalname,
             fileSize: req.file.size,
             additionalInstructions,
+            callbackUrl,
             sessionId: taskId,
             workspacePath,
           });
@@ -270,24 +304,17 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
    * GET /api/proofread/:taskId
    *
    * Returns the current status and result of an async proofreading task.
-   * Rate-limited: at most one query per 10 seconds per task.
+   * Primary result delivery is via callback; this endpoint is a fallback
+   * for debugging or checking status manually.
    */
   router.get('/:taskId', validateExternalApiKey, (req, res) => {
     const taskId = String(req.params.taskId);
-    const { task, allowed } = proofreadService.queryTaskWithRateLimit(taskId);
+    const task = proofreadService.getTask(taskId);
 
     if (!task) {
       res.status(404).json({
         success: false,
         error: { code: 'TASK_NOT_FOUND', message: '任务不存在' },
-      });
-      return;
-    }
-
-    if (!allowed) {
-      res.status(429).json({
-        success: false,
-        error: { code: 'RATE_LIMITED', message: '请至少间隔 10 秒再查询' },
       });
       return;
     }

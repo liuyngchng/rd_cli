@@ -7,7 +7,7 @@ rdCLI 提供 HTTP API，允许外部程序通过 API Key 提交文档或代码�
 ## 目录
 
 - [鉴权方式](#鉴权方式)
-- [API 1：文档核稿（异步）](#api-1文档核稿异步) — 提交文档，轮询获取 Markdown 核稿意见
+- [API 1：文档核稿（异步回调）](#api-1文档核稿异步回调) — 提交文档和回调地址，核稿完成后主动推送 Markdown 核稿意见
 - [API 2：文档核稿（会话跳转）](#api-2文档核稿会话跳转) — 提交文档，返回聊天链接供人工复核
 - [API 3：通用 Agent](#api-3通用-agent) — 触发 Claude 操作代码仓库
 - [获取 API Key](#获取-api-key)
@@ -35,9 +35,9 @@ x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ---
 
-## API 1：文档核稿（异步）
+## API 1：文档核稿（异步回调）
 
-提交 .docx 文档创建异步核稿任务，任务在后台由 Claude 处理。调用方轮询任务状态，完成后直接拿到 Markdown 格式的核稿意见，无需人工介入。
+提交 .docx 文档并提供一个回调地址，创建异步核稿任务。任务在后台由 Claude 处理，完成后 rdCLI 主动调用回调地址，把 Markdown 格式的核稿意见推送给调用方，无需人工介入、无需轮询。
 
 > 推荐用于 OA 系统集成等全自动场景。如果需要人工复核和追问，请使用 [API 2：文档核稿（会话跳转）](#api-2文档核稿会话跳转)。
 
@@ -48,25 +48,20 @@ OA 系统                                          rdCLI
    │                                               │
    │  POST /api/proofread                          │
    │  file: <docx>                                 │
+   │  callback_url: https://oa.example.com/...     │
    │──────────────────────────────────────────────►│  立即返回 taskId
    │                                               │
    │  { task_id: "pt-xxx", status: "pending" }     │
    │◄──────────────────────────────────────────────│
    │                                               │  Claude 后台核稿...
-   │  GET /api/proofread/pt-xxx                    │
-   │──────────────────────────────────────────────►│
    │                                               │
-   │  { status: "processing" }                     │
+   │  POST https://oa.example.com/proofread/cb      │  ← 核稿完成，回调推送
+   │  { task_id, status: "completed", ...          │
+   │    result_text: "## 核稿结果\n\n### 1. ..." }  │
    │◄──────────────────────────────────────────────│
    │                                               │
-   │  ... 等待至少 10 秒，再次查询 ...              │
-   │                                               │
-   │  GET /api/proofread/pt-xxx                    │
+   │  200 OK                                       │
    │──────────────────────────────────────────────►│
-   │                                               │
-   │  { status: "completed",                       │
-   │    result_text: "## 核稿结果\n\n### 1. ..." }  │
-   │◄──────────────────────────────────────────────│  ← 拿到核稿意见 Markdown
 ```
 
 ### POST /api/proofread — 提交任务
@@ -84,6 +79,7 @@ OA 系统                                          rdCLI
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|:---:|------|
 | `file` | file | ✅ | Word 文档（.docx），最大 20MB |
+| `callback_url` | string | ✅ | 核稿完成后回调的地址，`http://` 或 `https://` 均可 |
 | `additional_instructions` | string | | 追加的核稿要求，例如"重点检查数据引用"、"只看格式问题" |
 
 **响应（200）：**
@@ -100,7 +96,7 @@ OA 系统                                          rdCLI
 
 | 字段 | 说明 |
 |------|------|
-| `task_id` | 任务 ID，后续轮询用 |
+| `task_id` | 任务 ID，用于后续查询或撤销 |
 | `status` | 初始状态固定为 `"pending"` |
 
 **错误响应（400）：**
@@ -109,8 +105,8 @@ OA 系统                                          rdCLI
 {
   "success": false,
   "error": {
-    "code": "MISSING_FILE",
-    "message": "请上传 .docx 格式的 Word 文档"
+    "code": "MISSING_CALLBACK_URL",
+    "message": "请提供 callback_url 回调地址"
   }
 }
 ```
@@ -120,6 +116,8 @@ OA 系统                                          rdCLI
 | `MISSING_FILE` | 未上传文件 |
 | `UNSUPPORTED_FORMAT` | 文件格式不被接受（仅支持 .docx） |
 | `UPLOAD_FAILED` | 文件上传失败（如超过 20MB 上限） |
+| `MISSING_CALLBACK_URL` | 未提供 `callback_url` |
+| `INVALID_CALLBACK_URL` | `callback_url` 格式非法（必须是 `http://` 或 `https://`） |
 | `TOO_MANY_TASKS` | 同时处理的核稿任务已达上限（5 个），需等待已有任务完成 |
 
 **错误响应（401）：**
@@ -136,7 +134,102 @@ OA 系统                                          rdCLI
 
 ---
 
+### 回调通知
+
+任务到达终态（`completed` / `failed` / `cancelled`）后，rdCLI 会向提交时提供的 `callback_url` 发起 `POST` 请求，`Content-Type: application/json`，请求体为任务状态数据。
+
+**回调请求体 — 已完成：**
+
+```json
+{
+  "task_id": "pt-mabc123-x7k2",
+  "status": "completed",
+  "file_name": "来文登记.docx",
+  "file_size": 45678,
+  "additional_instructions": "重点检查数据引用",
+  "result_text": "## 核稿结果\n\n### 1. 错别字\n\n- **原文**：截至2025年12月底，全市生产总值达到120亿元。\n- **修改建议**：\"截至\"后缺少逗号，应为\"截至 2025 年 12 月底\"。\n- **修改理由**：数字与中文之间应留空格，保持全文格式统一。\n\n### 2. 数据问题\n\n- **原文**：较上年增长8.5%。\n- **修改建议**：请核实增长率 8.5% 是否准确，前文提到基数为 110 亿，推算增长约为 9.1%。\n- **修改理由**：数据前后不一致，需核实后修正。\n\n### 3. 标点符号\n\n...",
+  "tokens": {
+    "inputTokens": 3840,
+    "outputTokens": 1250,
+    "totalTokens": 5090
+  },
+  "session_id": "proofread-mabc123-4f3a2b1c",
+  "session_url": "https://rdcli.example.com/chat?session=proofread-mabc123-4f3a2b1c",
+  "created_at": "2026-10-22T10:00:00Z",
+  "updated_at": "2026-10-22T10:02:30Z"
+}
+```
+
+**回调请求体 — 失败：**
+
+```json
+{
+  "task_id": "pt-mabc123-x7k2",
+  "status": "failed",
+  "file_name": "来文登记.docx",
+  "error_message": "Claude is not installed. Please install it first.",
+  "created_at": "2026-10-22T10:00:00Z",
+  "updated_at": "2026-10-22T10:00:15Z"
+}
+```
+
+**回调请求体 — 已撤销：**
+
+```json
+{
+  "task_id": "pt-mabc123-x7k2",
+  "status": "cancelled",
+  "file_name": "来文登记.docx",
+  "error_message": "任务已撤销",
+  "created_at": "2026-10-22T10:00:00Z",
+  "updated_at": "2026-10-22T10:01:30Z"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `result_text` | **核稿意见全文，Markdown 格式**（仅 `completed` 状态返回）。Claude 按核稿标准逐项审查后输出 |
+| `tokens` | Token 消耗统计（仅 `completed` 状态返回） |
+| `session_id` / `session_url` | 关联的聊天会话，可用于人工复核 |
+| `error_message` | 失败或撤销原因（仅 `failed` / `cancelled` 状态返回） |
+
+**回调约定：**
+
+- rdCLI 回调你的地址后，**必须返回 `2xx` 状态码**，否则视为回调失败
+- 回调失败会重试，最多 **3 次**，间隔递增；重试仍失败则放弃
+- `callback_url` 支持 `http://` 和 `https://`；使用 `https://` 时**忽略证书校验**（自签名证书可直接使用）
+
+### 任务状态流转
+
+```
+pending ──→ processing ──→ completed
+          │    │                │
+          └────┼──→ cancelled   │
+               │                │
+               └──→ failed      │
+                                │
+                (pending 也可取消)
+```
+
+| 状态 | 含义 |
+|------|------|
+| `pending` | 已提交，等待处理 |
+| `processing` | Claude 正在核稿中 |
+| `completed` | 核稿完成，`result_text` 字段有内容 |
+| `failed` | 核稿失败，`error_message` 字段有错误原因 |
+| `cancelled` | 已撤销，`error_message` 字段有撤销说明 |
+
+以上任一状态到达终态（`completed` / `failed` / `cancelled`）后，都会触发一次回调推送。
+
+### 并发限制
+
+同一用户**同时处理中的核稿任务不超过 5 个**。超过上限后提交新任务会立即返回 `429` 错误（错误码 `TOO_MANY_TASKS`），需等待已有任务完成。
+
+---
+
 ### GET /api/proofread/:taskId — 查询任务
+
+用于主动查询任务状态或结果（例如回调丢失后兜底排查）。
 
 **请求：**
 
@@ -233,49 +326,6 @@ OA 系统                                          rdCLI
   }
 }
 ```
-
-**响应 — 查询过于频繁（429）：**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "RATE_LIMITED",
-    "message": "请至少间隔 10 秒再查询"
-  }
-}
-```
-
-### 任务状态流转
-
-```
-pending ──→ processing ──→ completed
-          │    │                │
-          └────┼──→ cancelled   │
-               │                │
-               └──→ failed      │
-                                │
-                (pending 也可取消)
-```
-
-| 状态 | 含义 |
-|------|------|
-| `pending` | 已提交，等待处理 |
-| `processing` | Claude 正在核稿中 |
-| `completed` | 核稿完成，`result_text` 字段有内容 |
-| `failed` | 核稿失败，`error_message` 字段有错误原因 |
-| `cancelled` | 已撤销，`error_message` 字段有撤销说明 |
-
-### 轮询建议
-
-- **查询频率限制**：同一任务 **至少间隔 10 秒** 才能查询一次，过于频繁会返回 `429` 错误
-- 建议间隔 **10 - 15 秒** 轮询一次
-- 核稿通常在 **30 秒 - 2 分钟** 内完成（取决于文档大小和复杂度）
-- `completed` 和 `failed` 是终态，达到后即可停止轮询
-
-### 并发限制
-
-同一用户**同时处理中的核稿任务不超过 5 个**。超过上限后提交新任务会立即返回 `429` 错误（错误码 `TOO_MANY_TASKS`），需等待已有任务完成。
 
 ---
 
@@ -382,29 +432,20 @@ curl -X DELETE https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
 ### 调用示例
 
 ```bash
-# Step 1：提交任务
+# Step 1：提交任务（附带回调地址）
 curl -X POST https://rdcli.example.com/api/proofread \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   -F "file=@来文登记.docx" \
+  -F "callback_url=https://oa.example.com/api/proofread/callback" \
   -F "additional_instructions=重点检查涉及财政数据的表述"
 
 # 响应：
 # { "success": true, "data": { "task_id": "pt-mabc123-x7k2", "status": "pending" } }
 
-# Step 2：轮询结果
-curl -X GET https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
-  -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# Step 2：等待回调。核稿完成后，rdCLI 会 POST 到你的 callback_url，
+# 请求体即核稿结果（见上方「回调通知」一节）。
 
-# processing → 继续等
-# { "success": true, "data": { "status": "processing", ... } }
-
-# completed → 拿到结果
-# { "success": true, "data": { "status": "completed", "result_text": "## 核稿结果\n...", ... } }
-
-# cancelled/failed → 任务被终止
-# { "success": true, "data": { "status": "cancelled", "error_message": "任务已撤销", ... } }
-
-# Step 3(optional)：撤销一个处理中的任务
+# Step 3(optional)：如需撤销一个处理中的任务
 curl -X DELETE https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
@@ -415,63 +456,52 @@ curl -X DELETE https://rdcli.example.com/api/proofread/pt-mabc123-x7k2 \
 ### OA 系统集成示例（Node.js）
 
 ```javascript
-// 用户点击 [核稿] → OA 后端提交任务 → 轮询获取结果 → 展示在 OA 页面
-
-async function proofreadDocument(fileBuffer, fileName, instructions = '') {
+// ── 1. 提交任务（OA 后端） ──────────────────────────────────────────
+async function submitProofread(fileBuffer, fileName, instructions = '') {
   const form = new FormData();
   form.append('file', fileBuffer, fileName);
+  form.append('callback_url', 'https://oa.example.com/api/proofread/callback');
   if (instructions) {
     form.append('additional_instructions', instructions);
   }
 
-  // Step 1：提交任务
-  const submitRes = await fetch('https://rdcli.example.com/api/proofread', {
+  const res = await fetch('https://rdcli.example.com/api/proofread', {
     method: 'POST',
     headers: { 'x-api-key': process.env.RDCLI_API_KEY },
     body: form
   });
-  const { data: { task_id } } = await submitRes.json();
-
-  // Step 2：轮询直到完成
-  while (true) {
-    await sleep(12000);  // 每 12 秒查一次（API 限制至少间隔 10 秒）
-    const pollRes = await fetch(
-      `https://rdcli.example.com/api/proofread/${task_id}`,
-      { headers: { 'x-api-key': process.env.RDCLI_API_KEY } }
-    );
-
-    // 429 = 查询过于频繁，等久一点再试
-    if (pollRes.status === 429) {
-      await sleep(10000);
-      continue;
-    }
-
-    const { data } = await pollRes.json();
-
-    if (data.status === 'completed') {
-      return {
-        task_id,
-        result_text: data.result_text,    // Markdown 核稿意见
-        tokens: data.tokens,
-        session_url: data.session_url     // 如需人工复核可打开
-      };
-    }
-    if (data.status === 'failed') {
-      throw new Error(data.error_message);
-    }
-  }
+  const { data } = await res.json();
+  return data.task_id; // 拿到 taskId，等待回调即可
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// ── 2. 接收回调（OA 后端暴露的 Webhook 端点） ──────────────────────
+app.post('/api/proofread/callback', (req, res) => {
+  // 立即返回 2xx，避免 rdCLI 判定回调失败而重试
+  res.status(200).json({ received: true });
+
+  const { task_id, status, result_text, error_message } = req.body;
+
+  if (status === 'completed') {
+    // 保存并展示核稿意见（Markdown）
+    saveResult(task_id, result_text);
+  } else if (status === 'failed') {
+    // 记录失败原因，通知用户
+    logFailure(task_id, error_message);
+  } else if (status === 'cancelled') {
+    // 任务被撤销
+    logCancelled(task_id);
+  }
+});
 ```
 
 ---
+
 
 ## API 2：文档核稿（会话跳转）
 
 上传 .docx 文档，创建一个预填充的核稿会话。Claude 在后台开始核稿，**立即返回会话链接**，用户打开链接后在聊天界面查看核稿结果并可以继续追问。
 
-> 适合需要人工复核、追加指令的场景。如果不需要交互，直接要结果，用 [API 1：文档核稿（异步）](#api-1文档核稿异步)。
+> 适合需要人工复核、追加指令的场景。如果不需要交互，直接要结果，用 [API 1：文档核稿（异步回调）](#api-1文档核稿异步回调)。
 
 ### 端点
 
@@ -791,14 +821,14 @@ Claude 根据文档内容自行判断适用标准。核稿输出格式：每条�
 
 ### 异步核稿 vs 会话跳转 对比
 
-| | API 1：异步核稿 | API 2：会话跳转 |
+| | API 1：异步回调 | API 2：会话跳转 |
 |---|---|---|
 | 端点 | `POST /api/proofread` + `GET /api/proofread/:taskId` | `POST /api/proofread/session` |
-| 返回方式 | 先返回 taskId，轮询获取结果 | 立即返回 session_url |
-| 结果格式 | Markdown 文本 (`result_text`) | 聊天界面 Claude 回复 |
+| 返回方式 | 先返回 taskId，完成后主动回调 | 立即返回 session_url |
+| 结果格式 | 回调推送 Markdown 文本 (`result_text`) | 聊天界面 Claude 回复 |
 | 人工交互 | 不支持 | 支持追问、追加指令 |
 | 适用场景 | 全自动批量核稿，OA 集成 | 人工复核 |
-| 超时风险 | 无（异步轮询） | 无（会话持续有效） |
+| 超时风险 | 无（异步回调） | 无（会话持续有效） |
 
 ### Agent API 分支命名规则
 
@@ -816,7 +846,7 @@ Claude 根据文档内容自行判断适用标准。核稿输出格式：每条�
 | 核稿文件格式 | 仅 `.docx` |
 | 核稿文件大小 | 最大 20MB |
 | Agent provider | 仅 `claude` |
-| 核稿超时 | 无显式上限（异步轮询模式无连接超时问题） |
+| 核稿超时 | 无显式上限（异步回调模式无连接超时问题） |
 | Agent 超时 | 无显式上限，由 Claude SDK stream timeout（300 秒空闲）控制 |
 | PR 目标分支 | 固定为 `main` |
 | cleanup | 仅对 `githubUrl` 克隆的临时项目生效，已有 `projectPath` 不会被清理 |

@@ -598,6 +598,20 @@ export const runMigrations = (db: Database) => {
     }
 
     db.exec(LAST_SCANNED_AT_SQL);
+
+    // Add callback_url column to proofread_tasks for async callback delivery.
+    if (tableExists(db, 'proofread_tasks')) {
+      const proofreadTasksTableInfo = getTableInfo(db, 'proofread_tasks');
+      const proofreadTaskColumnNames = proofreadTasksTableInfo.map((column) => column.name);
+      addColumnToTableIfNotExists(
+        db,
+        'proofread_tasks',
+        proofreadTaskColumnNames,
+        'callback_url',
+        'TEXT'
+      );
+    }
+
     console.log('Database migrations completed successfully');
   } catch (error: any) {
     console.error('Error running migrations:', error.message);

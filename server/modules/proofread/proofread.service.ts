@@ -1,3 +1,6 @@
+import http from 'node:http';
+import https from 'node:https';
+
 import type { ProviderRuntimeWriter, ProviderRunFunction } from '@/shared/types.js';
 import { appendFilesInputTag } from '@/shared/image-attachments.js';
 import { AppError } from '@/shared/utils.js';
@@ -25,6 +28,7 @@ type CreateProofreadTaskInput = {
   fileName: string;
   fileSize: number;
   additionalInstructions?: string;
+  callbackUrl: string;
   sessionId: string;
   workspacePath: string;
 };
@@ -194,6 +198,73 @@ function buildUserMessage(
 /** Maximum number of processing tasks allowed per user. */
 const MAX_PROCESSING_TASKS = 5;
 
+/** Callback retry delays (ms) between attempts: attempt 1 → 2s, 2 → 5s, 3 → 15s. */
+const CALLBACK_RETRY_DELAYS_MS = [2000, 5000, 15000];
+const CALLBACK_TIMEOUT_MS = 30000;
+
+/** Sends a single callback POST request. Resolves true on 2xx, false otherwise. */
+function postCallback(callbackUrl: string, payload: Record<string, unknown>): Promise<boolean> {
+  return new Promise((resolve) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(callbackUrl);
+    } catch {
+      resolve(false);
+      return;
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      resolve(false);
+      return;
+    }
+
+    const body = JSON.stringify(payload);
+    const transport = parsed.protocol === 'https:' ? https : http;
+    // Ignore TLS certificate validation so self-signed HTTPS endpoints work.
+    const requestOptions: https.RequestOptions = {
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+      rejectUnauthorized: false,
+    };
+
+    const req = transport.request(requestOptions, (res) => {
+      // Drain the response body so the connection can be reused.
+      res.resume();
+      resolve(res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300);
+    });
+
+    req.setTimeout(CALLBACK_TIMEOUT_MS, () => {
+      req.destroy(new Error('Callback timeout'));
+    });
+    req.on('error', () => resolve(false));
+    req.write(body);
+    req.end();
+  });
+}
+
+/** Delivers the task result to callbackUrl, retrying up to 3 times. */
+async function deliverCallback(callbackUrl: string, payload: Record<string, unknown>): Promise<void> {
+  for (let attempt = 0; attempt <= CALLBACK_RETRY_DELAYS_MS.length; attempt += 1) {
+    const ok = await postCallback(callbackUrl, payload);
+    if (ok) {
+      debug('[Proofread] Callback delivered', `url=${callbackUrl}`);
+      return;
+    }
+    if (attempt < CALLBACK_RETRY_DELAYS_MS.length) {
+      const delay = CALLBACK_RETRY_DELAYS_MS[attempt];
+      debug('[Proofread] Callback failed, retrying', `url=${callbackUrl}`, `delay=${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  console.error(`[Proofread] Callback failed after all retries for ${payload.task_id}: ${callbackUrl}`);
+}
+
 export function createProofreadService(deps: ProofreadServiceDependencies) {
   const { queryClaude, getSessionUrl, proofreadTasksDb, abortClaudeSession } = deps;
 
@@ -272,6 +343,7 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         fileName,
         fileSize,
         additionalInstructions,
+        callbackUrl: input.callbackUrl,
       });
 
       debug('[Proofread] Task created', `taskId=${task.task_id}`);
@@ -282,9 +354,10 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         filePath,
         fileName,
         additionalInstructions,
+        callbackUrl: input.callbackUrl,
         sessionId,
         workspacePath,
-      }).catch((error: unknown) => {
+      }).catch(async (error: unknown) => {
         console.error(
           `[Proofread] Task execution failed for ${sessionId}:`,
           error instanceof Error ? error.message : String(error),
@@ -296,6 +369,7 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
             sessionId,
             error instanceof Error ? error.message : String(error),
           );
+          await this.deliverTaskCallback(sessionId);
         }
       });
 
@@ -313,11 +387,12 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         filePath: string;
         fileName: string;
         additionalInstructions?: string;
+        callbackUrl: string;
         sessionId: string;
         workspacePath: string;
       },
     ): Promise<void> {
-      const { user, filePath, fileName, additionalInstructions, sessionId, workspacePath } = input;
+      const { user, filePath, fileName, additionalInstructions, callbackUrl, sessionId, workspacePath } = input;
 
       // Atomically transition pending → processing. If the task was cancelled
       // while still pending, this returns false and we skip the Claude run.
@@ -361,6 +436,9 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
 
         proofreadTasksDb.setCompleted(taskId, resultText, tokens, capturedSessionId);
         debug('[Proofread] Task completed', `taskId=${taskId}`, `tokens=${tokens.totalTokens}`);
+
+        // Fire callback.
+        await this.deliverTaskCallback(taskId);
       } catch (error: unknown) {
         // Guard: also check here in case abort interrupted during error handling.
         const current = proofreadTasksDb.getTask(taskId);
@@ -373,25 +451,52 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         const capturedSessionId = writer.getSessionId() || sessionId;
         proofreadTasksDb.setFailed(taskId, message, capturedSessionId);
         debug('[Proofread] Task failed', `taskId=${taskId}`, `error=${message}`);
+
+        // Fire callback.
+        await this.deliverTaskCallback(taskId);
       }
+    },
+
+    /**
+     * Builds the callback payload from the current task row and delivers it.
+     * This is invoked on every terminal state: completed, failed, cancelled.
+     */
+    async deliverTaskCallback(taskId: string): Promise<void> {
+      const task = proofreadTasksDb.getTask(taskId);
+      if (!task || !task.callback_url) return;
+
+      const payload: Record<string, unknown> = {
+        task_id: task.task_id,
+        status: task.status,
+        file_name: task.file_name,
+        file_size: task.file_size,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+      };
+
+      if (task.additional_instructions) {
+        payload.additional_instructions = task.additional_instructions;
+      }
+
+      if (task.status === 'completed') {
+        payload.result_text = task.result_text;
+        if (task.tokens_json) {
+          try { payload.tokens = JSON.parse(task.tokens_json); } catch { /* skip */ }
+        }
+        if (task.session_id) {
+          payload.session_id = task.session_id;
+          payload.session_url = getSessionUrl(task.session_id);
+        }
+      } else if (task.status === 'failed' || task.status === 'cancelled') {
+        payload.error_message = task.error_message;
+      }
+
+      await deliverCallback(task.callback_url, payload);
     },
 
     /** Queries a task by id. */
     getTask(taskId: string) {
       return proofreadTasksDb.getTask(taskId);
-    },
-
-    /**
-     * Rate-limited task query. Returns the task only if the last query was
-     * ≥10s ago; otherwise returns the current status with a retry-after hint
-     * so the route can send a 429 response.
-     */
-    queryTaskWithRateLimit(taskId: string) {
-      const task = proofreadTasksDb.getTask(taskId);
-      if (!task) return { task: null, allowed: false };
-
-      const allowed = proofreadTasksDb.tryRecordQuery(taskId);
-      return { task, allowed };
     },
 
     /**
@@ -416,7 +521,12 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
       const cancelled = proofreadTasksDb.cancelTask(taskId);
       if (!cancelled) return undefined; // already terminal
 
-      return proofreadTasksDb.getTask(taskId);
+      const cancelledTask = proofreadTasksDb.getTask(taskId);
+      if (cancelledTask) {
+        await this.deliverTaskCallback(taskId);
+      }
+
+      return cancelledTask;
     },
 
     /**

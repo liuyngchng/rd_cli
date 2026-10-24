@@ -16,6 +16,7 @@ export type ProofreadTaskRow = {
   file_name: string;
   file_size: number;
   additional_instructions: string | null;
+  callback_url: string;
   session_id: string | null;
   result_text: string | null;
   result_json: string | null;
@@ -32,6 +33,7 @@ type CreateTaskInput = {
   fileName: string;
   fileSize: number;
   additionalInstructions?: string;
+  callbackUrl: string;
 };
 
 const TASK_COLUMNS = [
@@ -41,6 +43,7 @@ const TASK_COLUMNS = [
   'file_name',
   'file_size',
   'additional_instructions',
+  'callback_url',
   'session_id',
   'result_text',
   'result_json',
@@ -59,6 +62,7 @@ function rowToTask(row: Record<string, unknown>): ProofreadTaskRow {
     file_name: row.file_name as string,
     file_size: row.file_size as number,
     additional_instructions: row.additional_instructions as string | null,
+    callback_url: row.callback_url as string,
     session_id: row.session_id as string | null,
     result_text: row.result_text as string | null,
     result_json: row.result_json as string | null,
@@ -75,14 +79,15 @@ export const proofreadTasksDb = {
   createTask(input: CreateTaskInput): ProofreadTaskRow {
     const db = getConnection();
     db.prepare(
-      `INSERT INTO proofread_tasks (task_id, user_id, status, file_name, file_size, additional_instructions)
-       VALUES (?, ?, 'pending', ?, ?, ?)`
+      `INSERT INTO proofread_tasks (task_id, user_id, status, file_name, file_size, additional_instructions, callback_url)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?)`
     ).run(
       input.taskId,
       input.userId,
       input.fileName,
       input.fileSize,
       input.additionalInstructions ?? null,
+      input.callbackUrl,
     );
     return proofreadTasksDb.getTask(input.taskId)!;
   },
@@ -209,37 +214,4 @@ export const proofreadTasksDb = {
     return row?.count ?? 0;
   },
 
-  /**
-   * Tries to record a query timestamp for rate-limiting purposes.
-   * Returns true if the query is allowed (last query was ≥10s ago or never
-   * queried), and updates last_queried_at. Returns false if the client should
-   * wait longer before retrying.
-   */
-  tryRecordQuery(taskId: string): boolean {
-    const db = getConnection();
-    const row = db
-      .prepare(
-        `SELECT last_queried_at FROM proofread_tasks WHERE task_id = ?`
-      )
-      .get(taskId) as { last_queried_at: string | null } | undefined;
-
-    if (!row) return false; // task doesn't exist
-
-    if (row.last_queried_at) {
-      // Calculate seconds since last query
-      const elapsed = db
-        .prepare(
-          `SELECT (julianday('now') - julianday(?)) * 86400 AS seconds`
-        )
-        .get(row.last_queried_at) as { seconds: number };
-      if (elapsed.seconds < 10) {
-        return false;
-      }
-    }
-
-    db.prepare(
-      `UPDATE proofread_tasks SET last_queried_at = CURRENT_TIMESTAMP WHERE task_id = ?`
-    ).run(taskId);
-    return true;
-  },
 };
