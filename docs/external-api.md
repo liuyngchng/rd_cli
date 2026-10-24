@@ -35,6 +35,50 @@ x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ---
 
+## 统一响应格式
+
+API 1（异步核稿）与 API 2（会话跳转）的所有接口，以及异步核稿的**回调推送**，均使用同一套 JSON 信封（envelope）结构：
+
+```json
+{
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": { }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | number | 业务状态码，`0` 表示成功，非 `0` 为错误（见下方错误码表） |
+| `timestamp` | string | 服务器本地时间，`YYYY-MM-DD HH:MM:SS` |
+| `message` | string | 状态描述，成功为 `"success"`，失败为具体错误信息 |
+| `task_id` | string \| null | 任务 ID（UUID）。有任务时为 UUID；错误响应或无任务的操作（如会话跳转）为 `null` 或省略 |
+| `data` | object \| array | 业务数据；错误时为 `{}` |
+
+> 提交任务、查询任务、撤销任务等**接口返回**与核稿完成后的**回调推送**结构完全一致，调用方可用同一套解析逻辑处理。
+
+### 错误码表
+
+| `code` | HTTP 状态码 | 含义 |
+|:---:|:---:|------|
+| `0` | 200 | 成功 |
+| `1001` | 400 | 未上传文件 |
+| `1002` | 400 | 文件格式不支持（仅支持 .docx） |
+| `1003` | 400 | 文件超过 20MB 上限 |
+| `1004` | 400 | 未提供 `callback_url` |
+| `1005` | 400 | `callback_url` 格式非法（必须以 `http://` 或 `https://` 开头） |
+| `1006` | 429 | 同时处理的核稿任务已达上限（5 个） |
+| `1007` | 400 | 缺少 `?id=<taskId>` 参数 |
+| `1008` | 404 | 任务不存在 |
+| `1009` | 401 | 认证失败（缺少或无效的 API Key） |
+| `1010` | 500 | 服务端错误（如撤销失败） |
+| `2001` | 200 | 回调专用：核稿执行失败（`data.status = "failed"`） |
+| `2002` | 200 | 回调专用：任务已撤销（`data.status = "cancelled"`） |
+
+---
+
 ## API 1：文档核稿（异步回调）
 
 提交 .docx 文档并提供一个回调地址，创建异步核稿任务。任务在后台由 Claude 处理，完成后 rdCLI 主动调用回调地址，把 Markdown 格式的核稿意见推送给调用方，无需人工介入、无需轮询。
@@ -51,13 +95,17 @@ OA 系统                                          rdCLI
    │  callback_url: https://oa.example.com/...     │
    │──────────────────────────────────────────────►│  立即返回 taskId
    │                                               │
-   │  { task_id: "pt-xxx", status: "pending" }     │
+   │  { code:0, timestamp:"...", message:"success",│
+   │    task_id:"550e8400-...",                    │
+   │    data: { status: "pending" } }              │
    │◄──────────────────────────────────────────────│
    │                                               │  Claude 后台核稿...
    │                                               │
    │  POST https://oa.example.com/proofread/cb      │  ← 核稿完成，回调推送
-   │  { task_id, status: "completed", ...          │
-   │    result_text: "## 核稿结果\n\n### 1. ..." }  │
+   │  { code:0, timestamp:"...", message:"success",│
+   │    task_id:"550e8400-...",                    │
+   │    data: { status:"completed", ...            │
+   │      result_text:"## 核稿结果\n\n### 1. ..."  }│
    │◄──────────────────────────────────────────────│
    │                                               │
    │  200 OK                                       │
@@ -86,9 +134,11 @@ OA 系统                                          rdCLI
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "pending"
   }
 }
@@ -96,39 +146,50 @@ OA 系统                                          rdCLI
 
 | 字段 | 说明 |
 |------|------|
-| `task_id` | 任务 ID，用于后续查询或撤销 |
-| `status` | 初始状态固定为 `"pending"` |
+| `task_id` | 任务 ID，UUID 全局唯一，用于后续查询或撤销 |
+| `data.status` | 初始状态固定为 `"pending"` |
 
 **错误响应（400）：**
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "MISSING_CALLBACK_URL",
-    "message": "请提供 callback_url 回调地址"
-  }
+  "code": 1004,
+  "timestamp": "2026-10-22 18:00:01",
+  "message": "请提供 callback_url 回调地址",
+  "task_id": null,
+  "data": {}
 }
 ```
 
-| 错误码 | 说明 |
-|--------|------|
-| `MISSING_FILE` | 未上传文件 |
-| `UNSUPPORTED_FORMAT` | 文件格式不被接受（仅支持 .docx） |
-| `UPLOAD_FAILED` | 文件上传失败（如超过 20MB 上限） |
-| `MISSING_CALLBACK_URL` | 未提供 `callback_url` |
-| `INVALID_CALLBACK_URL` | `callback_url` 格式非法（必须是 `http://` 或 `https://`） |
-| `TOO_MANY_TASKS` | 同时处理的核稿任务已达上限（5 个），需等待已有任务完成 |
+| `code` | 含义 |
+|:---:|------|
+| 1001 | 未上传文件 |
+| 1002 | 文件格式不支持（仅支持 .docx） |
+| 1003 | 文件超过 20MB 上限 |
+| 1004 | 未提供 `callback_url` |
+| 1005 | `callback_url` 格式非法（必须以 `http://` 或 `https://` 开头） |
+
+**错误响应（429）：**
+
+```json
+{
+  "code": 1006,
+  "timestamp": "2026-10-22 18:00:01",
+  "message": "同时处理的核稿任务已达上限（5 个），请等待已有任务完成后重试",
+  "task_id": null,
+  "data": {}
+}
+```
 
 **错误响应（401）：**
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "AUTH_REQUIRED",
-    "message": "Authentication required"
-  }
+  "code": 1009,
+  "timestamp": "2026-10-22 18:00:01",
+  "message": "认证失败",
+  "task_id": null,
+  "data": {}
 }
 ```
 
@@ -142,21 +203,26 @@ OA 系统                                          rdCLI
 
 ```json
 {
-  "task_id": "pt-mabc123-x7k2",
-  "status": "completed",
-  "file_name": "来文登记.docx",
-  "file_size": 45678,
-  "additional_instructions": "重点检查数据引用",
-  "result_text": "## 核稿结果\n\n### 1. 错别字\n\n- **原文**：截至2025年12月底，全市生产总值达到120亿元。\n- **修改建议**：\"截至\"后缺少逗号，应为\"截至 2025 年 12 月底\"。\n- **修改理由**：数字与中文之间应留空格，保持全文格式统一。\n\n### 2. 数据问题\n\n- **原文**：较上年增长8.5%。\n- **修改建议**：请核实增长率 8.5% 是否准确，前文提到基数为 110 亿，推算增长约为 9.1%。\n- **修改理由**：数据前后不一致，需核实后修正。\n\n### 3. 标点符号\n\n...",
-  "tokens": {
-    "inputTokens": 3840,
-    "outputTokens": 1250,
-    "totalTokens": 5090
-  },
-  "session_id": "proofread-mabc123-4f3a2b1c",
-  "session_url": "https://rdcli.example.com/chat?session=proofread-mabc123-4f3a2b1c",
-  "created_at": "2026-10-22T10:00:00Z",
-  "updated_at": "2026-10-22T10:02:30Z"
+  "code": 0,
+  "timestamp": "2026-10-22 18:02:30",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": {
+    "status": "completed",
+    "file_name": "来文登记.docx",
+    "file_size": 45678,
+    "additional_instructions": "重点检查数据引用",
+    "result_text": "## 核稿结果\n\n### 1. 错别字\n\n- **原文**：截至2025年12月底，全市生产总值达到120亿元。\n- **修改建议**：\"截至\"后缺少逗号，应为\"截至 2025 年 12 月底\"。\n- **修改理由**：数字与中文之间应留空格，保持全文格式统一。\n\n### 2. 数据问题\n\n- **原文**：较上年增长8.5%。\n- **修改建议**：请核实增长率 8.5% 是否准确，前文提到基数为 110 亿，推算增长约为 9.1%。\n- **修改理由**：数据前后不一致，需核实后修正。\n\n### 3. 标点符号\n\n...",
+    "tokens": {
+      "inputTokens": 3840,
+      "outputTokens": 1250,
+      "totalTokens": 5090
+    },
+    "session_id": "550e8400-e29b-41d4-a716-446655440002",
+    "session_url": "https://rdcli.example.com/chat?session=550e8400-e29b-41d4-a716-446655440002",
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:02:30"
+  }
 }
 ```
 
@@ -164,12 +230,17 @@ OA 系统                                          rdCLI
 
 ```json
 {
-  "task_id": "pt-mabc123-x7k2",
-  "status": "failed",
-  "file_name": "来文登记.docx",
-  "error_message": "Claude is not installed. Please install it first.",
-  "created_at": "2026-10-22T10:00:00Z",
-  "updated_at": "2026-10-22T10:00:15Z"
+  "code": 2001,
+  "timestamp": "2026-10-22 18:00:15",
+  "message": "Claude is not installed. Please install it first.",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": {
+    "status": "failed",
+    "file_name": "来文登记.docx",
+    "error_message": "Claude is not installed. Please install it first.",
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:00:15"
+  }
 }
 ```
 
@@ -177,21 +248,32 @@ OA 系统                                          rdCLI
 
 ```json
 {
-  "task_id": "pt-mabc123-x7k2",
-  "status": "cancelled",
-  "file_name": "来文登记.docx",
-  "error_message": "任务已撤销",
-  "created_at": "2026-10-22T10:00:00Z",
-  "updated_at": "2026-10-22T10:01:30Z"
+  "code": 2002,
+  "timestamp": "2026-10-22 18:01:30",
+  "message": "任务已撤销",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": {
+    "status": "cancelled",
+    "file_name": "来文登记.docx",
+    "error_message": "任务已撤销",
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:01:30"
+  }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `result_text` | **核稿意见全文，Markdown 格式**（仅 `completed` 状态返回）。Claude 按核稿标准逐项审查后输出 |
-| `tokens` | Token 消耗统计（仅 `completed` 状态返回） |
-| `session_id` / `session_url` | 关联的聊天会话，可用于人工复核 |
-| `error_message` | 失败或撤销原因（仅 `failed` / `cancelled` 状态返回） |
+| `code` | 业务码：`0` 成功，`2001` 失败，`2002` 已撤销 |
+| `timestamp` | 服务器本地时间 |
+| `message` | 成功为 `"success"`，失败为 `error_message` 内容 |
+| `task_id` | 任务 ID，与提交时返回的一致 |
+| `data.status` | 终态：`"completed"`、`"failed"`、`"cancelled"` |
+| `data.result_text` | **核稿意见全文，Markdown 格式**（仅 `completed`） |
+| `data.tokens` | Token 消耗统计（仅 `completed`） |
+| `data.session_id` / `data.session_url` | 关联聊天会话，可用于人工复核（仅 `completed`） |
+| `data.error_message` | 失败或撤销原因（仅 `failed` / `cancelled`） |
+| `data.created_at` / `data.updated_at` | 创建/更新时间，`YYYY-MM-DD HH:MM:SS` |
 
 **回调约定：**
 
@@ -223,7 +305,7 @@ pending ──→ processing ──→ completed
 
 ### 并发限制
 
-同一用户**同时处理中的核稿任务不超过 5 个**。超过上限后提交新任务会立即返回 `429` 错误（错误码 `TOO_MANY_TASKS`），需等待已有任务完成。
+同一用户**同时处理中的核稿任务不超过 5 个**。超过上限后提交新任务会立即返回 `429` 错误（错误码 `1006`），需等待已有任务完成。
 
 ---
 
@@ -245,26 +327,31 @@ pending ──→ processing ──→ completed
 
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "task_id": "pt-mabc123-x7k2",
-      "status": "processing",
-      "file_name": "来文登记.docx",
-      "file_size": 45678,
-      "additional_instructions": "重点检查数据引用",
-      "created_at": "2026-10-22T10:00:00Z",
-      "updated_at": "2026-10-22T10:00:05Z"
-    },
-    {
-      "task_id": "pt-nxyz456-a3b1",
-      "status": "pending",
-      "file_name": "通知.docx",
-      "file_size": 12345,
-      "created_at": "2026-10-22T09:55:00Z",
-      "updated_at": "2026-10-22T09:55:00Z"
-    }
-  ]
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:05",
+  "message": "success",
+  "task_id": null,
+  "data": {
+    "tasks": [
+      {
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "status": "processing",
+        "file_name": "来文登记.docx",
+        "file_size": 45678,
+        "additional_instructions": "重点检查数据引用",
+        "created_at": "2026-10-22 18:00:00",
+        "updated_at": "2026-10-22 18:00:05"
+      },
+      {
+        "task_id": "660e8400-e29b-41d4-a716-446655440001",
+        "status": "pending",
+        "file_name": "通知.docx",
+        "file_size": 12345,
+        "created_at": "2026-10-22 17:55:00",
+        "updated_at": "2026-10-22 17:55:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -275,7 +362,7 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 空列表：
-# { "success": true, "data": [] }
+# { "code": 0, "timestamp": "...", "message": "success", "task_id": null, "data": { "tasks": [] } }
 ```
 
 #### 查询单个任务
@@ -286,13 +373,15 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "pending",
     "file_name": "来文登记.docx",
-    "created_at": "2026-10-22T10:00:00Z",
-    "updated_at": "2026-10-22T10:00:00Z"
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:00:00"
   }
 }
 ```
@@ -301,13 +390,15 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:05",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "processing",
     "file_name": "来文登记.docx",
-    "created_at": "2026-10-22T10:00:00Z",
-    "updated_at": "2026-10-22T10:00:05Z"
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:00:05"
   }
 }
 ```
@@ -316,9 +407,11 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:02:30",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "completed",
     "file_name": "来文登记.docx",
     "file_size": 45678,
@@ -329,32 +422,34 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
       "outputTokens": 1250,
       "totalTokens": 5090
     },
-    "session_id": "proofread-mabc123-4f3a2b1c",
-    "session_url": "https://rdcli.example.com/chat?session=proofread-mabc123-4f3a2b1c",
-    "created_at": "2026-10-22T10:00:00Z",
-    "updated_at": "2026-10-22T10:02:30Z"
+    "session_id": "550e8400-e29b-41d4-a716-446655440002",
+    "session_url": "https://rdcli.example.com/chat?session=550e8400-e29b-41d4-a716-446655440002",
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:02:30"
   }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `result_text` | **核稿意见全文，Markdown 格式**。Claude 按核稿标准逐项审查后输出 |
-| `tokens` | Token 消耗统计 |
-| `session_id` / `session_url` | 关联的聊天会话，可用于人工复核 |
+| `data.result_text` | **核稿意见全文，Markdown 格式**。Claude 按核稿标准逐项审查后输出 |
+| `data.tokens` | Token 消耗统计 |
+| `data.session_id` / `data.session_url` | 关联的聊天会话，可用于人工复核 |
 
 **响应 — 失败（200）：**
 
 ```json
 {
-  "success": true,
+  "code": 2001,
+  "timestamp": "2026-10-22 18:00:15",
+  "message": "Claude is not installed. Please install it first.",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "failed",
     "file_name": "来文登记.docx",
     "error_message": "Claude is not installed. Please install it first.",
-    "created_at": "2026-10-22T10:00:00Z",
-    "updated_at": "2026-10-22T10:00:15Z"
+    "created_at": "2026-10-22 18:00:00",
+    "updated_at": "2026-10-22 18:00:15"
   }
 }
 ```
@@ -363,18 +458,18 @@ curl -X GET "https://rdcli.example.com/api/proofread/task" \
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "TASK_NOT_FOUND",
-    "message": "任务不存在"
-  }
+  "code": 1008,
+  "timestamp": "2026-10-22 18:05:00",
+  "message": "任务不存在",
+  "task_id": null,
+  "data": {}
 }
 ```
 
 **调用示例：**
 
 ```bash
-curl -X GET "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
+curl -X GET "https://rdcli.example.com/api/proofread/task?id=550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
@@ -428,11 +523,13 @@ curl -X GET "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:01:30",
+  "message": "success",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
   "data": {
-    "task_id": "pt-mabc123-x7k2",
     "status": "cancelled",
-    "updated_at": "2026-10-22T10:01:30Z"
+    "updated_at": "2026-10-22 18:01:30"
   }
 }
 ```
@@ -441,11 +538,11 @@ curl -X GET "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "MISSING_TASK_ID",
-    "message": "请提供 ?id=<taskId> 参数"
-  }
+  "code": 1007,
+  "timestamp": "2026-10-22 18:01:30",
+  "message": "请提供 ?id=<taskId> 参数",
+  "task_id": null,
+  "data": {}
 }
 ```
 
@@ -453,22 +550,22 @@ curl -X GET "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "TASK_NOT_FOUND",
-    "message": "任务不存在或已完成，无法撤销"
-  }
+  "code": 1008,
+  "timestamp": "2026-10-22 18:01:30",
+  "message": "任务不存在或已完成，无法撤销",
+  "task_id": null,
+  "data": {}
 }
 ```
 
 **调用示例：**
 
 ```bash
-curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
+curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 响应：
-# { "success": true, "data": { "task_id": "pt-mabc123-x7k2", "status": "cancelled", "updated_at": "..." } }
+# { "code": 0, "timestamp":"...", "message": "success", "task_id": "550e8400...", "data": { "status": "cancelled", "updated_at": "..." } }
 ```
 
 ---
@@ -484,17 +581,17 @@ curl -X POST https://rdcli.example.com/api/proofread \
   -F "additional_instructions=重点检查涉及财政数据的表述"
 
 # 响应：
-# { "success": true, "data": { "task_id": "pt-mabc123-x7k2", "status": "pending" } }
+# { "code": 0, "timestamp":"...", "message": "success", "task_id": "550e8400...", "data": { "status": "pending" } }
 
 # Step 2：等待回调。核稿完成后，rdCLI 会 POST 到你的 callback_url，
 # 请求体即核稿结果（见上方「回调通知」一节）。
 
 # Step 3(optional)：如需撤销一个处理中的任务
-curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=pt-mabc123-x7k2" \
+curl -X DELETE "https://rdcli.example.com/api/proofread/task?id=550e8400-e29b-41d4-a716-446655440000" \
   -H "x-api-key: ck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 响应：
-# { "success": true, "data": { "task_id": "pt-mabc123-x7k2", "status": "cancelled", "updated_at": "..." } }
+# { "code": 0, "timestamp":"...", "message": "success", "task_id": "550e8400...", "data": { "status": "cancelled", "updated_at": "..." } }
 ```
 
 ### OA 系统集成示例（Node.js）
@@ -514,8 +611,8 @@ async function submitProofread(fileBuffer, fileName, instructions = '') {
     headers: { 'x-api-key': process.env.RDCLI_API_KEY },
     body: form
   });
-  const { data } = await res.json();
-  return data.task_id; // 拿到 taskId，等待回调即可
+  const { task_id, data } = await res.json();
+  return task_id; // 拿到 taskId，等待回调即可
 }
 
 // ── 2. 接收回调（OA 后端暴露的 Webhook 端点） ──────────────────────
@@ -523,7 +620,8 @@ app.post('/api/proofread/callback', (req, res) => {
   // 立即返回 2xx，避免 rdCLI 判定回调失败而重试
   res.status(200).json({ received: true });
 
-  const { task_id, status, result_text, error_message } = req.body;
+  const { task_id, data } = req.body;
+  const { status, result_text, error_message } = data;
 
   if (status === 'completed') {
     // 保存并展示核稿意见（Markdown）
@@ -574,46 +672,49 @@ POST /api/proofread/session
 
 ```json
 {
-  "success": true,
+  "code": 0,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "success",
+  "task_id": null,
   "data": {
-    "session_id": "proofread-mabc123-4f3a2b1c",
-    "session_url": "https://rdcli.example.com/chat?session=proofread-mabc123-4f3a2b1c"
+    "session_id": "550e8400-e29b-41d4-a716-446655440002",
+    "session_url": "https://rdcli.example.com/chat?session=550e8400-e29b-41d4-a716-446655440002"
   }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `session_id` | Claude 会话 ID |
-| `session_url` | 打开后进入聊天界面查看核稿结果，可继续追问 |
+| `data.session_id` | Claude 会话 ID |
+| `data.session_url` | 打开后进入聊天界面查看核稿结果，可继续追问 |
 
 #### 400 — 请求错误
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "UNSUPPORTED_FORMAT",
-    "message": "仅支持 .docx 格式的 Word 文档"
-  }
+  "code": 1002,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "仅支持 .docx 格式的 Word 文档",
+  "task_id": null,
+  "data": {}
 }
 ```
 
-| 错误码 | 说明 |
-|--------|------|
-| `MISSING_FILE` | 未上传文件 |
-| `UNSUPPORTED_FORMAT` | 文件格式不被接受（仅支持 .docx） |
-| `UPLOAD_FAILED` | 文件上传失败（如超过 20MB 上限） |
+| `code` | 含义 |
+|:---:|------|
+| 1001 | 未上传文件 |
+| 1002 | 文件格式不支持（仅支持 .docx） |
+| 1003 | 文件超过 20MB 上限 |
 
 #### 401 — 鉴权失败
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "AUTH_REQUIRED",
-    "message": "Authentication required"
-  }
+  "code": 1009,
+  "timestamp": "2026-10-22 18:00:00",
+  "message": "认证失败",
+  "task_id": null,
+  "data": {}
 }
 ```
 
@@ -627,10 +728,13 @@ curl -X POST https://rdcli.example.com/api/proofread/session \
 
 # 响应：
 # {
-#   "success": true,
+#   "code": 0,
+#   "timestamp": "...",
+#   "message": "success",
+#   "task_id": null,
 #   "data": {
-#     "session_id": "proofread-mabc123-4f3a2b1c",
-#     "session_url": "https://rdcli.example.com/chat?session=proofread-mabc123-4f3a2b1c"
+#     "session_id": "550e8400-e29b-41d4-a716-446655440002",
+#     "session_url": "https://rdcli.example.com/chat?session=550e8400-e29b-41d4-a716-446655440002"
 #   }
 # }
 ```
