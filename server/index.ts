@@ -239,6 +239,7 @@ app.use('/api/agent', agentRoutes);
 app.use('/api/proofread', createProofreadModule(
   queryClaude,
   proofreadTasksDb,
+  sessionsDb,
   (sessionId: string) => providerRuntimeService.abort('claude', sessionId),
 ));
 

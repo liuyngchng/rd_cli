@@ -4,7 +4,7 @@ import https from 'node:https';
 import type { ProviderRuntimeWriter, ProviderRunFunction } from '@/shared/types.js';
 import { appendFilesInputTag } from '@/shared/image-attachments.js';
 import { AppError } from '@/shared/utils.js';
-import { proofreadTasksDb as ProofreadTasksDb } from '@/modules/database/index.js';
+import { proofreadTasksDb as ProofreadTasksDb, sessionsDb as SessionsDb } from '@/modules/database/index.js';
 import { debug, log } from '@/shared/debug.js';
 
 type UserInfo = {
@@ -47,6 +47,7 @@ type ProofreadServiceDependencies = {
   queryClaude: ProviderRunFunction;
   getSessionUrl: (sessionId: string) => string;
   proofreadTasksDb: typeof ProofreadTasksDb;
+  sessionsDb: typeof SessionsDb;
   /** Aborts a running Claude session by its session id (which equals the task id). */
   abortClaudeSession: (sessionId: string) => Promise<boolean>;
 };
@@ -302,7 +303,7 @@ async function deliverCallback(callbackUrl: string, payload: Record<string, unkn
 }
 
 export function createProofreadService(deps: ProofreadServiceDependencies) {
-  const { queryClaude, getSessionUrl, proofreadTasksDb, abortClaudeSession } = deps;
+  const { queryClaude, getSessionUrl, proofreadTasksDb, sessionsDb, abortClaudeSession } = deps;
 
   return {
     // ── Session mode (existing, fire-and-forget) ──────────────────────────
@@ -321,6 +322,11 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
       } = input;
 
       const userMessage = buildUserMessage(filePath, fileName, additionalInstructions);
+
+      // Register an app session row before the provider run so that the runtime's
+      // `resolveProviderSessionId` finds a row with a NULL provider_session_id and
+      // starts a fresh conversation instead of treating the id as a resume target.
+      sessionsDb.createAppSession(sessionId, 'claude', workspacePath, user.userId);
 
       const writer = new SessionIdCollector(user.userId);
       writer.setSessionId(sessionId);
@@ -441,6 +447,11 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
 
       // Include Markdown hint so Claude outputs structured, parseable results.
       const userMessage = buildUserMessage(filePath, fileName, additionalInstructions, true);
+
+      // Register an app session row before the provider run so that the runtime's
+      // `resolveProviderSessionId` finds a row with a NULL provider_session_id and
+      // starts a fresh conversation instead of treating the task id as a resume target.
+      sessionsDb.createAppSession(sessionId, 'claude', workspacePath, user.userId);
 
       const writer = new ProofreadResultCollector(user.userId);
       writer.setSessionId(sessionId);

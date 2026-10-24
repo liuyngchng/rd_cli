@@ -273,12 +273,14 @@ fi
 
 # ---- Build ------------------------------------------------------------------
 echo "=== Docker build ==="
+BUILD_START=$SECONDS
 DOCKER_BUILDKIT=1 docker build \
     "${DOCKER_BUILD_ARGS[@]+"${DOCKER_BUILD_ARGS[@]}"}" \
     -t "${FULL_TAG}" \
     -t "${IMAGE_NAME}:latest" \
     -f "${SCRIPT_DIR}/Dockerfile" \
     "${PROJECT_ROOT}"
+BUILD_ELAPSED=$(( SECONDS - BUILD_START ))
 
 cleanup_pip_offline_staging
 
@@ -290,6 +292,7 @@ docker image prune -f --filter "dangling=true" || true
 echo ""
 echo "============================================"
 echo " Build complete: ${FULL_TAG}"
+printf " 总耗时: %dm %ds\n" $(( BUILD_ELAPSED / 60 )) $(( BUILD_ELAPSED % 60 ))
 echo "============================================"
 echo ""
 echo "Run with:"
