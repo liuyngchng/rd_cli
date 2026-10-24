@@ -94,7 +94,13 @@ export function removeOptimisticUserEchoes(
   const claimedServerIds = new Set<string>();
 
   return realtimeMessages.filter((message) => {
-    if (!message.id.startsWith('local_')) {
+    // Deduplicate all user-text realtime rows — whether they are frontend
+    // optimistic echoes (local_*) or provider-runtime echoes of the user
+    // turn (streaming-input turns receive a copy without the JSONL UUID).
+    // Without this, attachment turns produce a duplicate user bubble:
+    // one from the runtime echo (random UUID) and one from the persisted
+    // server copy (CLI-assigned UUID).
+    if (message.kind !== 'text' || message.role !== 'user') {
       return true;
     }
 

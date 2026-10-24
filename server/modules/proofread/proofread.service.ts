@@ -121,20 +121,9 @@ class ProofreadResultCollector implements ProviderRuntimeWriter {
     for (const msg of this.messages) {
       if (!msg || typeof msg !== 'object') continue;
       const m = msg as Record<string, unknown>;
-      // The SDK normalizes assistant messages; text blocks arrive flat.
-      if (m.type === 'assistant' && m.message && typeof m.message === 'object') {
-        const body = m.message as Record<string, unknown>;
-        const content = body.content;
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block && typeof block === 'object' && (block as Record<string, unknown>).type === 'text') {
-              const text = (block as Record<string, unknown>).text;
-              if (typeof text === 'string') parts.push(text);
-            }
-          }
-        } else if (typeof content === 'string') {
-          parts.push(content);
-        }
+      // Normalized messages: assistant text blocks have kind='text' + role='assistant'
+      if (m.kind === 'text' && m.role === 'assistant' && m.content && typeof m.content === 'string') {
+        parts.push(m.content);
       }
     }
     return parts.join('\n\n');
@@ -144,7 +133,8 @@ class ProofreadResultCollector implements ProviderRuntimeWriter {
   hasOutput(): boolean {
     return this.messages.some((msg) => {
       if (!msg || typeof msg !== 'object') return false;
-      return (msg as Record<string, unknown>).type === 'assistant';
+      const m = msg as Record<string, unknown>;
+      return m.kind === 'text' && m.role === 'assistant';
     });
   }
 
@@ -153,13 +143,9 @@ class ProofreadResultCollector implements ProviderRuntimeWriter {
     for (const msg of this.messages) {
       if (!msg || typeof msg !== 'object') continue;
       const m = msg as Record<string, unknown>;
-      if (m.type === 'error' && typeof m.message === 'string') {
-        return m.message;
-      }
-      // Some SDK versions nest error info differently.
-      if (m.type === 'error' && m.error && typeof m.error === 'object') {
-        const e = m.error as Record<string, unknown>;
-        if (typeof e.message === 'string') return e.message;
+      // Normalized error messages have kind='error' and content.
+      if (m.kind === 'error' && typeof m.content === 'string') {
+        return m.content;
       }
     }
     return undefined;
@@ -175,15 +161,14 @@ class ProofreadResultCollector implements ProviderRuntimeWriter {
     for (const msg of this.messages) {
       if (!msg || typeof msg !== 'object') continue;
       const m = msg as Record<string, unknown>;
-      const usage =
-        (m.message as Record<string, unknown>)?.usage ||
-        m.usage;
-      if (usage && typeof usage === 'object') {
-        const u = usage as Record<string, unknown>;
-        inputTokens += Number(u.input_tokens ?? u.inputTokens ?? 0);
-        outputTokens += Number(u.output_tokens ?? u.outputTokens ?? 0);
-        cacheReadTokens += Number(u.cache_read_input_tokens ?? u.cacheReadInputTokens ?? 0);
-        cacheCreationTokens += Number(u.cache_creation_input_tokens ?? u.cacheCreationInputTokens ?? 0);
+      // Token budget is sent as a normalized 'status' message with tokenBudget field.
+      const budget = m.tokenBudget;
+      if (budget && typeof budget === 'object') {
+        const b = budget as Record<string, unknown>;
+        inputTokens = Math.max(inputTokens, Number(b.inputTokens ?? 0));
+        outputTokens = Math.max(outputTokens, Number(b.outputTokens ?? 0));
+        cacheReadTokens = Math.max(cacheReadTokens, Number(b.cacheReadTokens ?? 0));
+        cacheCreationTokens = Math.max(cacheCreationTokens, Number(b.cacheCreationTokens ?? 0));
       }
     }
 
@@ -384,6 +369,7 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         userId: user.userId,
         fileName,
         fileSize,
+        filePath,
         additionalInstructions,
         callbackUrl: input.callbackUrl,
       });
@@ -528,13 +514,31 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
       const task = proofreadTasksDb.getTask(taskId);
       if (!task || !task.callback_url) return;
 
+      // SQLite CURRENT_TIMESTAMP stores UTC without a zone marker. Convert to
+      // UTC+8 (Asia/Shanghai) so the callback consumer sees local time directly.
+      const toLocalTimestamp = (raw: string | null): string | null => {
+        if (!raw) return raw;
+        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        if (!m) return raw;
+        const utcDate = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
+        if (Number.isNaN(utcDate.getTime())) return raw;
+        utcDate.setHours(utcDate.getHours() + 8);
+        const yyyy = utcDate.getFullYear();
+        const MM = String(utcDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(utcDate.getDate()).padStart(2, '0');
+        const HH = String(utcDate.getHours()).padStart(2, '0');
+        const mm = String(utcDate.getMinutes()).padStart(2, '0');
+        const ss = String(utcDate.getSeconds()).padStart(2, '0');
+        return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`;
+      };
+
       const payload: Record<string, unknown> = {
         task_id: task.task_id,
         status: task.status,
         file_name: task.file_name,
         file_size: task.file_size,
-        created_at: task.created_at,
-        updated_at: task.updated_at,
+        created_at: toLocalTimestamp(task.created_at),
+        updated_at: toLocalTimestamp(task.updated_at),
       };
 
       if (task.additional_instructions) {

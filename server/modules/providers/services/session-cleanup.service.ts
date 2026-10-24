@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { proofreadTasksDb, sessionsDb } from '@/modules/database/index.js';
 import { SESSION_RETENTION_DAYS } from '@/constants/config.js';
 
 /**
@@ -59,6 +59,20 @@ export async function runSessionCleanup(): Promise<number> {
   if (deleted > 0) {
     console.log(
       `[session-cleanup] Removed ${deleted} expired session(s) older than ${SESSION_RETENTION_DAYS} days.`,
+    );
+  }
+
+  // 3. Remove on-disk docx uploads for expired proofread tasks.
+  const expiredTaskFiles = proofreadTasksDb.listExpiredTaskFiles(SESSION_RETENTION_DAYS);
+  for (const row of expiredTaskFiles) {
+    await unlinkIfExists(row.file_path);
+  }
+
+  // 4. Prune expired proofread task rows as well.
+  const prunedTasks = proofreadTasksDb.cleanupOlderThan(SESSION_RETENTION_DAYS);
+  if (prunedTasks > 0) {
+    console.log(
+      `[session-cleanup] Removed ${prunedTasks} expired proofread task(s) older than ${SESSION_RETENTION_DAYS} days.`,
     );
   }
 

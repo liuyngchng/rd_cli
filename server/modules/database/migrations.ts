@@ -610,6 +610,13 @@ export const runMigrations = (db: Database) => {
         'callback_url',
         'TEXT'
       );
+      addColumnToTableIfNotExists(
+        db,
+        'proofread_tasks',
+        proofreadTaskColumnNames,
+        'file_path',
+        'TEXT'
+      );
     }
 
     console.log('Database migrations completed successfully');

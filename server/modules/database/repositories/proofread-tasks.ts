@@ -15,6 +15,7 @@ export type ProofreadTaskRow = {
   status: TaskStatus;
   file_name: string;
   file_size: number;
+  file_path: string | null;
   additional_instructions: string | null;
   callback_url: string;
   session_id: string | null;
@@ -32,6 +33,7 @@ type CreateTaskInput = {
   userId: number;
   fileName: string;
   fileSize: number;
+  filePath?: string;
   additionalInstructions?: string;
   callbackUrl: string;
 };
@@ -42,6 +44,7 @@ const TASK_COLUMNS = [
   'status',
   'file_name',
   'file_size',
+  'file_path',
   'additional_instructions',
   'callback_url',
   'session_id',
@@ -61,6 +64,7 @@ function rowToTask(row: Record<string, unknown>): ProofreadTaskRow {
     status: row.status as TaskStatus,
     file_name: row.file_name as string,
     file_size: row.file_size as number,
+    file_path: row.file_path as string | null,
     additional_instructions: row.additional_instructions as string | null,
     callback_url: row.callback_url as string,
     session_id: row.session_id as string | null,
@@ -79,13 +83,14 @@ export const proofreadTasksDb = {
   createTask(input: CreateTaskInput): ProofreadTaskRow {
     const db = getConnection();
     db.prepare(
-      `INSERT INTO proofread_tasks (task_id, user_id, status, file_name, file_size, additional_instructions, callback_url)
-       VALUES (?, ?, 'pending', ?, ?, ?, ?)`
+      `INSERT INTO proofread_tasks (task_id, user_id, status, file_name, file_size, file_path, additional_instructions, callback_url)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`
     ).run(
       input.taskId,
       input.userId,
       input.fileName,
       input.fileSize,
+      input.filePath ?? null,
       input.additionalInstructions ?? null,
       input.callbackUrl,
     );
@@ -188,6 +193,26 @@ export const proofreadTasksDb = {
       )
       .run(taskId);
     return result.changes > 0;
+  },
+
+  /**
+   * Returns file paths of expired tasks with a stored upload file.
+   *
+   * Called by the cleanup scheduler before the DB rows are pruned, so the
+   * caller can remove the on-disk .docx files first.
+   */
+  listExpiredTaskFiles(retentionDays: number): Array<{ task_id: string; file_path: string }> {
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT task_id, file_path
+         FROM proofread_tasks
+         WHERE file_path IS NOT NULL
+           AND file_path <> ''
+           AND datetime(updated_at) < datetime('now', ?)`
+      )
+      .all(`-${retentionDays} days`) as Array<{ task_id: string; file_path: string }>;
+    return rows;
   },
 
   /** Deletes tasks older than the given number of days. Returns count removed. */

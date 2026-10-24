@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS proofread_tasks (
     status TEXT NOT NULL DEFAULT 'pending',
     file_name TEXT NOT NULL,
     file_size INTEGER NOT NULL DEFAULT 0,
+    file_path TEXT,
     additional_instructions TEXT,
     callback_url TEXT,
     session_id TEXT,
