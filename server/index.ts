@@ -5,6 +5,7 @@ import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import os from 'os';
 import http from 'http';
+import https from 'https';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
@@ -84,7 +85,27 @@ const systemRoutes = createSystemModule({
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
 const app = express();
-const server = http.createServer(app);
+
+// HTTPS: use self-signed certs when available (RDCLI_HTTPS_CERT / RDCLI_HTTPS_KEY).
+// The Dockerfile wires these env vars; outside Docker set them manually.
+const httpsCertPath = process.env.RDCLI_HTTPS_CERT || '';
+const httpsKeyPath  = process.env.RDCLI_HTTPS_KEY  || '';
+let httpsOptions: { cert: Buffer; key: Buffer } | null = null;
+if (httpsCertPath && httpsKeyPath && fs.existsSync(httpsCertPath) && fs.existsSync(httpsKeyPath)) {
+    try {
+        httpsOptions = {
+            cert: fs.readFileSync(httpsCertPath),
+            key:  fs.readFileSync(httpsKeyPath),
+        };
+        console.log(`${terminalTextStyles.tip('[TIP]')} HTTPS 已启用（自签证书）`);
+    } catch (e) {
+        console.error('[WARN] HTTPS 证书读取失败，回退至 HTTP:', (e as Error).message);
+    }
+}
+
+const server = httpsOptions
+    ? https.createServer(httpsOptions, app)
+    : http.createServer(app);
 const queryClaude = providerRuntimeService.getRunner('claude');
 const gitRoutes = createGitModule({
     queryClaude,
@@ -323,6 +344,7 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 const SERVER_PORT = Number.parseInt(process.env.SERVER_PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
+const SERVER_PROTOCOL = httpsOptions ? 'https' : 'http';
 const VITE_PORT = process.env.VITE_PORT || 5173;
 const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.rdcli', 'local-server.json');
 
@@ -342,7 +364,7 @@ async function writeLocalServerMarker() {
         pid: process.pid,
         host: HOST,
         port: Number.parseInt(String(SERVER_PORT), 10),
-        url: `http://${DISPLAY_HOST}:${SERVER_PORT}`,
+        url: `${SERVER_PROTOCOL}://${DISPLAY_HOST}:${SERVER_PORT}`,
         installMode,
         appRoot: APP_ROOT,
         updatedAt: new Date().toISOString(),
@@ -391,7 +413,7 @@ async function startServer() {
         console.log('');
 
         if (isProduction) {
-            console.log(`${terminalTextStyles.info('[INFO]')} To run in production mode, go to http://${DISPLAY_HOST}:${SERVER_PORT}`);
+            console.log(`${terminalTextStyles.info('[INFO]')} To run in production mode, go to ${SERVER_PROTOCOL}://${DISPLAY_HOST}:${SERVER_PORT}`);
         }
 
         console.log(`${terminalTextStyles.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
@@ -415,7 +437,7 @@ async function startServer() {
             console.log(`  ${terminalTextStyles.bright('rdCLI Server - Ready')}`);
             console.log(terminalTextStyles.dim('═'.repeat(63)));
             console.log('');
-            console.log(`${terminalTextStyles.info('[INFO]')} Server URL:  ${terminalTextStyles.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+            console.log(`${terminalTextStyles.info('[INFO]')} Server URL:  ${terminalTextStyles.bright(SERVER_PROTOCOL + '://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
             console.log(`${terminalTextStyles.info('[INFO]')} Installed at: ${terminalTextStyles.dim(appInstallPath)}`);
             console.log(`${terminalTextStyles.tip('[TIP]')}  Run "rdcli status" for full configuration details`);
             console.log('');

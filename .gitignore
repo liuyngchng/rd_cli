@@ -141,6 +141,8 @@ deploy/.pip-offline/
 deploy/.last-pip-dir
 deploy/claude-code/
 !deploy/claude-code/.gitkeep
+deploy/certs/*
+!deploy/certs/.gitkeep
 
 # Translations
 !src/i18n/locales/*/tasks.json

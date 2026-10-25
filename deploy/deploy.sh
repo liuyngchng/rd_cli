@@ -1,7 +1,12 @@
 #!/bin/bash
+set -euo pipefail
 #
 echo 'stop current container'
 docker rm -f my_rd_cli 2>/dev/null || true
+
+echo 'ensure network llm_net exists'
+docker network create llm_net 2>/dev/null || true
+
 echo 'start container'
 # 容器内 rdcli 用户。若宿主 /data/remote/workspace 权限不匹配，
 # 先执行: sudo chown -R <uid> /data/remote/workspace
@@ -9,6 +14,8 @@ echo 'start container'
 docker run -dit \
     --name my_rd_cli \
     --rm \
+    --security-opt seccomp=unconfined \
+    --network llm_net \
     --add-host api.anthropic.com:127.0.0.1 \
     --add-host "api.anthropic.com:::1" \
     --add-host anthropic.com:127.0.0.1 \

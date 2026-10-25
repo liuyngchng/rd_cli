@@ -271,6 +271,36 @@ else
   DOCKER_BUILD_ARGS+=(--build-arg "CLAUDE_CODE_OFFLINE=1")
 fi
 
+# ---- Self-signed certificate for HTTPS ---------------------------------------
+# Generated once; reused on subsequent builds.
+# RSA 1024-bit key, validity 2 years (730 days).
+CERTS_DIR="${SCRIPT_DIR}/certs"
+CERT_FILE="${CERTS_DIR}/cert.pem"
+KEY_FILE="${CERTS_DIR}/key.pem"
+
+if [[ -f "$CERT_FILE" && -f "$KEY_FILE" ]]; then
+  echo "HTTPS 证书已存在，直接使用: $CERTS_DIR/"
+else
+  echo "=== 生成自签 HTTPS 证书 (RSA 1024, 有效期 2 年) ==="
+  mkdir -p "$CERTS_DIR"
+  openssl req -x509 -newkey rsa:1024 -nodes \
+    -keyout "$KEY_FILE" \
+    -out "$CERT_FILE" \
+    -days 730 \
+    -subj "/C=CN/ST=Beijing/L=Beijing/O=rdCLI/CN=rdcli.local"
+  echo "自签证书已生成:"
+  echo "  证书: $CERT_FILE"
+  echo "  密钥: $KEY_FILE"
+  echo "  ⚠  自签证书在浏览器中会显示安全警告，属正常现象。"
+fi
+echo ""
+
+# Wire certs into the image: Dockerfile copies them under /home/rdcli/.rdcli/https
+# when HTTPS_CERT=1 is set.
+if [[ -f "$CERT_FILE" && -f "$KEY_FILE" ]]; then
+  DOCKER_BUILD_ARGS+=(--build-arg "HTTPS_CERT=1")
+fi
+
 # ---- Build ------------------------------------------------------------------
 echo "=== Docker build ==="
 BUILD_START=$SECONDS
