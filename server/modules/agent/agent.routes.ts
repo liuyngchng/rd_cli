@@ -4,6 +4,8 @@ import path from 'path';
 import express from 'express';
 
 import type { ProviderRunFunction } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'agent-routes' });
 
 import { normalizeProjectPath } from '../../shared/utils.js';
 
@@ -64,7 +66,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
         req.user = user;
         return next();
       } catch (error) {
-        console.error('Platform mode error:', error);
+        log.error('Platform mode error:', error);
         return res.status(500).json({ error: 'Platform mode: Failed to fetch user' });
       }
     }
@@ -313,7 +315,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       body
     });
 
-    console.log(`✅ Created pull request #${pr.number}: ${pr.html_url}`);
+    log.info(`✅ Created pull request #${pr.number}: ${pr.html_url}`);
 
     return {
       number: pr.number,
@@ -360,7 +362,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
             const normalizedRequested = normalizeGitHubUrl(cloneUrl);
 
             if (normalizedExisting === normalizedRequested) {
-              console.log('✅ Repository already exists at path with correct URL');
+              log.info('✅ Repository already exists at path with correct URL');
               return resolve({ path: cloneDir, created: false });
             } else {
               throw new Error(`Directory ${cloneDir} already exists with a different repository (${existingUrl}). Expected: ${githubUrl}`);
@@ -375,8 +377,8 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
         // Ensure parent directory exists
         await fs.mkdir(path.dirname(cloneDir), { recursive: true });
 
-        console.log('🔄 Cloning repository:', githubUrl);
-        console.log('📁 Destination:', cloneDir);
+        log.info('🔄 Cloning repository:', githubUrl);
+        log.info('📁 Destination:', cloneDir);
 
         // Execute git clone
         const gitEnvironment = githubToken ? {
@@ -403,15 +405,15 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
 
         gitProcess.stderr.on('data', (data) => {
           stderr += data.toString();
-          console.log('Git stderr:', data.toString());
+          log.info('Git stderr:', data.toString());
         });
 
         gitProcess.on('close', (code) => {
           if (code === 0) {
-            console.log('✅ Repository cloned successfully');
+            log.info('✅ Repository cloned successfully');
             resolve({ path: cloneDir, created: true });
           } else {
-            console.error('❌ Git clone failed:', stderr);
+            log.error('❌ Git clone failed:', stderr);
             reject(new Error(`Git clone failed: ${stderr}`));
           }
         });
@@ -443,27 +445,27 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
         && !path.isAbsolute(relativeProjectPath);
 
       if (!isContained) {
-        console.warn('⚠️ Refusing to clean up non-external project:', projectPath);
+        log.warn('⚠️ Refusing to clean up non-external project:', projectPath);
         return;
       }
 
-      console.log('🧹 Cleaning up project:', projectPath);
+      log.info('🧹 Cleaning up project:', projectPath);
       await fs.rm(canonicalProjectPath, { recursive: true, force: true });
-      console.log('✅ Project cleaned up');
+      log.info('✅ Project cleaned up');
 
       // Also clean up the Claude session directory if sessionId provided
       if (sessionId) {
         try {
           const sessionPath = path.join(os.homedir(), '.claude', 'sessions', sessionId);
-          console.log('🧹 Cleaning up session directory:', sessionPath);
+          log.info('🧹 Cleaning up session directory:', sessionPath);
           await fs.rm(sessionPath, { recursive: true, force: true });
-          console.log('✅ Session directory cleaned up');
+          log.info('✅ Session directory cleaned up');
         } catch (error) {
-          console.error('⚠️ Failed to clean up session directory:', error.message);
+          log.error('⚠️ Failed to clean up session directory:', error.message);
         }
       }
     } catch (error) {
-      console.error('❌ Failed to clean up project:', error);
+      log.error('❌ Failed to clean up project:', error);
     }
   }
 
@@ -932,9 +934,9 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       // Register project path in DB (or reuse existing active registration)
       const registrationResult = projectsDb.createProjectPath(finalProjectPath, null);
       if (registrationResult.outcome === 'active_conflict') {
-        console.log('Project registration already exists for:', finalProjectPath);
+        log.info('Project registration already exists for:', finalProjectPath);
       } else {
-        console.log('Project registered:', registrationResult.project);
+        log.info('Project registered:', registrationResult.project);
       }
 
       // Set up writer based on streaming mode
@@ -966,7 +968,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       }
 
       // Start the Claude session
-      console.log('🤖 Starting Claude SDK session');
+      log.info('🤖 Starting Claude SDK session');
 
       await queryClaudeSDK(message.trim(), {
         projectPath: finalProjectPath,
@@ -983,7 +985,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
 
       if (createBranch || createPR) {
         try {
-          console.log('🔄 Starting GitHub branch/PR creation workflow...');
+          log.info('🔄 Starting GitHub branch/PR creation workflow...');
 
           // Get GitHub token
           const tokenToUse = githubToken || githubTokensDb.getActiveGithubToken(req.user.id);
@@ -998,13 +1000,13 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           // Get GitHub URL - either from parameter or from git remote
           let repoUrl = githubUrl;
           if (!repoUrl) {
-            console.log('🔍 Getting GitHub URL from git remote...');
+            log.info('🔍 Getting GitHub URL from git remote...');
             try {
               repoUrl = await getGitRemoteUrl(finalProjectPath);
               if (!repoUrl.includes('github.com')) {
                 throw new Error('Project does not have a GitHub remote configured');
               }
-              console.log(`✅ Found GitHub remote: ${repoUrl}`);
+              log.info(`✅ Found GitHub remote: ${repoUrl}`);
             } catch (error) {
               throw new Error(`Failed to get GitHub remote URL: ${error.message}`);
             }
@@ -1012,12 +1014,12 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
 
           // Parse GitHub URL to get owner and repo
           const { owner, repo } = parseGitHubUrl(repoUrl);
-          console.log(`📦 Repository: ${owner}/${repo}`);
+          log.info(`📦 Repository: ${owner}/${repo}`);
 
           // Use provided branch name or auto-generate from message
           const finalBranchName = branchName || autogenerateBranchName(message);
           if (branchName) {
-            console.log(`🌿 Using provided branch name: ${finalBranchName}`);
+            log.info(`🌿 Using provided branch name: ${finalBranchName}`);
 
             // Validate custom branch name
             const validation = validateBranchName(finalBranchName);
@@ -1025,12 +1027,12 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
               throw new Error(`Invalid branch name: ${validation.error}`);
             }
           } else {
-            console.log(`🌿 Auto-generated branch name: ${finalBranchName}`);
+            log.info(`🌿 Auto-generated branch name: ${finalBranchName}`);
           }
 
           if (createBranch) {
             // Create and checkout the new branch locally
-            console.log('🔄 Creating local branch...');
+            log.info('🔄 Creating local branch...');
             const checkoutProcess = spawn('git', ['checkout', '-b', finalBranchName], {
               cwd: finalProjectPath,
               stdio: 'pipe'
@@ -1041,19 +1043,19 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
               checkoutProcess.stderr.on('data', (data) => { stderr += data.toString(); });
               checkoutProcess.on('close', (code) => {
                 if (code === 0) {
-                  console.log(`✅ Created and checked out local branch '${finalBranchName}'`);
+                  log.info(`✅ Created and checked out local branch '${finalBranchName}'`);
                   resolve();
                 } else {
                   // Branch might already exist locally, try to checkout
                   if (stderr.includes('already exists')) {
-                    console.log(`ℹ️ Branch '${finalBranchName}' already exists locally, checking out...`);
+                    log.info(`ℹ️ Branch '${finalBranchName}' already exists locally, checking out...`);
                     const checkoutExisting = spawn('git', ['checkout', finalBranchName], {
                       cwd: finalProjectPath,
                       stdio: 'pipe'
                     });
                     checkoutExisting.on('close', (checkoutCode) => {
                       if (checkoutCode === 0) {
-                        console.log(`✅ Checked out existing branch '${finalBranchName}'`);
+                        log.info(`✅ Checked out existing branch '${finalBranchName}'`);
                         resolve();
                       } else {
                         reject(new Error(`Failed to checkout existing branch: ${stderr}`));
@@ -1067,7 +1069,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
             });
 
             // Push the branch to remote
-            console.log('🔄 Pushing branch to remote...');
+            log.info('🔄 Pushing branch to remote...');
             const pushProcess = spawn('git', ['push', '-u', 'origin', finalBranchName], {
               cwd: finalProjectPath,
               stdio: 'pipe'
@@ -1080,12 +1082,12 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
               pushProcess.stderr.on('data', (data) => { stderr += data.toString(); });
               pushProcess.on('close', (code) => {
                 if (code === 0) {
-                  console.log(`✅ Pushed branch '${finalBranchName}' to remote`);
+                  log.info(`✅ Pushed branch '${finalBranchName}' to remote`);
                   resolve();
                 } else {
                   // Check if branch exists on remote but has different commits
                   if (stderr.includes('already exists') || stderr.includes('up-to-date')) {
-                    console.log(`ℹ️ Branch '${finalBranchName}' already exists on remote, using existing branch`);
+                    log.info(`ℹ️ Branch '${finalBranchName}' already exists on remote, using existing branch`);
                     resolve();
                   } else {
                     reject(new Error(`Failed to push branch: ${stderr}`));
@@ -1102,7 +1104,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
 
           if (createPR) {
             // Get commit messages to generate PR description
-            console.log('🔄 Generating PR title and description...');
+            log.info('🔄 Generating PR title and description...');
             const commitMessages = await getCommitMessages(finalProjectPath, 5);
 
             // Use the first commit message as the PR title, or fallback to the agent message
@@ -1117,10 +1119,10 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
             }
             prBody += '\n\n---\n*This pull request was automatically created by rdCLI.ai Agent.*';
 
-            console.log(`📝 PR Title: ${prTitle}`);
+            log.info(`📝 PR Title: ${prTitle}`);
 
             // Create the pull request
-            console.log('🔄 Creating pull request...');
+            log.info('🔄 Creating pull request...');
             prInfo = await createGitHubPR(octokit, owner, repo, finalBranchName, prTitle, prBody, 'main');
           }
 
@@ -1141,7 +1143,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
           }
 
         } catch (error) {
-          console.error('❌ GitHub branch/PR creation error:', error);
+          log.error('❌ GitHub branch/PR creation error:', error);
 
           // Send error but don't fail the entire request
           if (stream) {
@@ -1196,7 +1198,7 @@ export function createAgentRouter(dependencies: AgentRouterDependencies): expres
       }
 
     } catch (error) {
-      console.error('❌ External session error:', error);
+      log.error('❌ External session error:', error);
 
       // Clean up on error
       if (finalProjectPath && cleanup && githubUrl && clonedProjectCreated) {

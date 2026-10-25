@@ -8,7 +8,9 @@ import multer from 'multer';
 import { getGlobalImageAssetsDir as getGlobalAssetsDir, toPosixPath } from '@/shared/image-attachments.js';
 import { userDb, apiKeysDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
-import { debug, log } from '@/shared/debug.js';
+import { debug } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'proofread-routes' });
 
 import type { ProofreadService } from './proofread.service.js';
 import { nowLocalTimestamp, toLocalTimestamp } from './proofread.service.js';
@@ -133,7 +135,7 @@ function validateExternalApiKey(
       (req as unknown as Record<string, unknown>).user = user;
       return next();
     } catch (error) {
-      console.error('Platform mode error:', error);
+      log.error('Platform mode error:', error);
       fail(res, 500, 1010, 'Platform mode: Failed to fetch user');
       return;
     }
@@ -241,12 +243,12 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
 
     if (taskId) {
       // ── single task query ──────────────────────────────────────────
-      log('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ taskId }));
+      log.info('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ taskId }));
 
       const task = proofreadService.getTask(taskId);
 
       if (!task) {
-        log('[Proofread API] GET /api/proofread/task — response',
+        log.info('[Proofread API] GET /api/proofread/task — response',
           JSON.stringify({ taskId, found: false }));
         fail(res, 404, 1008, '任务不存在');
         return;
@@ -280,7 +282,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
         data.error_message = task.error_message;
       }
 
-      log('[Proofread API] GET /api/proofread/task — response',
+      log.info('[Proofread API] GET /api/proofread/task — response',
         JSON.stringify({ taskId, status: task.status, resultTextLen: task.result_text?.length ?? 0 }));
       ok(res, 200, data, task.task_id);
       return;
@@ -289,16 +291,16 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
     // ── task list ────────────────────────────────────────────────────
     const userId = getUserId(req);
     if (userId == null) {
-      log('[Proofread API] GET /api/proofread/task — request (no userId)');
+      log.info('[Proofread API] GET /api/proofread/task — request (no userId)');
       fail(res, 401, 1009, 'Authentication required');
       return;
     }
 
-    log('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ userId }));
+    log.info('[Proofread API] GET /api/proofread/task — request', JSON.stringify({ userId }));
 
     const tasks = proofreadService.listActiveTasks(userId);
 
-    log('[Proofread API] GET /api/proofread/task — response', JSON.stringify({ count: tasks.length }));
+    log.info('[Proofread API] GET /api/proofread/task — response', JSON.stringify({ count: tasks.length }));
     ok(res, 200, {
       tasks: tasks.map((t) => ({
         task_id: t.task_id,
@@ -331,7 +333,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       void (async () => {
         try {
           if (!req.file) {
-            log('[Proofread API] POST /api/proofread — request (no file)');
+            log.info('[Proofread API] POST /api/proofread — request (no file)');
             fail(res, 400, 1001, '请上传 .docx 格式的 Word 文档');
             return;
           }
@@ -339,7 +341,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const user = resolveUser(req);
           const userId = getUserId(req);
           if (userId == null) {
-            log('[Proofread API] POST /api/proofread — request (no userId)');
+            log.info('[Proofread API] POST /api/proofread — request (no userId)');
             fail(res, 401, 1009, 'Authentication required');
             return;
           }
@@ -359,7 +361,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             const errorMessage = raw
               ? 'callback_url 格式不合法，必须以 http:// 或 https:// 开头'
               : '请提供 callback_url 回调地址';
-            log('[Proofread API] POST /api/proofread — request error',
+            log.info('[Proofread API] POST /api/proofread — request error',
               JSON.stringify({ userId, message: errorMessage }));
             fail(res, 400, bizCode, errorMessage);
             return;
@@ -372,7 +374,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const workspacePath = path.join(os.homedir(), '.rdcli', 'users', String(userId));
           const taskId = getTaskId();
 
-          log('[Proofread API] POST /api/proofread — request',
+          log.info('[Proofread API] POST /api/proofread — request',
             JSON.stringify({
               taskId,
               userId,
@@ -399,11 +401,11 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             workspacePath,
           });
 
-          log('[Proofread API] POST /api/proofread — response',
+          log.info('[Proofread API] POST /api/proofread — response',
             JSON.stringify(result));
           ok(res, 200, { status: result.status }, result.taskId);
         } catch (error) {
-          log('[Proofread API] POST /api/proofread — error',
+          log.info('[Proofread API] POST /api/proofread — error',
             error instanceof Error ? error.message : String(error));
           if (error instanceof AppError && error.code === 'TOO_MANY_TASKS') {
             fail(res, 429, 1006, error.message);
@@ -424,25 +426,25 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       return;
     }
 
-    log('[Proofread API] DELETE /api/proofread/task — request', JSON.stringify({ taskId }));
+    log.info('[Proofread API] DELETE /api/proofread/task — request', JSON.stringify({ taskId }));
 
     try {
       const task = await proofreadService.cancelTask(taskId);
 
       if (!task) {
-        log('[Proofread API] DELETE /api/proofread/task — response',
+        log.info('[Proofread API] DELETE /api/proofread/task — response',
           JSON.stringify({ taskId, cancelled: false }));
         fail(res, 404, 1008, '任务不存在或已完成，无法撤销');
         return;
       }
 
-      log('[Proofread API] DELETE /api/proofread/task — response',
+      log.info('[Proofread API] DELETE /api/proofread/task — response',
         JSON.stringify({ taskId, cancelled: true, status: task.status }));
       ok(res, 200, { status: task.status, updated_at: toLocalTimestamp(task.updated_at) }, task.task_id);
     } catch (error) {
-      log('[Proofread API] DELETE /api/proofread/task — error',
+      log.info('[Proofread API] DELETE /api/proofread/task — error',
         JSON.stringify({ taskId, error: error instanceof Error ? error.message : String(error) }));
-      console.error(
+      log.error(
         `[Proofread] Cancel task error for ${taskId}:`,
         error instanceof Error ? error.message : String(error),
       );
@@ -469,7 +471,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
       void (async () => {
         try {
           if (!req.file) {
-            log('[Proofread API] POST /api/proofread/session — request (no file)');
+            log.info('[Proofread API] POST /api/proofread/session — request (no file)');
             fail(res, 400, 1001, '请上传 .docx 格式的 Word 文档');
             return;
           }
@@ -477,7 +479,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const user = resolveUser(req);
           const userId = getUserId(req);
           if (userId == null) {
-            log('[Proofread API] POST /api/proofread/session — request (no userId)');
+            log.info('[Proofread API] POST /api/proofread/session — request (no userId)');
             fail(res, 401, 1009, 'Authentication required');
             return;
           }
@@ -496,7 +498,7 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
           const workspacePath = path.join(os.homedir(), '.rdcli', 'users', String(userId));
           const sessionId = getSessionId();
 
-          log('[Proofread API] POST /api/proofread/session — request',
+          log.info('[Proofread API] POST /api/proofread/session — request',
             JSON.stringify({
               sessionId,
               userId,
@@ -520,11 +522,11 @@ export function createProofreadRouter(deps: ProofreadRouterDependencies): expres
             workspacePath,
           });
 
-          log('[Proofread API] POST /api/proofread/session — response',
+          log.info('[Proofread API] POST /api/proofread/session — response',
             JSON.stringify(result));
           ok(res, 200, { session_id: result.sessionId, session_url: result.sessionUrl });
         } catch (error) {
-          log('[Proofread API] POST /api/proofread/session — error',
+          log.info('[Proofread API] POST /api/proofread/session — error',
             error instanceof Error ? error.message : String(error));
           next(error);
         }

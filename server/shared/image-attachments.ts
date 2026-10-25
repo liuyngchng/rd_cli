@@ -1,6 +1,9 @@
 import { promises as fs, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'images' });
 
 /**
  * Shared chat-attachment plumbing for every provider runtime.
@@ -371,20 +374,20 @@ export async function buildClaudeUserContent(
   for (const descriptor of normalizeImageDescriptors(images)) {
     const mediaType = resolveImageMediaType(descriptor);
     if (!mediaType || !CLAUDE_IMAGE_MEDIA_TYPES.has(mediaType)) {
-      console.warn(`[Images] Skipping unsupported Claude image type for ${descriptor.path}`);
+      log.warn('Skipping unsupported Claude image type for %s', descriptor.path);
       continue;
     }
 
     const resolvedPath = resolveImageAbsolutePath(cwd, descriptor.path);
     if (!isAllowedImageSourcePath(resolvedPath, cwd)) {
-      console.warn(`[Images] Refusing to read image outside allowed roots: ${descriptor.path}`);
+      log.warn('Refusing to read image outside allowed roots: %s', descriptor.path);
       continue;
     }
 
     try {
       const canonicalPath = await fs.realpath(resolvedPath);
       if (!isAllowedImageSourcePath(canonicalPath, cwd)) {
-        console.warn(`[Images] Refusing to read symlinked image outside allowed roots: ${descriptor.path}`);
+        log.warn('Refusing to read symlinked image outside allowed roots: %s', descriptor.path);
         continue;
       }
 
@@ -399,7 +402,7 @@ export async function buildClaudeUserContent(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[Images] Failed to read image ${descriptor.path}: ${message}`);
+      log.warn('Failed to read image %s: %s', descriptor.path, message);
     }
   }
 

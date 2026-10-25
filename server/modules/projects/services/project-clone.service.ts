@@ -8,6 +8,8 @@ import { githubTokensDb } from '@/modules/database/index.js';
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import type { WorkspacePathValidationResult } from '@/shared/types.js';
 import { AppError, validateWorkspacePath } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'project-clone' });
 
 type CloneProjectInput = {
   workspacePath: string;
@@ -143,7 +145,7 @@ const defaultDependencies: CloneProjectDependencies = {
       customName,
     }) as Promise<{ project: Record<string, unknown> }>,
   logError: (message: string, error: unknown): void => {
-    console.error(message, error);
+    log.error(message, error);
   },
 };
 

@@ -20,6 +20,9 @@ import type {
   ProviderRuntimeWriter,
 } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'chat' });
 
 /**
  * Trust boundary for client-supplied image attachments: chat.send options come
@@ -78,7 +81,7 @@ export function filterAttachmentsToUploadStore(
       }
     }
 
-    console.warn(`[Chat] Dropping attachment outside allowed roots: ${descriptor.path}`);
+    log.warn('Dropping attachment outside allowed roots: %s', descriptor.path);
     return false;
   });
 }
@@ -276,7 +279,7 @@ async function handleChatSend(
     await dependencies.runtime.run(provider, command, runtimeOptions, run.writer);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[Chat] Provider runtime "${provider}" failed`, { sessionId, error: message });
+    log.error('Provider runtime "%s" failed: %s', provider, message);
   } finally {
     // Safety net: a runtime that crashed (or resolved) without emitting its
     // terminal `complete` would otherwise leave the session stuck in
@@ -434,7 +437,7 @@ export function handleChatConnection(
   request: AuthenticatedWebSocketRequest,
   dependencies: ChatWebSocketDependencies
 ): void {
-  console.log('[INFO] Chat WebSocket connected');
+  log.info('Chat WebSocket connected');
   const userId = readRequestUserId(request);
   addClient(
     userId != null ? Number(userId) : null,
@@ -470,13 +473,13 @@ export function handleChatConnection(
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[ERROR] Chat WebSocket error:', message);
+      log.error('Chat WebSocket error: %s', message);
       sendProtocolError(ws, 'INTERNAL_ERROR', message);
     }
   });
 
   ws.on('close', () => {
-    console.log('[INFO] Chat client disconnected');
+    log.info('Chat client disconnected');
     removeClient(
       userId != null ? Number(userId) : null,
       ws,

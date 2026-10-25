@@ -5,6 +5,9 @@ import type {
   RealtimeClientConnection,
 } from '@/shared/types.js';
 import { createCompleteMessage, readObjectRecord } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'chat-session-writer' });
 
 type ChatSessionWriterOptions = {
   connection: RealtimeClientConnection;
@@ -74,7 +77,7 @@ export class ChatSessionWriter {
       // Provider runtimes only emit kind-based normalized messages. Anything
       // else indicates a programming error; drop it rather than leaking an
       // un-remapped payload to the client.
-      console.error('[ChatSessionWriter] Dropping non-normalized outbound payload', data);
+      log.error('Dropping non-normalized outbound payload', data);
       return;
     }
 

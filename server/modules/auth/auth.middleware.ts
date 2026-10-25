@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 
 import { userDb, appConfigDb } from '../database/index.js';
 import { isTokenBlacklisted, blacklistToken } from '../security/token-blacklist.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'auth-middleware' });
 
 const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
 
@@ -69,7 +71,7 @@ const authenticateToken = async (req, res, next) => {
       req.user = user;
       return next();
     } catch (error) {
-      console.error('Platform mode error:', error);
+      log.error('Platform mode error:', error);
       return res.status(500).json({ error: 'Platform mode: Failed to fetch user' });
     }
   }
@@ -138,7 +140,7 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    console.warn(
+    log.warn(
       'Token verification failed:',
       error instanceof Error ? error.message : String(error),
     );
@@ -209,7 +211,7 @@ const authenticateWebSocket = (token) => {
       }
       return null;
     } catch (error) {
-      console.error('Platform mode WebSocket error:', error);
+      log.error('Platform mode WebSocket error:', error);
       return null;
     }
   }
@@ -233,7 +235,7 @@ const authenticateWebSocket = (token) => {
     return { userId: user.id, username: user.username };
   } catch (error) {
     if (!(error instanceof jwt.TokenExpiredError)) {
-      console.warn(
+      log.warn(
         'WebSocket token verification failed:',
         error instanceof Error ? error.message : String(error),
       );

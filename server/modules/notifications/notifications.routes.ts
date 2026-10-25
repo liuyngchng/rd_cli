@@ -1,6 +1,8 @@
 import express from 'express';
 
 import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/modules/database/index.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'notifications' });
 
 const router = express.Router();
 
@@ -52,7 +54,7 @@ router.get('/endpoints', (req, res) => {
       .map(sanitizeEndpoint);
     return res.json({ success: true, endpoints });
   } catch (error) {
-    console.error('Error fetching notification endpoints:', error);
+    log.error('Error fetching notification endpoints:', error);
     return res.status(500).json({ error: 'Failed to fetch notification endpoints' });
   }
 });
@@ -79,7 +81,7 @@ router.post('/endpoints/current', (req, res) => {
     const preferences = updateChannelPreference(userId, normalizedChannel);
     return res.json({ success: true, endpoint: sanitizeEndpoint(endpoint), preferences });
   } catch (error) {
-    console.error('Error registering notification endpoint:', error);
+    log.error('Error registering notification endpoint:', error);
     return res.status(500).json({ error: 'Failed to register notification endpoint' });
   }
 });
@@ -102,7 +104,7 @@ router.patch('/endpoints/:channel/:endpointId', (req, res) => {
     const preferences = updateChannelPreference(userId, channel);
     return res.json({ success: true, endpoint: endpoint ? sanitizeEndpoint(endpoint) : null, preferences });
   } catch (error) {
-    console.error('Error updating notification endpoint:', error);
+    log.error('Error updating notification endpoint:', error);
     return res.status(500).json({ error: 'Failed to update notification endpoint' });
   }
 });
@@ -119,7 +121,7 @@ router.delete('/endpoints/:channel/:endpointId', (req, res) => {
     const preferences = updateChannelPreference(userId, channel);
     return res.json({ success: true, preferences });
   } catch (error) {
-    console.error('Error removing notification endpoint:', error);
+    log.error('Error removing notification endpoint:', error);
     return res.status(500).json({ error: 'Failed to remove notification endpoint' });
   }
 });

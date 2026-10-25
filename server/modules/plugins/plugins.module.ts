@@ -12,6 +12,8 @@ import {
 } from './plugin-process.service.js';
 import { createPluginsRouter } from './plugins.routes.js';
 import { createPluginsService } from './plugins.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'plugins' });
 
 const pluginsService = createPluginsService({
   scanPlugins, readConfig: getPluginsConfig, saveConfig: savePluginsConfig,
@@ -26,7 +28,7 @@ const pluginsService = createPluginsService({
   stopServer: async (pluginName) => { await stopPluginServer(pluginName); },
   getServerPort: getPluginPort, isServerRunning: isPluginRunning,
   joinPath: path.join,
-  logError: (message, error) => console.error(message, error),
+  logError: (message, error) => log.error(message, error),
 });
 
 /** Plugin router assembled with filesystem, loader, and process adapters. */

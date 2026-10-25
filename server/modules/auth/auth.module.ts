@@ -2,6 +2,8 @@ import { createRequire } from 'node:module';
 
 import { getConnection, userDb } from '@/modules/database/index.js';
 import { debug } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'auth-module' });
 import { userWorkspaceService } from '@/modules/user/user.module.js';
 
 import { authenticateToken, generateToken, revokeToken } from './auth.middleware.js';
@@ -49,7 +51,7 @@ const authService = createAuthService({
       await userWorkspaceService.ensureUserWorkspace(userId);
     },
   },
-  logWarn: (message, error) => console.warn(message, error),
+  logWarn: (message, error) => log.warn(message, error),
 });
 
 /** Simple admin role check middleware — must run after authenticateToken. */

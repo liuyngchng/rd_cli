@@ -5,6 +5,9 @@ import path from 'path';
 import spawn from 'cross-spawn';
 
 import { scanPlugins, getPluginsConfig, getPluginDir } from './plugin-registry.service.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'plugins' });
 
 // Map<pluginName, { process, port }>
 const runningPlugins = new Map();
@@ -100,7 +103,7 @@ export function startPluginServer(name, pluginDir, serverEntry) {
               runningPlugins.delete(name);
             });
 
-            console.log(`[Plugins] Server started for "${name}" on port ${msg.port}`);
+            log.info('Server started for "%s" on port %s', name, msg.port);
             resolve(msg.port);
           }
         } catch {
@@ -110,7 +113,8 @@ export function startPluginServer(name, pluginDir, serverEntry) {
     });
 
     pluginProcess.stderr.on('data', (data) => {
-      console.warn(`[Plugin:${name}] ${data.toString().trim()}`);
+      const pluginLog = logger.child({ module: `plugin:${name}` });
+      pluginLog.warn(data.toString().trim());
     });
 
     pluginProcess.on('error', (err) => {
@@ -164,7 +168,7 @@ export function stopPluginServer(name) {
       }
     }, 5000);
 
-    console.log(`[Plugins] Server stopped for "${name}"`);
+    log.info('Server stopped for "%s"', name);
   });
 }
 
@@ -211,7 +215,7 @@ export async function startEnabledPluginServers() {
     try {
       await startPluginServer(plugin.name, pluginDir, plugin.server);
     } catch (err) {
-      console.error(`[Plugins] Failed to start server for "${plugin.name}":`, err.message);
+      log.error('Failed to start server for "%s": %s', plugin.name, err.message);
     }
   }
 }

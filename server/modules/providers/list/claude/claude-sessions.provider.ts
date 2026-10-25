@@ -7,6 +7,9 @@ import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'claude-provider' });
 import { sessionsDb } from '@/modules/database/index.js';
 
 const PROVIDER = 'claude';
@@ -96,7 +99,7 @@ async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`Error parsing agent file ${filePath}:`, message);
+    log.warn('Error parsing agent file %s: %s', filePath, message);
   }
 
   return tools;
@@ -198,7 +201,15 @@ async function getSessionMessages(
       limit,
     };
   } catch (error) {
-    console.error(`Error reading messages for session ${sessionId}:`, error);
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOENT') {
+      // Project / session directory no longer exists on disk (e.g. after container
+      // rebuild) but the DB record still references it. This is expected — just
+      // return an empty result so the service starts without noise.
+      log.warn('Project directory missing for session %s, returning empty history', sessionId);
+    } else {
+      log.error(error, 'Error reading messages for session %s', sessionId);
+    }
     return limit === null ? [] : { messages: [], total: 0, hasMore: false };
   }
 }
@@ -625,7 +636,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       result = await getSessionMessages(sessionId, providerSessionId, null, 0);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[ClaudeProvider] Failed to load session ${sessionId}:`, message);
+      log.warn('Failed to load session %s: %s', sessionId, message);
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };
     }
 

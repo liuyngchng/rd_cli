@@ -34,6 +34,9 @@ import {
   notifyUserIfEnabled
 } from '@/modules/notifications/index.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'claude-sdk' });
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -424,7 +427,7 @@ async function loadMcpConfig(cwd) {
       const configContent = await fs.readFile(claudeConfigPath, 'utf8');
       claudeConfig = JSON.parse(configContent);
     } catch (error) {
-      console.error('Failed to parse ~/.claude.json:', error.message);
+      log.error(error, 'Failed to parse ~/.claude.json');
       return null;
     }
 
@@ -452,7 +455,7 @@ async function loadMcpConfig(cwd) {
     }
     return mcpServers;
   } catch (error) {
-    console.error('Error loading MCP config:', error.message);
+    log.error(error, 'Error loading MCP config');
     return null;
   }
 }
@@ -492,7 +495,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     try {
       effortModels = await context.getProviderModels();
     } catch (error) {
-      console.warn('[Claude SDK] Unable to load provider models for effort validation:', error);
+      log.warn('Unable to load provider models for effort validation: %s', error);
     }
 
     const sdkOptions = mapCliOptionsToSDK({
@@ -638,7 +641,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     } catch (hookError) {
       // Older/newer SDK versions may not accept hook shapes yet.
       // Keep notification behavior operational via runtime events even if hook registration fails.
-      console.warn('Failed to initialize Claude query with hooks, retrying without hooks:', hookError?.message || hookError);
+      log.warn('Failed to initialize Claude query with hooks, retrying without hooks: %s', hookError?.message || hookError);
       delete sdkOptions.hooks;
       queryInstance = query({
         prompt: await createPrompt(),
@@ -662,7 +665,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }
 
     // Process streaming messages
-    console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    log.info('Starting async generator loop for session: %s', capturedSessionId || 'NEW');
     for await (const message of queryInstance) {
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
@@ -755,11 +758,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // The abort already produced the terminal complete; a generator throw
       // caused by the AbortController is expected, not a user-facing error.
       // Log at info level — this is normal abort noise, not a bug.
-      console.log(`[Claude SDK] Query aborted for session ${sessionKey()}:`, error?.message || error);
+      log.info('Query aborted for session %s: %s', sessionKey(), error?.message || error);
       return;
     }
 
-    console.error('SDK query error:', error);
+    log.error(error, 'SDK query error');
 
     // Check if Claude CLI is installed for a clearer error message
     const installed = await context.isProviderInstalled();
@@ -789,12 +792,12 @@ async function abortClaudeSDKSession(sessionId) {
   const session = getSession(sessionId);
 
   if (!session) {
-    console.log(`Session ${sessionId} not found`);
+    log.info('Session %s not found', sessionId);
     return false;
   }
 
   try {
-    console.log(`Aborting SDK session: ${sessionId}`);
+    log.info('Aborting SDK session: %s', sessionId);
 
     // Mark before interrupting so the run loop knows not to emit its own
     // terminal complete (the abort handler sends the aborted one).
@@ -821,7 +824,7 @@ async function abortClaudeSDKSession(sessionId) {
     } catch (interruptError) {
       // The abort above already tore the process down; a timeout or failure
       // here is expected noise, not a reason to mark the abort as failed.
-      console.warn(`interrupt() failed or timed out for session ${sessionId}:`, interruptError?.message || interruptError);
+      log.warn('interrupt() failed or timed out for session %s: %s', sessionId, interruptError?.message || interruptError);
     }
 
     // Update session status
@@ -832,7 +835,7 @@ async function abortClaudeSDKSession(sessionId) {
 
     return true;
   } catch (error) {
-    console.error(`Error aborting session ${sessionId}:`, error);
+    log.error(error, 'Error aborting session %s', sessionId);
     // The run keeps going; let it emit its own terminal complete.
     abortedSessionIds.delete(sessionId);
     return false;
@@ -890,7 +893,7 @@ function reconnectSessionWriter(sessionId, newRawWs) {
   const session = getSession(sessionId);
   if (!session?.writer?.updateWebSocket) return false;
   session.writer.updateWebSocket(newRawWs);
-  console.log(`[RECONNECT] Writer swapped for session ${sessionId}`);
+  log.info('Writer swapped for session %s', sessionId);
   return true;
 }
 

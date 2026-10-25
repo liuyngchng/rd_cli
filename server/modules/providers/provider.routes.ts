@@ -17,6 +17,8 @@ import type {
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'provider-routes' });
 
 const router = express.Router();
 
@@ -731,7 +733,7 @@ router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) 
       res.write('event: done\ndata: {}\n\n');
     }
   } catch (error) {
-    console.error('Error searching conversations:', error);
+    log.error('Error searching conversations:', error);
     if (!closed) {
       res.write(`event: error\ndata: ${JSON.stringify({ error: 'Search failed' })}\n\n`);
     }

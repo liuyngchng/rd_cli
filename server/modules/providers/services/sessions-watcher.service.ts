@@ -8,6 +8,8 @@ import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, broadcastToUser } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'sessions-watcher' });
 import { generateDisplayName } from '@/modules/projects/index.js';
 
 type WatcherEventType = 'add' | 'change';
@@ -204,7 +206,7 @@ async function flushPendingWatcherUpdate(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Session watcher refresh failed while broadcasting session_upserted', { error: message });
+    log.error('Session watcher refresh failed while broadcasting session_upserted', { error: message });
   } finally {
     watcherRefreshInFlight = false;
 
@@ -233,14 +235,14 @@ async function onUpdate(
       return;
     }
 
-    console.log(`Session synchronization triggered by ${eventType} event for provider "${provider}"`, {
+    log.info(`Session synchronization triggered by ${eventType} event for provider "${provider}"`, {
       filePath,
       sessionId: result.sessionId,
     });
     queuePendingWatcherUpdate(eventType, provider, result.sessionId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`Session watcher sync failed for provider "${provider}"`, {
+    log.error(`Session watcher sync failed for provider "${provider}"`, {
       eventType,
       filePath,
       error: message,
@@ -252,10 +254,10 @@ async function onUpdate(
  * Starts provider filesystem watchers and performs initial DB synchronization.
  */
 export async function initializeSessionsWatcher(): Promise<void> {
-  console.log('Setting up session watchers');
+  log.info('Setting up session watchers');
 
   const initialSync = await sessionSynchronizerService.synchronizeSessions();
-  console.log('Initial session synchronization complete', {
+  log.info('Initial session synchronization complete', {
     processedByProvider: initialSync.processedByProvider,
     failures: initialSync.failures,
   });
@@ -284,13 +286,13 @@ export async function initializeSessionsWatcher(): Promise<void> {
         })
         .on('error', (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
-          console.error(`Session watcher error for provider "${provider}"`, { error: message });
+          log.error(`Session watcher error for provider "${provider}"`, { error: message });
         });
 
       watchers.push(watcher);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Failed to initialize session watcher for provider "${provider}"`, {
+      log.error(`Failed to initialize session watcher for provider "${provider}"`, {
         rootPath,
         error: message,
       });
@@ -310,7 +312,7 @@ export async function closeSessionsWatcher(): Promise<void> {
         await watcher.close();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error('Failed to close session watcher', { error: message });
+        log.error('Failed to close session watcher', { error: message });
       }
     })
   );

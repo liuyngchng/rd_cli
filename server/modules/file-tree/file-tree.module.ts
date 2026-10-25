@@ -15,6 +15,8 @@ import type {
   FileTreeProjectGateway,
   FileTreeWorkspaceGateway,
 } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'file-tree' });
 
 const MAXIMUM_UPLOAD_SIZE_MEGABYTES = 200;
 const MAXIMUM_UPLOAD_SIZE_BYTES = MAXIMUM_UPLOAD_SIZE_MEGABYTES * 1024 * 1024;
@@ -73,7 +75,7 @@ const fileTreeWorkspace: FileTreeWorkspaceGateway = {
 };
 
 const fileTreeLogger: FileTreeLogger = {
-  error: (message, error) => console.error(message, error),
+  error: (message, error) => log.error(message, error),
 };
 
 const fileTreeServices = createFileTreeService({

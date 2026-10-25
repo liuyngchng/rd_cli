@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'project-taskmaster' });
 
 type TaskMasterTask = {
   status?: string;
@@ -167,7 +169,7 @@ async function detectTaskMasterFolder(projectPath: string): Promise<TaskMasterDe
           lastModified: tasksStat.mtime.toISOString(),
         };
       } catch (parseError) {
-        console.warn('Failed to parse tasks.json:', (parseError as Error).message);
+        log.warn('Failed to parse tasks.json:', (parseError as Error).message);
         taskMetadata = {
           error: 'Failed to parse tasks.json',
         };
@@ -182,7 +184,7 @@ async function detectTaskMasterFolder(projectPath: string): Promise<TaskMasterDe
       path: taskMasterPath,
     };
   } catch (error) {
-    console.error('Error detecting TaskMaster folder:', error);
+    log.error('Error detecting TaskMaster folder:', error);
     return {
       hasTaskmaster: false,
       reason: `Error checking directory: ${(error as Error).message}`,

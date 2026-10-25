@@ -14,6 +14,8 @@ import path from 'path';
 import express from 'express';
 
 import type { createTaskmasterService } from './taskmaster.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'taskmaster' });
 // cross-spawn: drop-in spawn with Windows .cmd/PATHEXT resolution — required
 // here since task-master/npx are .cmd shims on Windows.
 
@@ -190,7 +192,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 isReady: installationStatus.isInstalled && mcpStatus.hasMCPServer
             });
         } catch (error) {
-            console.error('Error checking TaskMaster installation:', error);
+            log.error('Error checking TaskMaster installation:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to check TaskMaster installation status',
@@ -216,7 +218,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             res.json(await taskmasterService.detectMcpServer());
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            console.error('TaskMaster MCP detection error:', error);
+            log.error('TaskMaster MCP detection error:', error);
             res.status(500).json({
                 error: 'Failed to detect TaskMaster MCP server',
                 message
@@ -324,7 +326,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 });
 
             } catch (parseError) {
-                console.error('Failed to parse tasks.json:', parseError);
+                log.error('Failed to parse tasks.json:', parseError);
                 return res.status(500).json({
                     error: 'Failed to parse tasks file',
                     message: parseError.message
@@ -332,7 +334,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             }
 
         } catch (error) {
-            console.error('TaskMaster tasks loading error:', error);
+            log.error('TaskMaster tasks loading error:', error);
             res.status(500).json({
                 error: 'Failed to load TaskMaster tasks',
                 message: error.message
@@ -398,7 +400,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 });
 
             } catch (readError) {
-                console.error('Error reading docs directory:', readError);
+                log.error('Error reading docs directory:', readError);
                 return res.status(500).json({
                     error: 'Failed to read PRD files',
                     message: readError.message
@@ -406,7 +408,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             }
 
         } catch (error) {
-            console.error('PRD list error:', error);
+            log.error('PRD list error:', error);
             res.status(500).json({
                 error: 'Failed to list PRD files',
                 message: error.message
@@ -454,7 +456,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             try {
                 await fsPromises.mkdir(docsPath, { recursive: true });
             } catch (error) {
-                console.error('Failed to create docs directory:', error);
+                log.error('Failed to create docs directory:', error);
                 return res.status(500).json({
                     error: 'Failed to create directory',
                     message: error.message
@@ -481,7 +483,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 });
 
             } catch (writeError) {
-                console.error('Failed to write PRD file:', writeError);
+                log.error('Failed to write PRD file:', writeError);
                 return res.status(500).json({
                     error: 'Failed to write PRD file',
                     message: writeError.message
@@ -489,7 +491,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             }
 
         } catch (error) {
-            console.error('PRD create/update error:', error);
+            log.error('PRD create/update error:', error);
             res.status(500).json({
                 error: 'Failed to create/update PRD file',
                 message: error.message
@@ -543,7 +545,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 });
 
             } catch (readError) {
-                console.error('Failed to read PRD file:', readError);
+                log.error('Failed to read PRD file:', readError);
                 return res.status(500).json({
                     error: 'Failed to read PRD file',
                     message: readError.message
@@ -551,7 +553,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             }
 
         } catch (error) {
-            console.error('PRD read error:', error);
+            log.error('PRD read error:', error);
             res.status(500).json({
                 error: 'Failed to read PRD file',
                 message: error.message
@@ -612,7 +614,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                         timestamp: new Date().toISOString()
                     });
                 } else {
-                    console.error('TaskMaster init failed:', stderr);
+                    log.error('TaskMaster init failed:', stderr);
                     res.status(500).json({
                         error: 'Failed to initialize TaskMaster',
                         message: error?.message || stderr || stdout,
@@ -626,7 +628,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             initProcess.stdin.end();
 
         } catch (error) {
-            console.error('TaskMaster init error:', error);
+            log.error('TaskMaster init error:', error);
             res.status(500).json({
                 error: 'Failed to initialize TaskMaster',
                 message: error.message
@@ -681,9 +683,9 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                 cwd: projectPath,
                 stdio: ['pipe', 'pipe', 'pipe']
             }, ({ code, error, stdout, stderr }) => {
-                console.log('Add task process completed with code:', code);
-                console.log('Stdout:', stdout);
-                console.log('Stderr:', stderr);
+                log.info('Add task process completed with code:', code);
+                log.info('Stdout:', stdout);
+                log.info('Stderr:', stderr);
 
                 if (code === 0) {
                     // Broadcast task update via WebSocket using the projectId so
@@ -703,7 +705,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                         timestamp: new Date().toISOString()
                     });
                 } else {
-                    console.error('Add task failed:', stderr);
+                    log.error('Add task failed:', stderr);
                     res.status(500).json({
                         error: 'Failed to add task',
                         message: error?.message || stderr || stdout,
@@ -715,7 +717,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             addTaskProcess.stdin.end();
 
         } catch (error) {
-            console.error('Add task error:', error);
+            log.error('Add task error:', error);
             res.status(500).json({
                 error: 'Failed to add task',
                 message: error.message
@@ -761,7 +763,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                             timestamp: new Date().toISOString()
                         });
                     } else {
-                        console.error('Set task status failed:', stderr);
+                        log.error('Set task status failed:', stderr);
                         res.status(500).json({
                             error: 'Failed to update task status',
                             message: error?.message || stderr || stdout,
@@ -800,7 +802,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                             timestamp: new Date().toISOString()
                         });
                     } else {
-                        console.error('Update task failed:', stderr);
+                        log.error('Update task failed:', stderr);
                         res.status(500).json({
                             error: 'Failed to update task',
                             message: error?.message || stderr || stdout,
@@ -813,7 +815,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             }
 
         } catch (error) {
-            console.error('Update task error:', error);
+            log.error('Update task error:', error);
             res.status(500).json({
                 error: 'Failed to update task',
                 message: error.message
@@ -886,7 +888,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
                         timestamp: new Date().toISOString()
                     });
                 } else {
-                    console.error('Parse PRD failed:', stderr);
+                    log.error('Parse PRD failed:', stderr);
                     res.status(500).json({
                         error: 'Failed to parse PRD',
                         message: error?.message || stderr || stdout,
@@ -898,7 +900,7 @@ export function createTaskmasterRouter(dependencies: TaskmasterRouterDependencie
             parsePRDProcess.stdin.end();
 
         } catch (error) {
-            console.error('Parse PRD error:', error);
+            log.error('Parse PRD error:', error);
             res.status(500).json({
                 error: 'Failed to parse PRD',
                 message: error.message
@@ -1344,7 +1346,7 @@ Description of the business problem, data sources, and expected insights.
             });
 
         } catch (error) {
-            console.error('PRD templates error:', error);
+            log.error('PRD templates error:', error);
             res.status(500).json({
                 error: 'Failed to get PRD templates',
                 message: error.message
@@ -1401,7 +1403,7 @@ Description of the business problem, data sources, and expected insights.
             try {
                 await fsPromises.mkdir(docsDir, { recursive: true });
             } catch (error) {
-                console.error('Failed to create docs directory:', error);
+                log.error('Failed to create docs directory:', error);
             }
 
             const filePath = path.join(docsDir, fileName);
@@ -1422,7 +1424,7 @@ Description of the business problem, data sources, and expected insights.
                 });
 
             } catch (writeError) {
-                console.error('Failed to write PRD template:', writeError);
+                log.error('Failed to write PRD template:', writeError);
                 return res.status(500).json({
                     error: 'Failed to write PRD template',
                     message: writeError.message
@@ -1430,7 +1432,7 @@ Description of the business problem, data sources, and expected insights.
             }
 
         } catch (error) {
-            console.error('Apply template error:', error);
+            log.error('Apply template error:', error);
             res.status(500).json({
                 error: 'Failed to apply PRD template',
                 message: error.message

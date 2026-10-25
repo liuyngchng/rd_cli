@@ -4,6 +4,9 @@ import path from 'path';
 import os from 'os';
 
 import { spawn } from 'cross-spawn';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'plugins' });
 
 const PLUGINS_DIR = path.join(os.homedir(), '.rdcli', 'plugins');
 const PLUGINS_CONFIG_PATH = path.join(os.homedir(), '.rdcli', 'plugins.json');
@@ -170,13 +173,13 @@ export function scanPlugins() {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
       const validation = validateManifest(manifest);
       if (!validation.valid) {
-        console.warn(`[Plugins] Skipping ${entry.name}: ${validation.error}`);
+        log.warn('Skipping %s: %s', entry.name, validation.error);
         continue;
       }
 
       // Skip duplicate manifest names
       if (seenNames.has(manifest.name)) {
-        console.warn(`[Plugins] Skipping ${entry.name}: duplicate plugin name "${manifest.name}"`);
+        log.warn('Skipping %s: duplicate plugin name "%s"', entry.name, manifest.name);
         continue;
       }
       seenNames.add(manifest.name);
@@ -217,7 +220,7 @@ export function scanPlugins() {
         repoUrl,
       });
     } catch (err) {
-      console.warn(`[Plugins] Failed to read manifest for ${entry.name}:`, err.message);
+      log.warn('Failed to read manifest for %s: %s', entry.name, err.message);
     }
   }
 

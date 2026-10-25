@@ -4,6 +4,8 @@ import { createProject, updateProjectDisplayName } from '@/modules/projects/serv
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'projects' });
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
@@ -91,7 +93,7 @@ router.get(
       try {
         await userWorkspaceService.ensureUserWorkspaceProject(userId);
       } catch (error) {
-        console.warn('Failed to ensure user workspace on project list fetch', error);
+        log.warn('Failed to ensure user workspace on project list fetch', error);
       }
     }
 

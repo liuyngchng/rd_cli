@@ -17,6 +17,9 @@ import { fileURLToPath } from 'url';
 
 import { APP_CONFIG_TABLE_SCHEMA_SQL } from '@/modules/database/schema.js';
 import { debug } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'database' });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,7 +58,7 @@ function ensureDatabaseDirectory(dbPath: string): void {
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-    console.log('Created database directory:', dir);
+    log.info('Created database directory: %s', dir);
   }
 }
 
@@ -73,7 +76,7 @@ function migrateLegacyDatabase(targetPath: string): void {
 
   try {
     fs.copyFileSync(legacyPath, targetPath);
-    console.log('Migrated legacy database', { from: legacyPath, to: targetPath });
+    log.info('Migrated legacy database', { from: legacyPath, to: targetPath });
 
 
     // copy the write-ahead log and shared memory files (auth.db-wal, auth.db-shm) if they exist, to preserve any uncommitted transactions
@@ -84,7 +87,7 @@ function migrateLegacyDatabase(targetPath: string): void {
       }
     }
   } catch (err: any) {
-    console.error('Could not migrate legacy database', { error: err.message });
+    log.error('Could not migrate legacy database', { error: err.message });
   }
 }
 
@@ -165,15 +168,15 @@ export function closeConnection(): void {
       instance.pragma('wal_checkpoint(PASSIVE)');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('[Database] WAL checkpoint failed during close:', message);
+      log.error('WAL checkpoint failed during close: %s', message);
     }
     try {
       instance.close();
       instance = null;
-      console.log('Database connection closed');
+      log.info('Database connection closed');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('[Database] Error closing database connection:', message);
+      log.error('Error closing database connection: %s', message);
       instance = null;
     }
   }

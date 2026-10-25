@@ -2,6 +2,8 @@ import webPush from 'web-push';
 
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionsDb } from '@/modules/database/index.js';
 import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'notification-orchestrator' });
 
 const KIND_TO_PREF_KEY = {
   action_required: 'actionRequired',
@@ -239,7 +241,7 @@ function notifyUserIfEnabled({ userId, event }) {
       continue;
     }
     Promise.resolve(channel.send({ userId, event: normalizedEvent, payload })).catch((err) => {
-      console.error(`Notification channel "${channel.id}" send error:`, err);
+      log.error(`Notification channel "${channel.id}" send error:`, err);
     });
   }
 }

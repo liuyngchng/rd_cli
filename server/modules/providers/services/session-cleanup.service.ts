@@ -2,6 +2,9 @@ import { promises as fs } from 'node:fs';
 
 import { proofreadTasksDb, sessionsDb } from '@/modules/database/index.js';
 import { SESSION_RETENTION_DAYS } from '@/constants/config.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'session-cleanup' });
 
 /**
  * How often the cleanup scheduler wakes up to prune expired sessions.
@@ -26,10 +29,7 @@ async function unlinkIfExists(filePath: string): Promise<void> {
     if (code === 'ENOENT') {
       return;
     }
-    console.warn(
-      `[session-cleanup] Failed to remove ${filePath}:`,
-      (error as Error).message,
-    );
+    log.warn('Failed to remove %s: %s', filePath, (error as Error).message);
   }
 }
 
@@ -57,9 +57,7 @@ export async function runSessionCleanup(): Promise<number> {
   const deleted = sessionsDb.deleteSessionsOlderThan(SESSION_RETENTION_DAYS);
 
   if (deleted > 0) {
-    console.log(
-      `[session-cleanup] Removed ${deleted} expired session(s) older than ${SESSION_RETENTION_DAYS} days.`,
-    );
+    log.info('Removed %s expired session(s) older than %s days.', deleted, SESSION_RETENTION_DAYS);
   }
 
   // 3. Remove on-disk docx uploads for expired proofread tasks.
@@ -71,9 +69,7 @@ export async function runSessionCleanup(): Promise<number> {
   // 4. Prune expired proofread task rows as well.
   const prunedTasks = proofreadTasksDb.cleanupOlderThan(SESSION_RETENTION_DAYS);
   if (prunedTasks > 0) {
-    console.log(
-      `[session-cleanup] Removed ${prunedTasks} expired proofread task(s) older than ${SESSION_RETENTION_DAYS} days.`,
-    );
+    log.info('Removed %s expired proofread task(s) older than %s days.', prunedTasks, SESSION_RETENTION_DAYS);
   }
 
   return deleted;
@@ -87,7 +83,7 @@ export async function runSessionCleanup(): Promise<number> {
  */
 export function startSessionCleanupScheduler(): void {
   if (SESSION_RETENTION_DAYS <= 0) {
-    console.log('[session-cleanup] Retention is disabled (SESSION_RETENTION_DAYS=0).');
+    log.info('Retention is disabled (SESSION_RETENTION_DAYS=0).');
     return;
   }
 

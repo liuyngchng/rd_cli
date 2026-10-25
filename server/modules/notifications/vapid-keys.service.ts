@@ -3,6 +3,8 @@ import webPush from 'web-push';
 
 import { getConnection } from '../database/index.js';
 import { debug } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'vapid-keys' });
 
 let cachedKeys = null;
 let db: ReturnType<typeof getConnection> | null = null;
@@ -41,7 +43,7 @@ function configureWebPush() {
     keys.publicKey,
     keys.privateKey
   );
-  console.log('Web Push notifications configured');
+  log.info('Web Push notifications configured');
 }
 
 export { ensureVapidKeys, getPublicKey, configureWebPush };

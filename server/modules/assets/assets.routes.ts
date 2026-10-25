@@ -10,6 +10,8 @@ import {
   isAllowedImageMimeType,
   openStoredAttachmentAsset,
 } from '@/modules/assets/services/image-assets.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'assets' });
 
 const router = express.Router();
 
@@ -163,7 +165,7 @@ router.get('/images/:filename', async (req, res) => {
   }
   asset.stream.pipe(res);
   asset.stream.on('error', (error) => {
-    console.error('Error streaming image asset:', error);
+    log.error('Error streaming image asset:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Error reading asset' });
     }
@@ -193,7 +195,7 @@ router.get('/files/:filename', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${req.params.filename.replace(/["\r\n]/g, '_')}"`);
   asset.stream.pipe(res);
   asset.stream.on('error', (error) => {
-    console.error('Error streaming attachment asset:', error);
+    log.error('Error streaming attachment asset:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Error reading asset' });
     }

@@ -8,6 +8,9 @@ import { handlePluginWsProxy } from '@/modules/websocket/services/plugin-websock
 import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
 import { handleDesktopNotificationsConnection } from '@/modules/notifications/index.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'websocket-server' });
 
 type WebSocketServerDependencies = {
   verifyClient: Parameters<typeof verifyWebSocketClient>[1];
@@ -118,7 +121,7 @@ export function createWebSocketServer(
       return;
     }
 
-    console.log('[WARN] Unknown WebSocket path:', pathname);
+    log.warn('Unknown WebSocket path: %s', pathname);
     ws.close();
   });
 

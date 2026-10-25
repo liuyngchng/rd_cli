@@ -5,6 +5,8 @@ import type { Router } from 'express';
 
 import { createSystemRouter } from './system.routes.js';
 import { createSystemUpdateService } from './system.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'system-update' });
 
 type SystemModuleOptions = {
   appRoot: string;
@@ -54,8 +56,8 @@ export function createSystemModule(options: SystemModuleOptions): Router {
     homeDirectory: os.homedir(),
     environment: process.env,
     runShellCommand,
-    logInfo: (message, detail) => console.log(message, detail ?? ''),
-    logError: (message, detail) => console.error(message, detail ?? ''),
+    logInfo: (message, detail) => log.info(message, detail ?? ''),
+    logError: (message, detail) => log.error(message, detail ?? ''),
   });
 
   return createSystemRouter(systemUpdateService);

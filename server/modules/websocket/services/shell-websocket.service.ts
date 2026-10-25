@@ -8,6 +8,9 @@ import { WebSocket, type RawData } from 'ws';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { AuthenticatedWebSocketRequest, WorkspacePathValidationResult } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'shell' });
 
 type ShellIncomingMessage = {
   type?: string;
@@ -167,7 +170,7 @@ function resolveResumeSessionId(
   try {
     resumeSessionId = dependencies.resolveProviderSessionId(sessionId, provider);
   } catch (error) {
-    console.error('Failed to resolve provider session ID:', error);
+    log.error(error, 'Failed to resolve provider session ID');
     resumeSessionId = undefined;
   }
 
@@ -286,7 +289,7 @@ export function handleShellConnection(
   request: AuthenticatedWebSocketRequest,
   dependencies: ShellWebSocketDependencies
 ): void {
-  console.log('[INFO] Shell websocket connected');
+  log.info('Shell websocket connected');
 
   const authUser = request?.user;
   // `authenticateWebSocket` returns `{ userId }` in OSS/JWT mode but
@@ -575,7 +578,7 @@ export function handleShellConnection(
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[ERROR] Shell WebSocket error:', message);
+      log.error('Shell WebSocket error: %s', message);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(
           JSON.stringify({
@@ -620,6 +623,6 @@ export function handleShellConnection(
   });
 
   ws.on('error', (error) => {
-    console.error('[ERROR] Shell WebSocket error:', error);
+    log.error(error, 'Shell WebSocket error');
   });
 }

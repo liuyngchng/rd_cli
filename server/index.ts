@@ -11,7 +11,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 import helmet from 'helmet';
 
-import { AppError, findApplicationRoot, getModuleDirectory, terminalTextStyles } from '@/shared/utils.js';
+import { AppError, findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
 import { strictAuthLimiter, generalApiLimiter } from '@/modules/security/rate-limiter.js';
 import {
     closeSessionsWatcher,
@@ -58,6 +58,8 @@ import { closeConnection, initializeDatabase, proofreadTasksDb, sessionsDb } fro
 import { configureWebPush } from './modules/notifications/index.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { debug } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'server' });
 
 const __dirname = getModuleDirectory(import.meta.url);
 // The server source runs from /server, while the compiled output runs from /dist-server/server.
@@ -82,7 +84,7 @@ const systemRoutes = createSystemModule({
     installMode,
     isPlatform: IS_PLATFORM,
 });
-console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
+log.info('SERVER_PORT from env:', process.env.SERVER_PORT);
 
 const app = express();
 
@@ -97,9 +99,9 @@ if (httpsCertPath && httpsKeyPath && fs.existsSync(httpsCertPath) && fs.existsSy
             cert: fs.readFileSync(httpsCertPath),
             key:  fs.readFileSync(httpsKeyPath),
         };
-        console.log(`${terminalTextStyles.tip('[TIP]')} HTTPS 已启用（自签证书）`);
+        log.info('HTTPS 已启用（自签证书）');
     } catch (e) {
-        console.error('[WARN] HTTPS 证书读取失败，回退至 HTTP:', (e as Error).message);
+        log.error('HTTPS 证书读取失败，回退至 HTTP: %s', (e as Error).message);
     }
 }
 
@@ -330,7 +332,7 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
     });
   }
 
-  console.error(err);
+  log.error(err);
 
   return res.status(500).json({
     success: false,
@@ -343,9 +345,25 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 
 const SERVER_PORT = Number.parseInt(process.env.SERVER_PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
-const DISPLAY_HOST = getConnectableHost(HOST);
 const SERVER_PROTOCOL = httpsOptions ? 'https' : 'http';
 const VITE_PORT = process.env.VITE_PORT || 5173;
+
+// Container-aware display host / port.
+// Docker deploy.sh sets PUBLIC_HOST (host machine's LAN IP), PUBLIC_PORT (the
+// host-mapped port), and CONTAINER_NAME (the DNS name on llm_net).  When all
+// three are present the server knows it runs inside Docker and produces URLs
+// that external callers and peer containers can actually use.
+const PUBLIC_HOST = process.env.PUBLIC_HOST || '';
+const PUBLIC_PORT = Number.parseInt(process.env.PUBLIC_PORT || '0', 10);
+const CONTAINER_NAME = process.env.CONTAINER_NAME || '';
+const IS_CONTAINER = Boolean(PUBLIC_HOST && PUBLIC_PORT && CONTAINER_NAME);
+// The host that browsers should use: public IP when in Docker, otherwise the
+// result of getConnectableHost() so loopback / wildcard resolves to localhost.
+const DISPLAY_HOST = PUBLIC_HOST || getConnectableHost(HOST);
+// External URL uses the mapped port on the host; inside a container the
+// internal PORT differs from the port the outside world reaches.
+const DISPLAY_PORT = PUBLIC_PORT || SERVER_PORT;
+
 const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.rdcli', 'local-server.json');
 
 function getErrorCode(error: unknown): string | undefined {
@@ -363,8 +381,8 @@ async function writeLocalServerMarker() {
     const marker = {
         pid: process.pid,
         host: HOST,
-        port: Number.parseInt(String(SERVER_PORT), 10),
-        url: `${SERVER_PROTOCOL}://${DISPLAY_HOST}:${SERVER_PORT}`,
+        port: SERVER_PORT,
+        url: `${SERVER_PROTOCOL}://${DISPLAY_HOST}:${DISPLAY_PORT}`,
         installMode,
         appRoot: APP_ROOT,
         updatedAt: new Date().toISOString(),
@@ -387,7 +405,7 @@ async function removeLocalServerMarker() {
         await fsPromises.unlink(LOCAL_SERVER_MARKER_PATH);
     } catch (error) {
         if (getErrorCode(error) !== 'ENOENT') {
-            console.warn('[WARN] Could not remove local server marker:', getErrorMessage(error));
+            log.warn('Could not remove local server marker: %s', getErrorMessage(error));
         }
     }
 }
@@ -409,38 +427,38 @@ async function startServer() {
         const isProduction = fs.existsSync(distIndexPath);
 
         // Log Claude implementation mode
-        console.log(`${terminalTextStyles.info('[INFO]')} Using Claude Agents SDK for Claude integration`);
-        console.log('');
+        log.info('Using Claude Agents SDK for Claude integration');
 
         if (isProduction) {
-            console.log(`${terminalTextStyles.info('[INFO]')} To run in production mode, go to ${SERVER_PROTOCOL}://${DISPLAY_HOST}:${SERVER_PORT}`);
+            log.info('To run in production mode, go to %s://%s:%s', SERVER_PROTOCOL, DISPLAY_HOST, DISPLAY_PORT);
         }
 
-        console.log(`${terminalTextStyles.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
+        log.info('To run in development mode with hot-module replacement, go to http://%s:%s', DISPLAY_HOST, VITE_PORT);
    
         server.on('error', (error: NodeJS.ErrnoException) => {
             if (error.code === 'EADDRINUSE') {
-                console.error(`[ERROR] 端口 ${SERVER_PORT} 已被占用（旧进程可能尚未完全退出），请稍后重试或释放端口。`);
+                log.error('端口 %s 已被占用（旧进程可能尚未完全退出），请稍后重试或释放端口。', SERVER_PORT);
             }
-            console.error('[ERROR] Server failed to start:', error.message);
+            log.error(error, 'Server failed to start');
             process.exit(1);
         });
 
         server.listen(SERVER_PORT, HOST, async () => {
+            const log = logger.child({ module: 'server' });
             const appInstallPath = APP_ROOT;
             await writeLocalServerMarker().catch((error) => {
-                console.warn('[WARN] Could not write local server marker:', error.message);
+                log.warn('Could not write local server marker: %s', error.message);
             });
 
-            console.log('');
-            console.log(terminalTextStyles.dim('═'.repeat(63)));
-            console.log(`  ${terminalTextStyles.bright('rdCLI Server - Ready')}`);
-            console.log(terminalTextStyles.dim('═'.repeat(63)));
-            console.log('');
-            console.log(`${terminalTextStyles.info('[INFO]')} Server URL:  ${terminalTextStyles.bright(SERVER_PROTOCOL + '://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
-            console.log(`${terminalTextStyles.info('[INFO]')} Installed at: ${terminalTextStyles.dim(appInstallPath)}`);
-            console.log(`${terminalTextStyles.tip('[TIP]')}  Run "rdcli status" for full configuration details`);
-            console.log('');
+            log.info('═'.repeat(63));
+            log.info('  rdCLI Server - Ready');
+            log.info('═'.repeat(63));
+            log.info('Server URL:  %s://%s:%s', SERVER_PROTOCOL, DISPLAY_HOST, DISPLAY_PORT);
+            if (IS_CONTAINER) {
+                log.info('llm_net URL: %s://%s:%s', SERVER_PROTOCOL, CONTAINER_NAME, SERVER_PORT);
+            }
+            log.info('Installed at: %s', appInstallPath);
+            log.info('Run "rdcli status" for full configuration details');
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
@@ -450,49 +468,55 @@ async function startServer() {
 
             // Start server-side plugin processes for enabled plugins
             startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
+                const pluginLog = logger.child({ module: 'plugins' });
+                pluginLog.error('Error during startup: %s', err.message);
             });
         });
 
         // Clean up all long-lived resources on shutdown: browser sessions, plugin
         // subprocesses, file watchers, the SQLite connection, and the server marker.
         const shutdownRuntimeServices = async () => {
+            const pluginLog = logger.child({ module: 'plugins' });
+            const browserLog = logger.child({ module: 'browser' });
+            const sessionLog = logger.child({ module: 'sessions' });
+            const dbLog = logger.child({ module: 'database' });
+            const log = logger.child({ module: 'server' });
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {
-                console.error('[Browser] Error stopping sessions during shutdown:', getErrorMessage(err));
+                browserLog.error('Error stopping sessions during shutdown: %s', getErrorMessage(err));
             }
             try {
                 await stopAllPlugins();
             } catch (err) {
-                console.error('[Plugins] Error stopping plugins during shutdown:', getErrorMessage(err));
+                pluginLog.error('Error stopping plugins during shutdown: %s', getErrorMessage(err));
             }
             try {
                 await closeSessionsWatcher();
             } catch (err) {
-                console.error('[Sessions] Error closing session watchers during shutdown:', getErrorMessage(err));
+                sessionLog.error('Error closing session watchers during shutdown: %s', getErrorMessage(err));
             }
             try {
                 stopSessionCleanupScheduler();
             } catch (err) {
-                console.error('[Sessions] Error stopping session cleanup scheduler during shutdown:', getErrorMessage(err));
+                sessionLog.error('Error stopping session cleanup scheduler during shutdown: %s', getErrorMessage(err));
             }
             try {
                 closeConnection();
             } catch (err) {
-                console.error('[Database] Error closing database connection during shutdown:', getErrorMessage(err));
+                dbLog.error('Error closing database connection during shutdown: %s', getErrorMessage(err));
             }
             try {
                 await removeLocalServerMarker();
             } catch (err) {
-                console.error('[Local Server] Error removing server marker during shutdown:', getErrorMessage(err));
+                log.error('Error removing server marker during shutdown: %s', getErrorMessage(err));
             }
             process.exit(0);
         };
         process.on('SIGTERM', () => void shutdownRuntimeServices());
         process.on('SIGINT', () => void shutdownRuntimeServices());
     } catch (error) {
-        console.error('[ERROR] Failed to start server:', error);
+        log.error(error, 'Failed to start server');
         process.exit(1);
     }
 }

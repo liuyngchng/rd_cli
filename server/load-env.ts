@@ -53,7 +53,7 @@ if (process.env.RDCLI_LOG_LEVEL === 'debug') {
   // load-env runs before the debug() helper is importable, so write the log
   // line inline. The line is best-effort — failures are silently ignored.
   try {
-    const logDir = path.join(process.cwd(), 'logs');
+    const logDir = path.join(os.homedir(), '.rdcli', 'logs');
     const now = new Date();
     const yyyy = now.getFullYear();
     const MM = String(now.getMonth() + 1).padStart(2, '0');

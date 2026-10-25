@@ -7,6 +7,8 @@ import { projectsDb, userDb } from '@/modules/database/index.js';
 import { createUserRouter } from './user.routes.js';
 import { createUserService } from './user.service.js';
 import { createUserWorkspaceService, RDCLI_USER_ROOT } from './user-workspace.service.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'user' });
 
 type GitCommandResult = { stdout: string };
 
@@ -57,7 +59,7 @@ export const userWorkspaceService = createUserWorkspaceService({
       userId,
     ),
   },
-  logWarn: (message, error) => console.warn(message, error),
+  logWarn: (message, error) => log.warn(message, error),
 });
 
 const userService = createUserService({
@@ -85,8 +87,8 @@ const userService = createUserService({
     await runGit(['config', '--global', 'user.name', gitName]);
     await runGit(['config', '--global', 'user.email', gitEmail]);
   },
-  logInfo: (message) => console.log(message),
-  logError: (message, error) => console.error(message, error),
+  logInfo: (message) => log.info(message),
+  logError: (message, error) => log.error(message, error),
 });
 
 /** User router assembled for the authenticated server mount. */

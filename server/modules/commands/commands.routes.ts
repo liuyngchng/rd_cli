@@ -4,6 +4,8 @@ import path from "path";
 import express from "express";
 
 import { parseFrontMatter } from "../../shared/frontmatter.js";
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'commands' });
 
 type CommandsRouterDependencies = {
   fileSystem: typeof import('node:fs/promises');
@@ -167,14 +169,14 @@ async function scanCommandsDirectory(dir, baseDir, namespace) {
             metadata: frontmatter,
           });
         } catch (err) {
-          console.error(`Error parsing command file ${fullPath}:`, err.message);
+          log.error(`Error parsing command file ${fullPath}:`, err.message);
         }
       }
     }
   } catch (err) {
     // Directory doesn't exist or can't be accessed - this is okay
     if (err.code !== "ENOENT" && err.code !== "EACCES") {
-      console.error(`Error scanning directory ${dir}:`, err.message);
+      log.error(`Error scanning directory ${dir}:`, err.message);
     }
   }
 
@@ -370,7 +372,7 @@ Custom commands can be created in:
       version = packageJson.version;
       packageName = packageJson.name;
     } catch (err) {
-      console.error("Error reading package.json:", err);
+      log.error("Error reading package.json:", err);
     }
 
     const uptime = process.uptime();
@@ -507,7 +509,7 @@ router.post("/list", async (req, res) => {
       count: allCommands.length,
     });
   } catch (error) {
-    console.error("Error listing commands:", error);
+    log.error("Error listing commands:", error);
     res.status(500).json({
       error: "Failed to list commands",
       message: error.message,
@@ -548,7 +550,7 @@ router.post("/execute", async (req, res) => {
           command: commandName,
         });
       } catch (error) {
-        console.error(
+        log.error(
           `Error executing built-in command ${commandName}:`,
           error,
         );
@@ -623,7 +625,7 @@ router.post("/execute", async (req, res) => {
       });
     }
 
-    console.error("Error executing command:", error);
+    log.error("Error executing command:", error);
     res.status(500).json({
       error: "Failed to execute command",
       message: error.message,

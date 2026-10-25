@@ -15,6 +15,8 @@ import {
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'migrations' });
 
 const SQLITE_UUID_SQL = `
 lower(hex(randomblob(4))) || '-' ||
@@ -37,7 +39,7 @@ const addColumnToTableIfNotExists = (
   columnType: string
 ) => {
   if (!columnNames.includes(columnName)) {
-    console.log(`Running migration: Adding ${columnName} column to ${tableName} table`);
+    log.info(`Running migration: Adding ${columnName} column to ${tableName} table`);
     db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`);
   }
 };
@@ -61,7 +63,7 @@ const migrateLegacySessionNames = (db: Database): void => {
   }
 
   if (hasSessionsTable) {
-    console.log('Running migration: Merging session_names into sessions');
+    log.info('Running migration: Merging session_names into sessions');
     db.exec(`
       INSERT INTO sessions (session_id, provider, custom_name, created_at, updated_at)
       SELECT
@@ -82,7 +84,7 @@ const migrateLegacySessionNames = (db: Database): void => {
     return;
   }
 
-  console.log('Running migration: Renaming session_names table to sessions');
+  log.info('Running migration: Renaming session_names table to sessions');
   db.exec('ALTER TABLE session_names RENAME TO sessions');
 };
 
@@ -93,7 +95,7 @@ const migrateLegacyWorkspaceTableIntoProjects = (db: Database): void => {
     return;
   }
 
-  console.log('Running migration: Migrating workspace_original_paths data into projects');
+  log.info('Running migration: Migrating workspace_original_paths data into projects');
   db.exec(`
     INSERT INTO projects (project_id, project_path, custom_project_name, isStarred, isArchived)
     SELECT
@@ -139,7 +141,7 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     return;
   }
 
-  console.log('Running migration: Rebuilding projects table to enforce project_id primary key');
+  log.info('Running migration: Rebuilding projects table to enforce project_id primary key');
 
   const projectPathExpression = columnNames.includes('project_path')
     ? 'project_path'
@@ -272,7 +274,7 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
     return;
   }
 
-  console.log('Running migration: Rebuilding sessions table to project-based schema');
+  log.info('Running migration: Rebuilding sessions table to project-based schema');
 
   const projectPathExpression = columnNames.includes('project_path')
     ? 'project_path'
@@ -487,7 +489,7 @@ const backfillUserWorkspaceOwnership = (db: Database): void => {
     }
 
     if (updated > 0) {
-      console.log(`Migration: attributed ${updated} ${table} rows to per-user workspaces`);
+      log.info(`Migration: attributed ${updated} ${table} rows to per-user workspaces`);
     }
   };
 
@@ -580,7 +582,7 @@ export const runMigrations = (db: Database) => {
     db.exec('DROP INDEX IF EXISTS idx_workspace_original_paths_workspace_id');
 
     if (tableExists(db, 'workspace_original_paths')) {
-      console.log('Running migration: Dropping legacy workspace_original_paths table');
+      log.info('Running migration: Dropping legacy workspace_original_paths table');
       db.exec('DROP TABLE workspace_original_paths');
     }
 
@@ -619,9 +621,9 @@ export const runMigrations = (db: Database) => {
       );
     }
 
-    console.log('Database migrations completed successfully');
+    log.info('Database migrations completed successfully');
   } catch (error: any) {
-    console.error('Error running migrations:', error.message);
+    log.error('Error running migrations:', error.message);
     throw error;
   }
 };

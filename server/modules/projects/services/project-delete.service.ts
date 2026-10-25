@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'project-delete' });
 
 function uniqueJsonlPathsFromSessions(
   sessions: Array<{ jsonl_path: string | null }>,
@@ -34,7 +37,7 @@ async function unlinkJsonlIfExists(filePath: string): Promise<void> {
     if (code === 'ENOENT') {
       return;
     }
-    console.warn(`[project-delete] Failed to remove ${filePath}:`, (error as Error).message);
+    log.warn('Failed to remove %s: %s', filePath, (error as Error).message);
   }
 }
 

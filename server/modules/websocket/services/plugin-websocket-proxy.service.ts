@@ -1,4 +1,7 @@
 import { WebSocket } from 'ws';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'plugins' });
 
 /**
  * Proxies an authenticated client websocket to a plugin websocket endpoint.
@@ -23,7 +26,7 @@ export function handlePluginWsProxy(
   const upstream = new WebSocket(`ws://127.0.0.1:${port}/ws`);
 
   upstream.on('open', () => {
-    console.log(`[Plugins] WS proxy connected to "${pluginName}" on port ${port}`);
+    log.info('WS proxy connected to "%s" on port %s', pluginName, port);
   });
 
   upstream.on('message', (data, isBinary) => {
@@ -51,7 +54,7 @@ export function handlePluginWsProxy(
   });
 
   upstream.on('error', (error) => {
-    console.error(`[Plugins] WS proxy error for "${pluginName}":`, error.message);
+    log.error('WS proxy error for "%s": %s', pluginName, error.message);
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(4502, 'Upstream error');
     }

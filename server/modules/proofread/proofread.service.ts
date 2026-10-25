@@ -6,6 +6,9 @@ import { appendFilesInputTag } from '@/shared/image-attachments.js';
 import { AppError } from '@/shared/utils.js';
 import { proofreadTasksDb as ProofreadTasksDb, sessionsDb as SessionsDb } from '@/modules/database/index.js';
 import { debug, log } from '@/shared/debug.js';
+import logger from '@/shared/logger.js';
+
+const proofreadLog = logger.child({ module: 'proofread' });
 
 type UserInfo = {
   userId: number;
@@ -321,7 +324,7 @@ async function deliverCallback(callbackUrl: string, payload: Record<string, unkn
       await new Promise((r) => setTimeout(r, delay));
     }
   }
-  console.error(`[Proofread] Callback failed after all retries for ${payload.task_id}: ${callbackUrl}`);
+  proofreadLog.error('Callback failed after all retries for %s: %s', payload.task_id, callbackUrl);
 }
 
 export function createProofreadService(deps: ProofreadServiceDependencies) {
@@ -364,8 +367,9 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         },
         writer,
       ).catch((error: unknown) => {
-        console.error(
-          `[Proofread] Background Claude run failed for session ${sessionId}:`,
+        proofreadLog.error(
+          'Background Claude run failed for session %s: %s',
+          sessionId,
           error instanceof Error ? error.message : String(error),
         );
       });
@@ -423,8 +427,9 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
         sessionId,
         workspacePath,
       }).catch(async (error: unknown) => {
-        console.error(
-          `[Proofread] Task execution failed for ${sessionId}:`,
+        proofreadLog.error(
+          'Task execution failed for %s: %s',
+          sessionId,
           error instanceof Error ? error.message : String(error),
         );
         // If setFailed wasn't called inside executeProofreadTask, set it now.
@@ -511,8 +516,9 @@ export function createProofreadService(deps: ProofreadServiceDependencies) {
           const message = sdkError
             ? `Claude 运行异常: ${sdkError}`
             : '核稿处理异常：Claude 未返回任何结果，可能是容器权限问题或其他运行时错误导致';
-          console.error(
-            `[Proofread] Task ${taskId}: Claude produced no output — marking as failed`,
+          proofreadLog.error(
+            'Task %s: Claude produced no output — marking as failed %s',
+            taskId,
             sdkError ? `(sdk error: ${sdkError})` : '',
           );
           proofreadTasksDb.setFailed(taskId, message, capturedSessionId);

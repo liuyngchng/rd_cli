@@ -10,6 +10,9 @@ import spawn from 'cross-spawn';
 import { appConfigDb } from '@/modules/database/index.js';
 import { providerMcpService } from '@/modules/providers/index.js';
 import { getModuleDirectory } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'browser' });
 
 const require = createRequire(import.meta.url);
 const __dirname = getModuleDirectory(import.meta.url);
@@ -101,7 +104,7 @@ function readSettings(): BrowserUseSettings {
       enabled: parsed.enabled === true,
     };
   } catch (error: any) {
-    console.warn('[Browser] Failed to read settings:', error?.message || error);
+    log.warn('Failed to read settings: %s', error?.message || error);
     return DEFAULT_SETTINGS;
   }
 }

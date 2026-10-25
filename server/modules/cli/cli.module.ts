@@ -7,6 +7,8 @@ import spawn from 'cross-spawn';
 
 import type { CliApplication, CliPackageMetadata } from '@/shared/types.js';
 import { findApplicationRoot, getModuleDirectory } from '@/shared/utils.js';
+import logger from '@/shared/logger.js';
+const log = logger.child({ module: 'cli-module' });
 
 import { createCliService } from './cli.service.js';
 import { createSandboxCommandService } from './sandbox.service.js';
@@ -36,8 +38,10 @@ export function createCliApplication(): CliApplication {
     },
   };
   const output = {
-    log: (message?: string) => console.log(message),
-    error: (message?: string) => console.error(message),
+    // CLI product output goes directly to stdout/stderr so ANSI terminal styles
+    // are rendered correctly.  Pino would double-process the escape sequences.
+    log: (message?: string) => { process.stdout.write((message ?? '') + '\n'); },
+    error: (message?: string) => { process.stderr.write((message ?? '') + '\n'); },
   };
   const homeDirectory = os.homedir();
   const sandboxService = createSandboxCommandService({

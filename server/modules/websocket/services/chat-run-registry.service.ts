@@ -9,6 +9,9 @@ import type {
   NormalizedMessage,
   RealtimeClientConnection,
 } from '@/shared/types.js';
+import logger from '@/shared/logger.js';
+
+const log = logger.child({ module: 'chat-run-registry' });
 
 type ChatRunStatus = 'running' | 'completed';
 
@@ -176,7 +179,7 @@ function recordProviderSessionId(run: ChatRun, providerSessionId: string): void 
     sessionsDb.assignProviderSessionId(run.appSessionId, providerSessionId);
     void broadcastCanonicalSessionUpsert(run.appSessionId).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
+      log.error('Failed to broadcast canonical session mapping', {
         appSessionId: run.appSessionId,
         providerSessionId,
         error: message,
@@ -184,7 +187,7 @@ function recordProviderSessionId(run: ChatRun, providerSessionId: string): void 
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[ChatRunRegistry] Failed to persist provider session id mapping', {
+    log.error('Failed to persist provider session id mapping', {
       appSessionId: run.appSessionId,
       providerSessionId,
       error: message,

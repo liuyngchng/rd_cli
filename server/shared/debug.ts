@@ -1,96 +1,24 @@
 /**
- * Minimal leveled logging helper.
+ * Re-exported helpers that delegate to the centralized pino logger.
  *
- * Backend output is otherwise written directly to `console` without a level
- * concept. This adds a single debug channel gated by `RDCLI_LOG_LEVEL` so that
- * startup-time diagnostics (database open, native-module lazy init, module-load
- * timing) can be traced without changing normal `info` output.
+ * These exist so existing callers of debug() and log() don't need to
+ * change their import path — they automatically route through pino.
  *
- *   RDCLI_LOG_LEVEL=debug   -> write [DEBUG] lines to logs/rd_cli_desktop_yyyy_MM_dd.log
- *   unset / anything else   -> no debug output (unchanged behavior)
- *
- * Debug lines are written to a daily-rotated file under `process.cwd()/logs/`
- * rather than stdout so that enabling diagnostics does not pollute the process
- * stdout that container runtimes (`docker logs -f`) and the desktop Electron
- * shell capture.
+ * @deprecated Prefer importing logger directly:
+ *   import logger from '@/shared/logger.js';
  */
 
-import fs from 'fs';
-import path from 'path';
-
-const LOG_LEVEL = process.env.RDCLI_LOG_LEVEL || 'info';
-
-/** Log directory relative to the process working directory. */
-const LOG_DIR = path.join(process.cwd(), 'logs');
-
-/** Daily log file name, e.g. `rc_cli_desktop_2026_09_16.log`. */
-function getLogFile(): string {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const MM = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  return path.join(LOG_DIR, `rc_cli_desktop_${yyyy}_${MM}_${dd}.log`);
-}
+import logger from '@/shared/logger.js';
 
 /** True when debug-level diagnostics are enabled. */
 export function isDebugEnabled(): boolean {
-  return LOG_LEVEL === 'debug';
+  return logger.level === 'debug';
 }
 
-function writeLine(line: string): void {
-  try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(getLogFile(), `${line}\n`, 'utf8');
-  } catch {
-    // Debug logging is best-effort: never let a write failure take down the
-    // server (e.g. read-only cwd, missing permissions).
-  }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-/**
- * Appends a `[DEBUG]`-prefixed line to `logs/rc_cli_desktop_yyyy_MM_dd.log`
- * only when `RDCLI_LOG_LEVEL=debug`. Values are spread so callers can pass
- * objects exactly as they would to `console.log`.
- */
 export function debug(...args: unknown[]): void {
-  if (!isDebugEnabled()) return;
-
-  const timestamp = new Date().toISOString();
-  const message = args.map(formatValue).join(' ');
-  writeLine(`[DEBUG] ${timestamp} ${message}`);
+  logger.debug(...args);
 }
 
-/**
- * Formats the current time in a Java/Go-style system-log layout,
- * e.g. `2026-10-22 10:00:00.123`, using local time.
- */
-function formatTimestamp(): string {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const MM = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const HH = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
-  const ms = String(now.getMilliseconds()).padStart(3, '0');
-  return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}.${ms}`;
-}
-
-/**
- * Writes a timestamped line to stdout, in the same spirit as a classic
- * application log (`logback`, Go's `log` package, etc.). Always on — unlike
- * `debug`, this is not gated by `RDCLI_LOG_LEVEL`.
- */
 export function log(...args: unknown[]): void {
-  const message = args.map(formatValue).join(' ');
-  console.log(`${formatTimestamp()} ${message}`);
+  logger.info(...args);
 }
