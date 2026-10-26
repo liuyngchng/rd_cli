@@ -13,7 +13,7 @@ type AuthDependencies = {
     hasUsers(): boolean;
     createUser(username: string, passwordHash: string, role?: string): AuthUser;
     getUserByUsername(username: string): AuthLoginUser | undefined;
-    updateLastLogin(userId: number): void;
+    updateLastLogin(userId: number, ip?: string): void;
     listUsers(): AuthUser[];
     setUserActive(userId: number, isActive: boolean): void;
   };
@@ -111,7 +111,7 @@ export function createAuthService(dependencies: AuthDependencies) {
       };
     },
 
-    async register(usernameInput: unknown, passwordInput: unknown) {
+    async register(usernameInput: unknown, passwordInput: unknown, ip?: string) {
       const username = typeof usernameInput === 'string' ? usernameInput : '';
       const password = typeof passwordInput === 'string' ? passwordInput : '';
 
@@ -136,7 +136,7 @@ export function createAuthService(dependencies: AuthDependencies) {
         const user = dependencies.users.createUser(username, passwordHash, isFirstUser ? 'admin' : 'user');
         const token = dependencies.generateToken(user);
         dependencies.transaction.commit();
-        dependencies.users.updateLastLogin(numericUserId(user.id));
+        dependencies.users.updateLastLogin(numericUserId(user.id), ip);
 
         // Workspace creation is deliberately non-fatal: a failure here is
         // repaired lazily on the next project-list fetch.
@@ -161,7 +161,7 @@ export function createAuthService(dependencies: AuthDependencies) {
       }
     },
 
-    async login(usernameInput: unknown, passwordInput: unknown) {
+    async login(usernameInput: unknown, passwordInput: unknown, ip?: string) {
       const username = typeof usernameInput === 'string' ? usernameInput : '';
       const password = typeof passwordInput === 'string' ? passwordInput : '';
       if (!username || !password) {
@@ -189,7 +189,7 @@ export function createAuthService(dependencies: AuthDependencies) {
         });
       }
 
-      dependencies.users.updateLastLogin(numericUserId(user.id));
+      dependencies.users.updateLastLogin(numericUserId(user.id), ip);
       return {
         success: true,
         user: { id: user.id, username: user.username, role: user.role },

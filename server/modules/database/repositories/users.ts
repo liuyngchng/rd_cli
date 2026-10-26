@@ -16,13 +16,14 @@ type UserRow = {
   role: string;
   created_at: string;
   last_login: string | null;
+  last_login_ip: string | null;
   is_active: number;
   git_name: string | null;
   git_email: string | null;
   has_completed_onboarding: number;
 };
 
-type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'role' | 'created_at' | 'last_login'>;
+type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'role' | 'created_at' | 'last_login' | 'last_login_ip'>;
 
 type UserGitConfig = {
   git_name: string | null;
@@ -69,13 +70,13 @@ export const userDb = {
       .get(username) as UserRow | undefined;
   },
 
-  /** Updates the last_login timestamp. Non-fatal — logs but does not throw. */
-  updateLastLogin(userId: number): void {
+  /** Updates the last_login timestamp and IP. Non-fatal — logs but does not throw. */
+  updateLastLogin(userId: number, ip?: string): void {
     try {
       const db = getConnection();
       db.prepare(
-        "UPDATE users SET last_login = datetime('now', 'localtime') WHERE id = ?"
-      ).run(userId);
+        "UPDATE users SET last_login = datetime('now', 'localtime'), last_login_ip = ? WHERE id = ?"
+      ).run(ip ?? null, userId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error('Failed to update last login', { error: message });
@@ -87,7 +88,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, role, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
+        'SELECT id, username, role, created_at, last_login, last_login_ip FROM users WHERE id = ? AND is_active = 1'
       )
       .get(userId) as UserPublicRow | undefined;
   },
@@ -97,7 +98,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, role, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
+        'SELECT id, username, role, created_at, last_login, last_login_ip FROM users WHERE is_active = 1 LIMIT 1'
       )
       .get() as UserPublicRow | undefined;
   },
@@ -108,7 +109,7 @@ export const userDb = {
   listUsers(): UserPublicRow[] {
     const db = getConnection();
     return db
-      .prepare('SELECT id, username, role, created_at, last_login, is_active FROM users ORDER BY id ASC')
+      .prepare('SELECT id, username, role, created_at, last_login, last_login_ip, is_active FROM users ORDER BY id ASC')
       .all() as UserPublicRow[];
   },
 

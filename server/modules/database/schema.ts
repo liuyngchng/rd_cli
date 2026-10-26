@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL DEFAULT 'user',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME,
+    last_login_ip TEXT,
     is_active BOOLEAN DEFAULT 1,
     git_name TEXT,
     git_email TEXT,

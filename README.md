@@ -204,13 +204,30 @@ npx electron-builder --projectDir .desktop-build/desktop-app --linux deb
 
 > 也可用 npm 脚本一键完成 build + stage + 打包：`npm run desktop:dist:linux`
 
-## OP
+## 部署
 
-查看用户的最后一次登录时间
+### Docker 部署（Linux 服务器）
 
-```sh
-sqlite3 auth.db "SELECT id, username, last_login FROM users;"
+项目根目录提供 `deploy/deploy.sh` 一键部署脚本。
+
+**前置注意**：容器内进程以 uid=1000 运行。若服务器当前用户 uid 不是 1000，每次部署需按顺序执行：
+
+```bash
+# 1. 把数据目录还给当前用户，让 mkdir 能跑
+sudo chown -R $(id -u):$(id -g) /data1/app/rd_cli/data/rdcli
+
+# 2. 启动容器
+./deploy/deploy.sh
+
+# 3. 容器起来后，把目录还给容器进程（uid=1000），让它能读写
+#    另开终端或在 Ctrl+C 退出日志后执行：
+sudo chown -R 1000:1000 /data1/app/rd_cli/data/rdcli
+docker restart my_rd_cli
 ```
+
+> 首次部署时目录尚不存在，第 1 步可跳过。后续每次重跑都需要这三步循环。
+
+### 用户管理
 
 
 

@@ -31,7 +31,7 @@ export function createAuthRouter(
   router.post('/register', async (req, res, next) => {
     try {
       const body = req.body as { username?: unknown; password?: unknown };
-      res.json(await service.register(body.username, body.password));
+      res.json(await service.register(body.username, body.password, req.ip));
     } catch (error) {
       next(error);
     }
@@ -40,7 +40,7 @@ export function createAuthRouter(
   router.post('/login', async (req, res, next) => {
     try {
       const body = req.body as { username?: unknown; password?: unknown };
-      res.json(await service.login(body.username, body.password));
+      res.json(await service.login(body.username, body.password, req.ip));
     } catch (error) {
       next(error);
     }
