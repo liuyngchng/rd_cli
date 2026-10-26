@@ -48,14 +48,13 @@ docker run -dit \
     --add-host "anthropic.com:::1" \
     --add-host claude.ai:127.0.0.1 \
     --add-host "claude.ai:::1" \
-    -v /data/remote/workspace:/home/rdcli/workspace \
     -v "${DATA_DIR}:/home/rdcli/.rdcli" \
     -v "${DATA_DIR}/claude-projects:/home/rdcli/.claude/projects" \
     -w /home/rdcli/workspace \
     -e PUBLIC_HOST="$PUBLIC_HOST" \
     -e PUBLIC_PORT="$HOST_PORT" \
     -e CONTAINER_NAME="$CONTAINER_NAME" \
-    -e ANTHROPIC_BASE_URL=http://192.168.1.104:16002 \
+    -e ANTHROPIC_BASE_URL=http://api_adapter_g_app:16005 \
     -e ANTHROPIC_AUTH_TOKEN=sk-12345 \
     -e API_TIMEOUT_MS=600000 \
     -e ANTHROPIC_MODEL=deepseek-v4-pro \

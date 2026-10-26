@@ -190,25 +190,8 @@ Environment Variables:
  * cross-module startup dependency is explicit and required.
  */
 export function createCliService(dependencies: CliServiceDependencies): CliApplication {
-  const checkForUpdates = async (silent = false): Promise<boolean> => {
-    try {
-      const latestVersion = await dependencies.getLatestPackageVersion();
-      const currentVersion = dependencies.packageMetadata.version;
-      if (isNewerVersion(latestVersion, currentVersion)) {
-        dependencies.output.log(`\n${terminalTextStyles.warn('[UPDATE]')} New version available: ${terminalTextStyles.bright(latestVersion)} (current: ${currentVersion})`);
-        dependencies.output.log(`         Run ${terminalTextStyles.bright('rdcli update')} to update\n`);
-        return true;
-      }
-      if (!silent) {
-        dependencies.output.log(`${terminalTextStyles.ok('[OK]')} You are on the latest version (${currentVersion})`);
-      }
-      return false;
-    } catch {
-      if (!silent) {
-        dependencies.output.log(`${terminalTextStyles.warn('[WARN]')} Could not check for updates`);
-      }
-      return false;
-    }
+  const checkForUpdates = async (_silent = false): Promise<boolean> => {
+    return false;
   };
 
   const updatePackage = async (): Promise<void> => {

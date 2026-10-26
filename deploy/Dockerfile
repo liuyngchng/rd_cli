@@ -6,11 +6,17 @@
 FROM ubuntu:24.04 AS rdcli-builder
 
 # ---- Proxy support (apt + npm in this stage) -------------------------------
+# Proxy is needed at BUILD time only. We use ARG (not ENV) so the proxy
+# variables are never baked into the final image — the runtime container must
+# reach llm_net / the public internet directly, not through the build proxy.
 ARG HTTP_PROXY=""
 ARG HTTPS_PROXY=""
 ARG NO_PROXY=""
-ENV HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
-    http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY"
+# Lowercase variants: pip ignores the uppercase HTTP_PROXY var for security
+# (httpoxy), so provide the lowercase forms too, derived from the build args.
+ARG http_proxy="$HTTP_PROXY"
+ARG https_proxy="$HTTPS_PROXY"
+ARG no_proxy="$NO_PROXY"
 
 RUN if [ -n "$HTTP_PROXY" ]; then \
         echo 'Acquire::http::Proxy "'$HTTP_PROXY'";' > /etc/apt/apt.conf.d/01proxy; \
@@ -46,11 +52,15 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM ubuntu:24.04
 
 # ---- Proxy support (apt + npm + pip in this stage) -------------------------
+# Proxy is needed at BUILD time only. ARG (not ENV) — never baked into the
+# final image. Lowercase variants are provided for pip (httpoxy — pip ignores
+# the uppercase HTTP_PROXY for security).
 ARG HTTP_PROXY=""
 ARG HTTPS_PROXY=""
 ARG NO_PROXY=""
-ENV HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
-    http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY"
+ARG http_proxy="$HTTP_PROXY"
+ARG https_proxy="$HTTPS_PROXY"
+ARG no_proxy="$NO_PROXY"
 
 RUN if [ -n "$HTTP_PROXY" ]; then \
         echo 'Acquire::http::Proxy "'$HTTP_PROXY'";' > /etc/apt/apt.conf.d/01proxy; \
