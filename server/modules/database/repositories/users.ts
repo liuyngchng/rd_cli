@@ -74,7 +74,7 @@ export const userDb = {
     try {
       const db = getConnection();
       db.prepare(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?'
+        "UPDATE users SET last_login = datetime('now', 'localtime') WHERE id = ?"
       ).run(userId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

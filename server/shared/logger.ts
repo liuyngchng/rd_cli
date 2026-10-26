@@ -92,15 +92,28 @@ const pinoLogger = pino(
         },
       }),
     },
-    // File: daily rolling, 30-day retention.
+    // File: daily rolling, 30-day retention, human-readable timestamps.
     {
       stream: pino.transport({
-        target: 'pino-roll',
-        options: {
-          file: path.join(LOG_DIR, 'server.log'),
-          frequency: 'daily',
-          mkdir: true,
-        },
+        pipeline: [
+          {
+            target: 'pino-pretty',
+            options: {
+              colorize: false,
+              translateTime: 'yyyy-mm-dd HH:MM:ss.l',
+              ignore: 'pid,hostname',
+              messageFormat: '{msg}',
+            },
+          },
+          {
+            target: 'pino-roll',
+            options: {
+              file: path.join(LOG_DIR, 'server.log'),
+              frequency: 'daily',
+              mkdir: true,
+            },
+          },
+        ],
       }),
     },
   ]),

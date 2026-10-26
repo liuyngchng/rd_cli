@@ -204,6 +204,16 @@ npx electron-builder --projectDir .desktop-build/desktop-app --linux deb
 
 > 也可用 npm 脚本一键完成 build + stage + 打包：`npm run desktop:dist:linux`
 
+## OP
+
+查看用户的最后一次登录时间
+
+```sh
+sqlite3 auth.db "SELECT id, username, last_login FROM users;"
+```
+
+
+
 ## 许可证
 
 GNU 通用公共许可证 v3.0 - 详见 LICENSE 文件。
