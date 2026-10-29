@@ -12,6 +12,41 @@ CONTAINER_NAME=my_rd_cli
 HOST_PORT=19004
 CONTAINER_PORT=3001
 
+# 阻断容器内直连 Claude Code 官方/遥测域名，全部指向本地环回。
+# API 请求已通过 ANTHROPIC_BASE_URL 走 llm_net 内的 api_adapter_g_app 代理，不受影响；
+# 这里只拦截官网、更新、遥测、托管 MCP 等非必需外联，保证离线部署不泄露数据。
+ADD_HOSTS=(
+    # Anthropic 核心 API / 站点
+    api.anthropic.com
+    api-staging.anthropic.com
+    anthropic.com
+    www.anthropic.com
+    claude.ai
+    claude.com
+    platform.claude.com
+    mcp-proxy.anthropic.com
+    # 更新 / 下载
+    downloads.claude.ai
+    # 文档 / 状态 / 支持
+    code.claude.com
+    docs.anthropic.com
+    status.anthropic.com
+    status.claude.com
+    support.anthropic.com
+    support.claude.com
+    # 遥测 / 分析
+    api.datadoghq.com
+    browser-intake-us5-datadoghq.com
+    http-intake.logs.us5.datadoghq.com
+    mcp.amplitude.com
+    mcp.intercom.com
+    mcp.sentry.dev
+    telemetry.googleapis.com
+    # 托管 MCP 集成
+    microsoft365.mcp.claude.com
+    slack.mcp.claude.com
+)
+
 # 探测宿主机局域网 IP，用于容器日志中给出容器外可访问的 URL。
 detect_host_ip() {
     local ip
@@ -37,17 +72,19 @@ mkdir -p "$DATA_DIR" \
 
 # 容器内 rdcli 用户 UID=1000 (与 Dockerfile 保持一致)，确保目录权限匹配。
 # 若出现权限问题，手动执行: sudo chown -R 1000 "$DATA_DIR"
+
+# 构建 --add-host 参数数组（每个域名同时封 IPv4 和 IPv6）
+ADD_HOST_ARGS=()
+for d in "${ADD_HOSTS[@]}"; do
+    ADD_HOST_ARGS+=(--add-host "$d:127.0.0.1" --add-host "$d:::1")
+done
+
 docker run -dit \
     --name "$CONTAINER_NAME" \
     --rm \
     --security-opt seccomp=unconfined \
     --network llm_net \
-    --add-host api.anthropic.com:127.0.0.1 \
-    --add-host "api.anthropic.com:::1" \
-    --add-host anthropic.com:127.0.0.1 \
-    --add-host "anthropic.com:::1" \
-    --add-host claude.ai:127.0.0.1 \
-    --add-host "claude.ai:::1" \
+    "${ADD_HOST_ARGS[@]}" \
     -v "${DATA_DIR}:/home/rdcli/.rdcli" \
     -v "${DATA_DIR}/claude-projects:/home/rdcli/.claude/projects" \
     -w /home/rdcli/workspace \
